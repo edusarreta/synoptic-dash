@@ -36,6 +36,7 @@ export default function DataSources() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [testingConnection, setTestingConnection] = useState<string | null>(null);
+  const [editingConnection, setEditingConnection] = useState<DataConnection | null>(null);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -118,29 +119,59 @@ export default function DataSources() {
 
       if (!profile) throw new Error('Failed to get or create profile');
 
-      // For now, we'll store password as plain text (in real implementation, this should be encrypted)
-      const { error } = await supabase
-        .from('data_connections')
-        .insert({
-          account_id: profile.account_id,
+      if (editingConnection) {
+        // Update existing connection
+        const updateData: any = {
           name: formData.name,
           host: formData.host,
           port: formData.port,
           database_name: formData.database_name,
           username: formData.username,
-          encrypted_password: formData.password, // TODO: Encrypt in production
           ssl_enabled: formData.ssl_enabled,
-          created_by: user.id,
+        };
+
+        // Only update password if it's provided
+        if (formData.password) {
+          updateData.encrypted_password = formData.password;
+        }
+
+        const { error } = await supabase
+          .from('data_connections')
+          .update(updateData)
+          .eq('id', editingConnection.id);
+
+        if (error) throw error;
+
+        toast({
+          title: "Conexão atualizada",
+          description: "A conexão foi atualizada com sucesso.",
         });
+      } else {
+        // Create new connection
+        const { error } = await supabase
+          .from('data_connections')
+          .insert({
+            account_id: profile.account_id,
+            name: formData.name,
+            host: formData.host,
+            port: formData.port,
+            database_name: formData.database_name,
+            username: formData.username,
+            encrypted_password: formData.password, // TODO: Encrypt in production
+            ssl_enabled: formData.ssl_enabled,
+            created_by: user.id,
+          });
 
-      if (error) throw error;
+        if (error) throw error;
 
-      toast({
-        title: "Data source added",
-        description: "Your database connection has been saved successfully.",
-      });
+        toast({
+          title: "Data source added",
+          description: "Your database connection has been saved successfully.",
+        });
+      }
 
       setIsDialogOpen(false);
+      setEditingConnection(null);
       setFormData({
         name: "",
         host: "",
@@ -154,7 +185,7 @@ export default function DataSources() {
     } catch (error: any) {
       toast({
         variant: "destructive",
-        title: "Error adding data source",
+        title: editingConnection ? "Erro ao atualizar conexão" : "Error adding data source",
         description: error.message,
       });
     } finally {
@@ -201,6 +232,48 @@ export default function DataSources() {
     }
   };
 
+  const handleEdit = (connection: DataConnection) => {
+    setEditingConnection(connection);
+    setFormData({
+      name: connection.name,
+      host: connection.host || "",
+      port: connection.port || 5432,
+      database_name: connection.database_name || "",
+      username: connection.username || "",
+      password: "", // Don't pre-fill password for security
+      ssl_enabled: connection.ssl_enabled,
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleDelete = async (connectionId: string) => {
+    if (!confirm("Tem certeza que deseja excluir esta conexão? Esta ação não pode ser desfeita.")) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('data_connections')
+        .delete()
+        .eq('id', connectionId);
+
+      if (error) throw error;
+
+      setConnections(connections.filter(conn => conn.id !== connectionId));
+
+      toast({
+        title: "Conexão excluída",
+        description: "A fonte de dados foi excluída com sucesso.",
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Erro ao excluir conexão",
+        description: error.message,
+      });
+    }
+  };
+
   if (isLoading) {
     return (
       <AppLayout>
@@ -226,7 +299,21 @@ export default function DataSources() {
             </p>
           </div>
           
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <Dialog open={isDialogOpen} onOpenChange={(open) => {
+            setIsDialogOpen(open);
+            if (!open) {
+              setEditingConnection(null);
+              setFormData({
+                name: "",
+                host: "",
+                port: 5432,
+                database_name: "",
+                username: "",
+                password: "",
+                ssl_enabled: true,
+              });
+            }
+          }}>
             <DialogTrigger asChild>
               <Button className="gradient-primary">
                 <Plus className="w-4 h-4 mr-2" />
@@ -235,9 +322,9 @@ export default function DataSources() {
             </DialogTrigger>
             <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Add Data Source</DialogTitle>
+                <DialogTitle>{editingConnection ? "Editar Fonte de Dados" : "Add Data Source"}</DialogTitle>
                 <DialogDescription>
-                  Connect to your data source to start analyzing your data
+                  {editingConnection ? "Atualize as configurações da sua conexão" : "Connect to your data source to start analyzing your data"}
                 </DialogDescription>
               </DialogHeader>
               
@@ -449,7 +536,7 @@ export default function DataSources() {
                 
                  <DialogFooter>
                   <Button type="submit" disabled={isSubmitting} className="gradient-primary">
-                    {isSubmitting ? "Adding..." : "Add Data Source"}
+                    {isSubmitting ? (editingConnection ? "Atualizando..." : "Adding...") : (editingConnection ? "Atualizar Conexão" : "Add Data Source")}
                   </Button>
                 </DialogFooter>
               </form>
@@ -557,10 +644,19 @@ export default function DataSources() {
                     >
                       {testingConnection === connection.id ? "Testing..." : "Test"}
                     </Button>
-                    <Button size="sm" variant="outline">
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => handleEdit(connection)}
+                    >
                       <Edit className="w-4 h-4" />
                     </Button>
-                    <Button size="sm" variant="outline" className="text-destructive hover:text-destructive">
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="text-destructive hover:text-destructive"
+                      onClick={() => handleDelete(connection.id)}
+                    >
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
