@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useAuth } from './useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
@@ -64,12 +64,13 @@ export function useDatabase() {
     }
   };
 
-  const loadTables = async (connectionId: string) => {
+  const loadTables = useCallback(async (connectionId: string) => {
     if (!connectionId) {
       setTables([]);
       return [];
     }
     
+    console.log('Loading tables for connection:', connectionId);
     setLoading(true);
     setTables([]); // Clear tables immediately when starting to load
     
@@ -81,6 +82,7 @@ export function useDatabase() {
       if (error) throw error;
 
       if (data.success && data.tables) {
+        console.log('Tables loaded successfully:', data.tables.length);
         setTables(data.tables);
         return data.tables;
       } else {
@@ -98,7 +100,7 @@ export function useDatabase() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
   const executeQuery = async (connectionId: string, sqlQuery: string) => {
     setLoading(true);
