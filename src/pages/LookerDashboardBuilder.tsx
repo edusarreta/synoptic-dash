@@ -179,16 +179,22 @@ export default function LookerDashboardBuilder() {
       console.log('🔄 Loading fields for table:', tableName, 'in connection:', selectedDataSource);
       
       const { data, error } = await supabase.functions.invoke('get-database-schema', {
-        body: { connectionId: selectedDataSource, tableName }
+        body: { connectionId: selectedDataSource }
       });
 
       if (error) throw error;
       
-      console.log('📊 Raw fields data:', data);
+      console.log('📊 Raw schema data:', data);
+      
+      // Find the specific table in the schema
+      const table = data.tables?.find((t: any) => t.name === tableName);
+      if (!table || !table.columns) {
+        throw new Error(`Table ${tableName} not found in schema`);
+      }
       
       // Process fields to match our DataField interface with better type detection
-      const processedFields: DataField[] = data.fields?.map((field: any) => {
-        const fieldType = field.type?.toLowerCase() || '';
+      const processedFields: DataField[] = table.columns?.map((field: any) => {
+        const fieldType = field.dataType?.toLowerCase() || '';
         const fieldName = field.name?.toLowerCase() || '';
         
         // Better logic for determining if field is dimension or metric
@@ -205,13 +211,15 @@ export default function LookerDashboardBuilder() {
           fieldName.includes('total') ||
           fieldName.includes('count') ||
           fieldName.includes('sum') ||
-          fieldName.includes('value');
+          fieldName.includes('value') ||
+          fieldName.includes('vendas') ||
+          fieldName.includes('valor');
         
         return {
           id: `${tableName}.${field.name}`,
           name: `${tableName}.${field.name}`,
           type: isMetric ? 'metric' as const : 'dimension' as const,
-          dataType: field.type || 'unknown',
+          dataType: field.dataType || 'unknown',
           table: tableName
         };
       }) || [];
