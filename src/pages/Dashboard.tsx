@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
+import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, BarChart3, Database, Users, TrendingUp, Sparkles, Edit2, Trash2 } from "lucide-react";
+import { Plus, BarChart3, Database, Users, TrendingUp, Sparkles, Edit2, Trash2, GripVertical } from "lucide-react";
 import { AIInsightsModal } from "@/components/ai/AIInsightsModal";
 import { ChartRenderer } from "@/components/charts/ChartRenderer";
 import { SmartDashboardFilters, SmartFilterState } from "@/components/dashboard/SmartDashboardFilters";
@@ -206,6 +207,29 @@ export default function Dashboard() {
     }
   };
 
+  const handleDragEnd = (result: any) => {
+    if (!result.destination) return;
+
+    const items = Array.from(filteredCharts);
+    const [reorderedItem] = items.splice(result.source.index, 1);
+    items.splice(result.destination.index, 0, reorderedItem);
+
+    // Update local state immediately for better UX
+    setFilteredCharts(items);
+    
+    // Update the original array to maintain order
+    const reorderedSavedCharts = [...savedCharts];
+    const sourceChart = reorderedSavedCharts.find(chart => chart.id === reorderedItem.id);
+    if (sourceChart) {
+      const sourceIndex = reorderedSavedCharts.findIndex(chart => chart.id === sourceChart.id);
+      reorderedSavedCharts.splice(sourceIndex, 1);
+      reorderedSavedCharts.splice(result.destination.index, 0, sourceChart);
+      setSavedCharts(reorderedSavedCharts);
+    }
+
+    toast.success('Ordem dos gráficos atualizada');
+  };
+
   return (
     <AppLayout>
       <div className="p-6 space-y-6">
@@ -317,63 +341,92 @@ export default function Dashboard() {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {filteredCharts.map((chart) => (
-                <Card key={chart.id} className="glass-card border-0 shadow-card">
-                  <CardHeader className="pb-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle className="text-lg">{chart.name}</CardTitle>
-                        {chart.description && (
-                          <CardDescription className="mt-1">
-                            {chart.description}
-                          </CardDescription>
+            <DragDropContext onDragEnd={handleDragEnd}>
+              <Droppable droppableId="charts">
+                {(provided) => (
+                  <div
+                    {...provided.droppableProps}
+                    ref={provided.innerRef}
+                    className="grid grid-cols-1 lg:grid-cols-2 gap-6"
+                  >
+                    {filteredCharts.map((chart, index) => (
+                      <Draggable key={chart.id} draggableId={chart.id} index={index}>
+                        {(provided, snapshot) => (
+                          <Card 
+                            ref={provided.innerRef}
+                            {...provided.draggableProps}
+                            className={`glass-card border-0 shadow-card transition-all duration-200 ${
+                              snapshot.isDragging ? 'rotate-2 scale-105 shadow-xl' : ''
+                            }`}
+                          >
+                            <CardHeader className="pb-4">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                  <div 
+                                    {...provided.dragHandleProps}
+                                    className="cursor-grab active:cursor-grabbing p-1 rounded hover:bg-muted/50 transition-colors"
+                                  >
+                                    <GripVertical className="w-4 h-4 text-muted-foreground" />
+                                  </div>
+                                  <div>
+                                    <CardTitle className="text-lg">{chart.name}</CardTitle>
+                                    {chart.description && (
+                                      <CardDescription className="mt-1">
+                                        {chart.description}
+                                      </CardDescription>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex gap-2">
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm"
+                                    onClick={() => navigate(`/charts?edit=${chart.id}`)}
+                                  >
+                                    <Edit2 className="w-4 h-4" />
+                                  </Button>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm"
+                                    onClick={() => handleDeleteChart(chart.id)}
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="h-64 border rounded-lg p-4 bg-background/50">
+                                <ChartRenderer
+                                  config={{
+                                    type: chart.chart_type as any,
+                                    title: chart.name,
+                                    description: chart.description,
+                                    xAxis: chart.chart_config?.xAxis || '',
+                                    yAxis: chart.chart_config?.yAxis || [],
+                                    data: chart.filteredData || chart.data || []
+                                  }}
+                                />
+                              </div>
+                              <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
+                                <span>Tipo: {chart.chart_type}</span>
+                                <span>
+                                  {chart.filteredData ? chart.filteredData.length : chart.data?.length || 0} registros
+                                  {chart.filteredData && chart.filteredData.length !== (chart.data?.length || 0) && 
+                                    ` (${chart.data?.length || 0} total)`
+                                  }
+                                </span>
+                              </div>
+                            </CardContent>
+                          </Card>
                         )}
-                      </div>
-                      <div className="flex gap-2">
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={() => navigate(`/charts?edit=${chart.id}`)}
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={() => handleDeleteChart(chart.id)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-64 border rounded-lg p-4 bg-background/50">
-                      <ChartRenderer
-                        config={{
-                          type: chart.chart_type as any,
-                          title: chart.name,
-                          description: chart.description,
-                          xAxis: chart.chart_config?.xAxis || '',
-                          yAxis: chart.chart_config?.yAxis || [],
-                          data: chart.filteredData || chart.data || []
-                        }}
-                      />
-                    </div>
-                    <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
-                      <span>Tipo: {chart.chart_type}</span>
-                      <span>
-                        {chart.filteredData ? chart.filteredData.length : chart.data?.length || 0} registros
-                        {chart.filteredData && chart.filteredData.length !== (chart.data?.length || 0) && 
-                          ` (${chart.data?.length || 0} total)`
-                        }
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                      </Draggable>
+                    ))}
+                    {provided.placeholder}
+                  </div>
+                )}
+              </Droppable>
+            </DragDropContext>
           )}
         </div>
 
