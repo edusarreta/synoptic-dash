@@ -46,6 +46,15 @@ export default function DataSources() {
     username: "",
     password: "",
     ssl_enabled: true,
+    // Supabase fields
+    supabase_url: "",
+    anon_key: "",
+    service_key: "",
+    // REST API fields
+    base_url: "",
+    bearer_token: "",
+    api_key: "",
+    header_name: "",
   });
 
   useEffect(() => {
@@ -123,16 +132,32 @@ export default function DataSources() {
         // Update existing connection
         const updateData: any = {
           name: formData.name,
-          host: formData.host,
-          port: formData.port,
-          database_name: formData.database_name,
-          username: formData.username,
-          ssl_enabled: formData.ssl_enabled,
+          connection_type: selectedType,
         };
 
-        // Only update password if it's provided
-        if (formData.password) {
-          updateData.encrypted_password = formData.password;
+        if (selectedType === 'postgresql') {
+          updateData.host = formData.host;
+          updateData.port = formData.port;
+          updateData.database_name = formData.database_name;
+          updateData.username = formData.username;
+          updateData.ssl_enabled = formData.ssl_enabled;
+          if (formData.password) {
+            updateData.encrypted_password = formData.password;
+          }
+        } else if (selectedType === 'supabase') {
+          updateData.connection_config = {
+            url: formData.supabase_url,
+            anon_key: formData.anon_key,
+            service_key: formData.service_key,
+          };
+        } else if (selectedType === 'rest_api') {
+          updateData.connection_config = {
+            base_url: formData.base_url,
+            auth_type: authType,
+            bearer_token: formData.bearer_token,
+            api_key: formData.api_key,
+            header_name: formData.header_name,
+          };
         }
 
         const { error } = await supabase
@@ -148,19 +173,39 @@ export default function DataSources() {
         });
       } else {
         // Create new connection
+        const insertData: any = {
+          account_id: profile.account_id,
+          name: formData.name,
+          connection_type: selectedType,
+          created_by: user.id,
+        };
+
+        if (selectedType === 'postgresql') {
+          insertData.host = formData.host;
+          insertData.port = formData.port;
+          insertData.database_name = formData.database_name;
+          insertData.username = formData.username;
+          insertData.encrypted_password = formData.password;
+          insertData.ssl_enabled = formData.ssl_enabled;
+        } else if (selectedType === 'supabase') {
+          insertData.connection_config = {
+            url: formData.supabase_url,
+            anon_key: formData.anon_key,
+            service_key: formData.service_key,
+          };
+        } else if (selectedType === 'rest_api') {
+          insertData.connection_config = {
+            base_url: formData.base_url,
+            auth_type: authType,
+            bearer_token: formData.bearer_token,
+            api_key: formData.api_key,
+            header_name: formData.header_name,
+          };
+        }
+
         const { error } = await supabase
           .from('data_connections')
-          .insert({
-            account_id: profile.account_id,
-            name: formData.name,
-            host: formData.host,
-            port: formData.port,
-            database_name: formData.database_name,
-            username: formData.username,
-            encrypted_password: formData.password, // TODO: Encrypt in production
-            ssl_enabled: formData.ssl_enabled,
-            created_by: user.id,
-          });
+          .insert(insertData);
 
         if (error) throw error;
 
@@ -180,7 +225,15 @@ export default function DataSources() {
         username: "",
         password: "",
         ssl_enabled: true,
+        supabase_url: "",
+        anon_key: "",
+        service_key: "",
+        base_url: "",
+        bearer_token: "",
+        api_key: "",
+        header_name: "",
       });
+      setAuthType('none');
       loadConnections();
     } catch (error: any) {
       toast({
@@ -234,15 +287,62 @@ export default function DataSources() {
 
   const handleEdit = (connection: DataConnection) => {
     setEditingConnection(connection);
-    setFormData({
-      name: connection.name,
-      host: connection.host || "",
-      port: connection.port || 5432,
-      database_name: connection.database_name || "",
-      username: connection.username || "",
-      password: "", // Don't pre-fill password for security
-      ssl_enabled: connection.ssl_enabled,
-    });
+    setSelectedType(connection.connection_type as any);
+    
+    if (connection.connection_type === 'postgresql') {
+      setFormData({
+        name: connection.name,
+        host: connection.host || "",
+        port: connection.port || 5432,
+        database_name: connection.database_name || "",
+        username: connection.username || "",
+        password: "", // Don't pre-fill password for security
+        ssl_enabled: connection.ssl_enabled,
+        supabase_url: "",
+        anon_key: "",
+        service_key: "",
+        base_url: "",
+        bearer_token: "",
+        api_key: "",
+        header_name: "",
+      });
+    } else if (connection.connection_type === 'supabase') {
+      setFormData({
+        name: connection.name,
+        host: "",
+        port: 5432,
+        database_name: "",
+        username: "",
+        password: "",
+        ssl_enabled: true,
+        supabase_url: connection.connection_config?.url || "",
+        anon_key: connection.connection_config?.anon_key || "",
+        service_key: "", // Don't pre-fill for security
+        base_url: "",
+        bearer_token: "",
+        api_key: "",
+        header_name: "",
+      });
+    } else if (connection.connection_type === 'rest_api') {
+      setFormData({
+        name: connection.name,
+        host: "",
+        port: 5432,
+        database_name: "",
+        username: "",
+        password: "",
+        ssl_enabled: true,
+        supabase_url: "",
+        anon_key: "",
+        service_key: "",
+        base_url: connection.connection_config?.base_url || "",
+        bearer_token: "",
+        api_key: "",
+        header_name: connection.connection_config?.header_name || "",
+      });
+      setAuthType(connection.connection_config?.auth_type || 'none');
+    }
+    
     setIsDialogOpen(true);
   };
 
@@ -303,6 +403,8 @@ export default function DataSources() {
             setIsDialogOpen(open);
             if (!open) {
               setEditingConnection(null);
+              setSelectedType('postgresql');
+              setAuthType('none');
               setFormData({
                 name: "",
                 host: "",
@@ -311,6 +413,13 @@ export default function DataSources() {
                 username: "",
                 password: "",
                 ssl_enabled: true,
+                supabase_url: "",
+                anon_key: "",
+                service_key: "",
+                base_url: "",
+                bearer_token: "",
+                api_key: "",
+                header_name: "",
               });
             }
           }}>
@@ -445,93 +554,107 @@ export default function DataSources() {
                   {/* Supabase Fields */}
                   {selectedType === 'supabase' && (
                     <>
-                      <div className="space-y-2">
-                        <Label htmlFor="supabase_url">Project URL</Label>
-                        <Input
-                          id="supabase_url"
-                          placeholder="https://your-project.supabase.co"
-                          required
-                        />
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label htmlFor="anon_key">Anon Key (Public)</Label>
-                        <Input
-                          id="anon_key"
-                          placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                          required
-                        />
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label htmlFor="service_key">Service Role Key (Optional)</Label>
-                        <Input
-                          id="service_key"
-                          type="password"
-                          placeholder="For admin access to all tables"
-                        />
-                      </div>
+                       <div className="space-y-2">
+                         <Label htmlFor="supabase_url">Project URL</Label>
+                         <Input
+                           id="supabase_url"
+                           value={formData.supabase_url}
+                           onChange={(e) => setFormData({ ...formData, supabase_url: e.target.value })}
+                           placeholder="https://your-project.supabase.co"
+                           required
+                         />
+                       </div>
+                       
+                       <div className="space-y-2">
+                         <Label htmlFor="anon_key">Anon Key (Public)</Label>
+                         <Input
+                           id="anon_key"
+                           value={formData.anon_key}
+                           onChange={(e) => setFormData({ ...formData, anon_key: e.target.value })}
+                           placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                           required
+                         />
+                       </div>
+                       
+                       <div className="space-y-2">
+                         <Label htmlFor="service_key">Service Role Key (Optional)</Label>
+                         <Input
+                           id="service_key"
+                           type="password"
+                           value={formData.service_key}
+                           onChange={(e) => setFormData({ ...formData, service_key: e.target.value })}
+                           placeholder="For admin access to all tables"
+                         />
+                       </div>
                     </>
                   )}
 
-                  {/* REST API Fields */}
-                  {selectedType === 'rest_api' && (
-                    <>
-                      <div className="space-y-2">
-                        <Label htmlFor="base_url">Base URL</Label>
-                        <Input
-                          id="base_url"
-                          placeholder="https://api.example.com"
-                          required
-                        />
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label>Authentication Type</Label>
-                        <Select value={authType} onValueChange={setAuthType}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">No Authentication</SelectItem>
-                            <SelectItem value="bearer">Bearer Token</SelectItem>
-                            <SelectItem value="api_key">API Key</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      
-                      {authType === 'bearer' && (
-                        <div className="space-y-2">
-                          <Label htmlFor="bearer_token">Bearer Token</Label>
-                          <Input
-                            id="bearer_token"
-                            type="password"
-                            placeholder="Your bearer token"
-                          />
-                        </div>
-                      )}
-                      
-                      {authType === 'api_key' && (
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="header_name">Header Name</Label>
-                            <Input
-                              id="header_name"
-                              placeholder="X-API-Key"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="api_key">API Key</Label>
-                            <Input
-                              id="api_key"
-                              type="password"
-                              placeholder="Your API key"
-                            />
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  )}
+                   {/* REST API Fields */}
+                   {selectedType === 'rest_api' && (
+                     <>
+                       <div className="space-y-2">
+                         <Label htmlFor="base_url">Base URL</Label>
+                         <Input
+                           id="base_url"
+                           value={formData.base_url}
+                           onChange={(e) => setFormData({ ...formData, base_url: e.target.value })}
+                           placeholder="https://api.example.com"
+                           required
+                         />
+                       </div>
+                       
+                       <div className="space-y-2">
+                         <Label>Authentication Type</Label>
+                         <Select value={authType} onValueChange={setAuthType}>
+                           <SelectTrigger>
+                             <SelectValue />
+                           </SelectTrigger>
+                           <SelectContent>
+                             <SelectItem value="none">No Authentication</SelectItem>
+                             <SelectItem value="bearer">Bearer Token</SelectItem>
+                             <SelectItem value="api_key">API Key</SelectItem>
+                           </SelectContent>
+                         </Select>
+                       </div>
+                       
+                       {authType === 'bearer' && (
+                         <div className="space-y-2">
+                           <Label htmlFor="bearer_token">Bearer Token</Label>
+                           <Input
+                             id="bearer_token"
+                             type="password"
+                             value={formData.bearer_token}
+                             onChange={(e) => setFormData({ ...formData, bearer_token: e.target.value })}
+                             placeholder="Your bearer token"
+                           />
+                         </div>
+                       )}
+                       
+                       {authType === 'api_key' && (
+                         <div className="grid grid-cols-2 gap-4">
+                           <div className="space-y-2">
+                             <Label htmlFor="header_name">Header Name</Label>
+                             <Input
+                               id="header_name"
+                               value={formData.header_name}
+                               onChange={(e) => setFormData({ ...formData, header_name: e.target.value })}
+                               placeholder="X-API-Key"
+                             />
+                           </div>
+                           <div className="space-y-2">
+                             <Label htmlFor="api_key">API Key</Label>
+                             <Input
+                               id="api_key"
+                               type="password"
+                               value={formData.api_key}
+                               onChange={(e) => setFormData({ ...formData, api_key: e.target.value })}
+                               placeholder="Your API key"
+                             />
+                           </div>
+                         </div>
+                       )}
+                     </>
+                   )}
                 </div>
                 
                  <DialogFooter>
