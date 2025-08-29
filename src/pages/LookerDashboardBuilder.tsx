@@ -173,6 +173,8 @@ export default function LookerDashboardBuilder() {
     if (!tableName || !selectedDataSource) return;
     
     setIsLoadingFields(true);
+    setDataFields([]); // Clear existing fields
+    
     try {
       console.log('🔄 Loading fields for table:', tableName, 'in connection:', selectedDataSource);
       
@@ -182,19 +184,39 @@ export default function LookerDashboardBuilder() {
 
       if (error) throw error;
       
-      console.log('📊 Fields loaded:', data);
+      console.log('📊 Raw fields data:', data);
       
-      // Process fields to match our DataField interface
-      const processedFields: DataField[] = data.fields?.map((field: any) => ({
-        id: `${tableName}.${field.name}`,
-        name: `${tableName}.${field.name}`,
-        type: field.type?.includes('char') || field.type?.includes('text') || field.type?.includes('varchar') 
-          ? 'dimension' as const 
-          : 'metric' as const,
-        dataType: field.type || 'unknown',
-        table: tableName
-      })) || [];
+      // Process fields to match our DataField interface with better type detection
+      const processedFields: DataField[] = data.fields?.map((field: any) => {
+        const fieldType = field.type?.toLowerCase() || '';
+        const fieldName = field.name?.toLowerCase() || '';
+        
+        // Better logic for determining if field is dimension or metric
+        const isMetric = 
+          fieldType.includes('int') || 
+          fieldType.includes('decimal') || 
+          fieldType.includes('float') || 
+          fieldType.includes('numeric') || 
+          fieldType.includes('real') || 
+          fieldType.includes('double') ||
+          fieldName.includes('amount') ||
+          fieldName.includes('price') ||
+          fieldName.includes('cost') ||
+          fieldName.includes('total') ||
+          fieldName.includes('count') ||
+          fieldName.includes('sum') ||
+          fieldName.includes('value');
+        
+        return {
+          id: `${tableName}.${field.name}`,
+          name: `${tableName}.${field.name}`,
+          type: isMetric ? 'metric' as const : 'dimension' as const,
+          dataType: field.type || 'unknown',
+          table: tableName
+        };
+      }) || [];
       
+      console.log('📊 Processed fields:', processedFields);
       setDataFields(processedFields);
     } catch (error: any) {
       console.error('❌ Error loading table fields:', error);
@@ -227,7 +249,11 @@ export default function LookerDashboardBuilder() {
   const handleTableChange = (tableName: string) => {
     console.log('🔄 Table changed to:', tableName);
     setSelectedTable(tableName);
-    loadTableFields(tableName);
+    if (tableName) {
+      loadTableFields(tableName);
+    } else {
+      setDataFields([]);
+    }
   };
 
   const processDataForWidget = (widget: Widget) => {
@@ -520,6 +546,19 @@ export default function LookerDashboardBuilder() {
             />
             
             <div className="flex items-center space-x-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="gap-2"
+                onClick={() => {
+                  setSelectedDataSource('Vendas Globais');
+                  setSelectedTable('');
+                  setDataFields(MOCK_DATA['Vendas Globais'].fields);
+                }}
+              >
+                📊 Dados de Exemplo
+              </Button>
+              
               <Button variant="outline" size="sm" className="gap-2">
                 <Share2 className="w-4 h-4" />
                 Compartilhar

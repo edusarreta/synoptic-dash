@@ -120,14 +120,98 @@ export function LookerDataPanel({
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto p-4">
         {!selectedDataSource ? (
-          <div className="p-4 text-center">
+          <div className="text-center">
             <Database className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
             <h3 className="font-medium mb-2">Selecione uma Fonte de Dados</h3>
             <p className="text-sm text-muted-foreground">
               Escolha uma conexão de banco de dados para começar a construir seu relatório.
             </p>
+          </div>
+        ) : selectedDataSource === 'Vendas Globais' ? (
+          // Show mock data fields directly
+          <div>
+            <div className="relative mb-3">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+              <Input
+                placeholder="Buscar campos..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9 text-sm"
+              />
+            </div>
+
+            <div className="space-y-4">
+              {/* Render fields directly for mock data */}
+              {dimensionFields.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
+                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                    Dimensões ({dimensionFields.length})
+                  </h3>
+                  <div className="space-y-1">
+                    {dimensionFields.map((field) => (
+                      <div
+                        key={field.id}
+                        className="field-item flex items-center p-2 rounded-md text-sm select-none bg-green-100 text-green-800 cursor-grab hover:bg-green-200 transition-colors"
+                        draggable={true}
+                        onDragStart={(e) => {
+                          console.log('🎯 Starting drag for field:', field);
+                          const dragData = {
+                            type: 'field',
+                            field: field
+                          };
+                          e.dataTransfer.setData('application/json', JSON.stringify(dragData));
+                          e.dataTransfer.effectAllowed = 'copy';
+                        }}
+                      >
+                        <div className="w-2 h-2 rounded-full mr-2 bg-green-500"></div>
+                        {getFieldIcon(field.dataType)}
+                        <span className="truncate flex-1">{field.name.split('.')[1] || field.name}</span>
+                        <span className="text-xs text-green-600 opacity-75 ml-1">
+                          {field.dataType}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {metricFields.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
+                    <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                    Métricas ({metricFields.length})
+                  </h3>
+                  <div className="space-y-1">
+                    {metricFields.map((field) => (
+                      <div
+                        key={field.id}
+                        className="field-item flex items-center p-2 rounded-md text-sm select-none bg-blue-100 text-blue-800 cursor-grab hover:bg-blue-200 transition-colors"
+                        draggable={true}
+                        onDragStart={(e) => {
+                          console.log('🎯 Starting drag for field:', field);
+                          const dragData = {
+                            type: 'field',
+                            field: field
+                          };
+                          e.dataTransfer.setData('application/json', JSON.stringify(dragData));
+                          e.dataTransfer.effectAllowed = 'copy';
+                        }}
+                      >
+                        <div className="w-2 h-2 rounded-full mr-2 bg-blue-500"></div>
+                        {getFieldIcon(field.dataType)}
+                        <span className="truncate flex-1">{field.name.split('.')[1] || field.name}</span>
+                        <span className="text-xs text-blue-600 opacity-75 ml-1">
+                          {field.dataType}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         ) : selectedDataSource !== 'Vendas Globais' && tables.length === 0 && isLoadingFields ? (
           <div className="text-center py-8">
@@ -282,7 +366,7 @@ export function LookerDataPanel({
             </div>
           </div>
         ) : selectedDataSource && !isLoadingFields ? (
-          <div className="p-4 text-center">
+          <div className="text-center">
             <BarChart3 className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
             <h3 className="font-medium mb-2">Nenhum Campo Disponível</h3>
             <p className="text-sm text-muted-foreground">
