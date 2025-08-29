@@ -10,7 +10,8 @@ import {
   Plus,
   CreditCard,
   Bot,
-  ShoppingBag
+  ShoppingBag,
+  Presentation
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
@@ -37,6 +38,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 const navigationItems = [
+  { title: "Looker Builder", url: "/looker-builder", icon: Presentation },
   { title: "Dashboards", url: "/dashboards", icon: LayoutDashboard },
   { title: "Charts", url: "/charts", icon: BarChart3 },
   { title: "Data Sources", url: "/data-sources", icon: Database },
