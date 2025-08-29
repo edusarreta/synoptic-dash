@@ -30,7 +30,7 @@ export default function ChartBuilder() {
   const { connections, tables, loading, loadConnections, loadTables, executeQuery } = useDatabase();
   
   // Chart configuration
-  const [chartType, setChartType] = useState<'table' | 'bar' | 'line' | 'pie' | 'kpi'>('table');
+  const [chartType, setChartType] = useState<'table' | 'bar' | 'line' | 'pie' | 'kpi' | 'area' | 'composed' | 'scatter' | 'radial' | 'treemap' | 'funnel' | 'advanced-table'>('advanced-table');
   const [chartTitle, setChartTitle] = useState('');
   const [chartDescription, setChartDescription] = useState('');
   
@@ -298,11 +298,17 @@ export default function ChartBuilder() {
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="max-h-80">
+                        <SelectItem value="advanced-table">
+                          <div className="flex items-center gap-2">
+                            <Table className="w-4 h-4" />
+                            Advanced Table
+                          </div>
+                        </SelectItem>
                         <SelectItem value="table">
                           <div className="flex items-center gap-2">
                             <Table className="w-4 h-4" />
-                            Table
+                            Simple Table
                           </div>
                         </SelectItem>
                         <SelectItem value="bar">
@@ -317,10 +323,28 @@ export default function ChartBuilder() {
                             Line Chart
                           </div>
                         </SelectItem>
+                        <SelectItem value="area">
+                          <div className="flex items-center gap-2">
+                            <LineChart className="w-4 h-4" />
+                            Area Chart
+                          </div>
+                        </SelectItem>
                         <SelectItem value="pie">
                           <div className="flex items-center gap-2">
                             <PieChart className="w-4 h-4" />
                             Pie Chart
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="radial">
+                          <div className="flex items-center gap-2">
+                            <PieChart className="w-4 h-4" />
+                            Radial Chart
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="scatter">
+                          <div className="flex items-center gap-2">
+                            <Hash className="w-4 h-4" />
+                            Scatter Plot
                           </div>
                         </SelectItem>
                         <SelectItem value="kpi">
