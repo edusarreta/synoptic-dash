@@ -129,6 +129,7 @@ export function AdvancedDashboard({ charts, onDeleteChart, onCreateChart, smartF
   }, [charts]);
 
   const handleEditChart = useCallback((chartId: string) => {
+    console.log('Navigating to edit chart:', chartId);
     navigate(`/charts?edit=${chartId}`);
   }, [navigate]);
 
@@ -261,7 +262,10 @@ export function AdvancedDashboard({ charts, onDeleteChart, onCreateChart, smartF
               </Button>
             </div>
 
-            <Button size="sm" onClick={onCreateChart}>
+            <Button size="sm" onClick={() => {
+              console.log('Create chart button clicked');
+              onCreateChart();
+            }}>
               <Plus className="w-4 h-4 mr-2" />
               Novo Gráfico
             </Button>
@@ -279,7 +283,10 @@ export function AdvancedDashboard({ charts, onDeleteChart, onCreateChart, smartF
               <p className="text-muted-foreground mb-4 max-w-md">
                 Comece criando seu primeiro gráfico para visualizar seus dados de forma interativa
               </p>
-              <Button onClick={onCreateChart}>
+              <Button onClick={() => {
+                console.log('Create first chart button clicked');
+                onCreateChart();
+              }}>
                 <Plus className="w-4 h-4 mr-2" />
                 Criar Primeiro Gráfico
               </Button>

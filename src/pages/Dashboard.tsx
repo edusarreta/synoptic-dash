@@ -139,6 +139,9 @@ export default function Dashboard() {
   };
 
   const applySmartFilters = () => {
+    console.log('Applying smart filters:', smartFilters);
+    console.log('Original charts:', savedCharts.length);
+    
     let filtered = [...savedCharts];
     
     filtered = filtered.map(chart => {
@@ -147,6 +150,7 @@ export default function Dashboard() {
       }
       
       let chartData = [...chart.data];
+      const originalCount = chartData.length;
       
       // Apply date range filter
       if (smartFilters.dateRange.from && smartFilters.dateRange.to && smartFilters.dateRange.field) {
@@ -154,37 +158,45 @@ export default function Dashboard() {
           const rowDate = new Date(row[smartFilters.dateRange.field]);
           return rowDate >= smartFilters.dateRange.from! && rowDate <= smartFilters.dateRange.to!;
         });
+        console.log(`Date filter applied to ${chart.name}: ${originalCount} -> ${chartData.length}`);
       }
       
       // Apply field filters
       Object.entries(smartFilters.fieldFilters).forEach(([fieldName, filter]) => {
         if (filter.values.length > 0) {
+          const beforeCount = chartData.length;
           chartData = chartData.filter(row => {
             return filter.values.includes(String(row[fieldName]));
           });
+          console.log(`Field filter ${fieldName} applied to ${chart.name}: ${beforeCount} -> ${chartData.length}`);
         }
       });
       
       // Apply text filters
       Object.entries(smartFilters.textFilters).forEach(([fieldName, filter]) => {
         if (filter.value) {
+          const beforeCount = chartData.length;
           chartData = chartData.filter(row => {
             return String(row[fieldName]).toLowerCase().includes(filter.value.toLowerCase());
           });
+          console.log(`Text filter ${fieldName} applied to ${chart.name}: ${beforeCount} -> ${chartData.length}`);
         }
       });
       
       return { ...chart, filteredData: chartData };
     });
     
+    console.log('Filtered charts:', filtered.length);
     setFilteredCharts(filtered);
   };
 
   const handleSmartFiltersChange = (newFilters: SmartFilterState) => {
+    console.log('Smart filters changed:', newFilters);
     setSmartFilters(newFilters);
   };
 
   const handleCreateChart = () => {
+    console.log('Navigating to create chart...');
     navigate('/charts');
   };
 
