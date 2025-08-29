@@ -202,76 +202,65 @@ serve(async (req) => {
         try {
           console.log('Connected to Supabase, fetching schema...');
           
-          // Get tables from information_schema
-          const { data: tablesData, error: tablesError } = await supabaseClient
-            .from('information_schema.tables')
-            .select('table_name, table_type')
-            .eq('table_schema', 'public')
-            .in('table_type', ['BASE TABLE', 'VIEW']);
+          // Get tables using REST API metadata (information_schema is not accessible with standard keys)
+          const response = await fetch(`${supabaseUrl}/rest/v1/`, {
+            headers: {
+              'apikey': apiKey,
+              'Authorization': `Bearer ${apiKey}`,
+              'Accept': 'application/json'
+            }
+          });
           
-          if (tablesError && !tablesError.message?.includes('permission denied')) {
-            throw tablesError;
-          }
+          let tables = [];
           
-          // If information_schema is not accessible, try to get tables using RPC or alternative method
-          let tables = tablesData || [];
-          
-          if (tables.length === 0) {
-            console.log('Trying alternative method to get table names...');
-            // Try to use the REST API to get table metadata
-            const response = await fetch(`${supabaseUrl}/rest/v1/`, {
-              headers: {
-                'apikey': apiKey,
-                'Authorization': `Bearer ${apiKey}`,
-                'Accept': 'application/json'
-              }
-            });
-            
-            if (response.ok) {
-              const openApiSpec = await response.json();
-              if (openApiSpec?.definitions) {
-                tables = Object.keys(openApiSpec.definitions).map(tableName => ({
-                  table_name: tableName,
-                  table_type: 'BASE TABLE'
-                }));
-              }
+          if (response.ok) {
+            const openApiSpec = await response.json();
+            if (openApiSpec?.definitions) {
+              tables = Object.keys(openApiSpec.definitions).map(tableName => ({
+                table_name: tableName,
+                table_type: 'BASE TABLE'
+              }));
             }
           }
+          
           
           // For each table, get its columns
           const tablesWithColumns = [];
           
           for (const table of tables.slice(0, 20)) { // Limit to first 20 tables to avoid timeout
             try {
-              const { data: columnsData, error: columnsError } = await supabaseClient
-                .from('information_schema.columns')
-                .select('column_name, data_type, is_nullable, column_default, ordinal_position')
-                .eq('table_schema', 'public')
-                .eq('table_name', table.table_name)
-                .order('ordinal_position');
+              // Get columns by trying to fetch a sample row to determine structure
+              let columns = [];
               
-              let columns = columnsData || [];
-              
-              // If we can't get columns from information_schema, try to get a sample row
-              if (columns.length === 0) {
-                try {
-                  const { data: sampleData } = await supabaseClient
+              try {
+                const { data: sampleData } = await supabaseClient
+                  .from(table.table_name)
+                  .select('*')
+                  .limit(1);
+                
+                if (sampleData && sampleData.length > 0) {
+                  columns = Object.keys(sampleData[0]).map((columnName, index) => ({
+                    column_name: columnName,
+                    data_type: typeof sampleData[0][columnName] === 'number' ? 'numeric' : 
+                              typeof sampleData[0][columnName] === 'boolean' ? 'boolean' : 'text',
+                    is_nullable: 'YES',
+                    column_default: null,
+                    ordinal_position: index + 1
+                  }));
+                } else {
+                  // If no data, try to get just the column names by selecting with limit 0
+                  const { error: selectError } = await supabaseClient
                     .from(table.table_name)
                     .select('*')
-                    .limit(1);
+                    .limit(0);
                   
-                  if (sampleData && sampleData.length > 0) {
-                    columns = Object.keys(sampleData[0]).map((columnName, index) => ({
-                      column_name: columnName,
-                      data_type: typeof sampleData[0][columnName] === 'number' ? 'numeric' : 'text',
-                      is_nullable: 'YES',
-                      column_default: null,
-                      ordinal_position: index + 1
-                    }));
+                  if (!selectError) {
+                    // Table exists but is empty - we can still add it without columns
+                    columns = [];
                   }
-                } catch (sampleError) {
-                  console.log(`Could not get sample data for table ${table.table_name}:`, sampleError.message);
                 }
+              } catch (sampleError) {
+                console.log(`Could not get sample data for table ${table.table_name}:`, sampleError.message);
               }
               
               tablesWithColumns.push({
