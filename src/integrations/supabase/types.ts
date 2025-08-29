@@ -1116,6 +1116,10 @@ export type Database = {
           trial_days_left: number
         }[]
       }
+      get_user_account_id: {
+        Args: { user_uuid: string }
+        Returns: string
+      }
       get_user_role_in_account: {
         Args: { account_id: string; user_id: string }
         Returns: string
