@@ -1,11 +1,20 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, BarChart3, Database, Users, TrendingUp, Sparkles } from "lucide-react";
+import { Plus, BarChart3, Database, Users, TrendingUp, Sparkles, Edit2, Trash2 } from "lucide-react";
 import { AIInsightsModal } from "@/components/ai/AIInsightsModal";
+import { ChartRenderer } from "@/components/charts/ChartRenderer";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 
 export default function Dashboard() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [savedCharts, setSavedCharts] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [stats] = useState([
     {
       title: "Total Dashboards",
@@ -37,6 +46,70 @@ export default function Dashboard() {
     },
   ]);
 
+  useEffect(() => {
+    if (user) {
+      loadSavedCharts();
+    }
+  }, [user]);
+
+  const loadSavedCharts = async () => {
+    try {
+      setLoading(true);
+      
+      // Get user's account_id first
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('account_id')
+        .eq('id', user.id)
+        .single();
+
+      if (profileError) {
+        throw profileError;
+      }
+
+      // Get saved charts
+      const { data: charts, error } = await supabase
+        .from('saved_charts')
+        .select('*')
+        .eq('account_id', profile.account_id)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        throw error;
+      }
+
+      setSavedCharts(charts || []);
+    } catch (error) {
+      console.error('Error loading saved charts:', error);
+      toast.error('Erro ao carregar gráficos salvos');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateChart = () => {
+    navigate('/charts');
+  };
+
+  const handleDeleteChart = async (chartId: string) => {
+    try {
+      const { error } = await supabase
+        .from('saved_charts')
+        .delete()
+        .eq('id', chartId);
+
+      if (error) {
+        throw error;
+      }
+
+      setSavedCharts(prev => prev.filter(chart => chart.id !== chartId));
+      toast.success('Gráfico removido com sucesso');
+    } catch (error) {
+      console.error('Error deleting chart:', error);
+      toast.error('Erro ao remover gráfico');
+    }
+  };
+
   return (
     <AppLayout>
       <div className="p-6 space-y-6">
@@ -48,9 +121,9 @@ export default function Dashboard() {
               Overview of your Business Intelligence workspace
             </p>
           </div>
-          <Button className="gradient-primary">
+          <Button className="gradient-primary" onClick={handleCreateChart}>
             <Plus className="w-4 h-4 mr-2" />
-            New Dashboard
+            Novo Gráfico
           </Button>
         </div>
 
@@ -81,53 +154,125 @@ export default function Dashboard() {
           ))}
         </div>
 
+        {/* Saved Charts */}
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-semibold text-foreground">Meus Gráficos</h2>
+              <p className="text-muted-foreground">Visualize e gerencie seus gráficos salvos</p>
+            </div>
+            <Button onClick={handleCreateChart} variant="outline">
+              <Plus className="w-4 h-4 mr-2" />
+              Criar Gráfico
+            </Button>
+          </div>
+
+          {loading ? (
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">Carregando gráficos...</p>
+            </div>
+          ) : savedCharts.length === 0 ? (
+            <Card className="glass-card border-0 shadow-card">
+              <CardContent className="text-center py-12">
+                <BarChart3 className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-lg font-semibold mb-2">Nenhum gráfico criado ainda</h3>
+                <p className="text-muted-foreground mb-6">
+                  Comece criando seu primeiro gráfico para visualizar seus dados
+                </p>
+                <Button onClick={handleCreateChart} className="gradient-primary">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Criar Primeiro Gráfico
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {savedCharts.map((chart) => (
+                <Card key={chart.id} className="glass-card border-0 shadow-card">
+                  <CardHeader className="pb-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle className="text-lg">{chart.name}</CardTitle>
+                        {chart.description && (
+                          <CardDescription className="mt-1">
+                            {chart.description}
+                          </CardDescription>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => navigate(`/charts?edit=${chart.id}`)}
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => handleDeleteChart(chart.id)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-64 border rounded-lg p-4 bg-background/50">
+                      <ChartRenderer
+                        config={{
+                          type: chart.chart_type as any,
+                          title: chart.name,
+                          description: chart.description,
+                          data: [],
+                          ...chart.chart_config
+                        }}
+                      />
+                    </div>
+                    <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
+                      <span>Tipo: {chart.chart_type}</span>
+                      <span>Criado em: {new Date(chart.created_at).toLocaleDateString()}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Main Content */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Recent Dashboards */}
+          {/* Recent Activity */}
           <Card className="lg:col-span-2 glass-card border-0 shadow-card">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <BarChart3 className="w-5 h-5 text-primary" />
-                Recent Dashboards
+                <TrendingUp className="w-5 h-5 text-primary" />
+                Atividade Recente
               </CardTitle>
               <CardDescription>
-                Your recently accessed dashboards
+                Suas ações mais recentes no sistema
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 {[
-                  { name: "Sales Performance", lastViewed: "2 hours ago", type: "Sales" },
-                  { name: "Customer Analytics", lastViewed: "1 day ago", type: "Marketing" },
-                  { name: "Financial Overview", lastViewed: "3 days ago", type: "Finance" },
-                ].map((dashboard, index) => (
+                  { action: "Gráfico criado", item: "Vendas por Mês", time: "2 horas atrás" },
+                  { action: "Conexão adicionada", item: "Base de Produtos", time: "1 dia atrás" },
+                  { action: "Dashboard atualizado", item: "Relatório Financeiro", time: "3 dias atrás" },
+                ].map((activity, index) => (
                   <div
                     key={index}
-                    className="flex items-center justify-between p-4 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
+                    className="flex items-center justify-between p-4 bg-muted/30 rounded-lg"
                   >
                     <div>
-                      <h4 className="font-medium text-foreground">{dashboard.name}</h4>
+                      <h4 className="font-medium text-foreground">{activity.action}</h4>
                       <p className="text-sm text-muted-foreground">
-                        {dashboard.type} • Last viewed {dashboard.lastViewed}
+                        {activity.item}
                       </p>
                     </div>
-                    <div className="flex gap-2">
-                      <AIInsightsModal
-                        dashboardId={`dashboard-${index}`}
-                        chartData={[
-                          { name: dashboard.name, type: "bar", data: [{ x: "Sample", y: 100 }], description: dashboard.type }
-                        ]}
-                        trigger={
-                          <Button variant="ghost" size="sm" className="gap-1">
-                            <Sparkles className="w-3 h-3" />
-                            AI Insights
-                          </Button>
-                        }
-                      />
-                      <Button variant="ghost" size="sm">
-                        View
-                      </Button>
-                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      {activity.time}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -143,21 +288,17 @@ export default function Dashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Button variant="outline" className="w-full justify-start h-12">
-                <Plus className="w-4 h-4 mr-3" />
-                Create Dashboard
-              </Button>
-              <Button variant="outline" className="w-full justify-start h-12">
-                <Database className="w-4 h-4 mr-3" />
-                Add Data Source
-              </Button>
-              <Button variant="outline" className="w-full justify-start h-12">
+              <Button variant="outline" className="w-full justify-start h-12" onClick={handleCreateChart}>
                 <BarChart3 className="w-4 h-4 mr-3" />
-                Build Chart
+                Criar Gráfico
               </Button>
-              <Button variant="outline" className="w-full justify-start h-12">
+              <Button variant="outline" className="w-full justify-start h-12" onClick={() => navigate('/data-sources')}>
+                <Database className="w-4 h-4 mr-3" />
+                Adicionar Fonte de Dados
+              </Button>
+              <Button variant="outline" className="w-full justify-start h-12" onClick={() => navigate('/settings')}>
                 <Users className="w-4 h-4 mr-3" />
-                Invite Team
+                Convidar Equipe
               </Button>
             </CardContent>
           </Card>
@@ -166,9 +307,9 @@ export default function Dashboard() {
         {/* Getting Started */}
         <Card className="glass-card border-0 shadow-card bg-gradient-to-r from-primary/5 to-accent/5">
           <CardHeader>
-            <CardTitle className="text-xl">Welcome to SynopticBI</CardTitle>
+            <CardTitle className="text-xl">Bem-vindo ao SynopticBI</CardTitle>
             <CardDescription className="text-base">
-              Start building powerful analytics dashboards in minutes
+              Comece a construir dashboards de analytics poderosos em minutos
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -177,27 +318,27 @@ export default function Dashboard() {
                 <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mx-auto mb-3">
                   <Database className="w-6 h-6 text-primary" />
                 </div>
-                <h3 className="font-semibold mb-2">1. Connect Data</h3>
+                <h3 className="font-semibold mb-2">1. Conectar Dados</h3>
                 <p className="text-sm text-muted-foreground">
-                  Connect to your PostgreSQL databases securely
+                  Conecte aos seus bancos PostgreSQL e Supabase com segurança
                 </p>
               </div>
               <div className="text-center p-4">
                 <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mx-auto mb-3">
                   <BarChart3 className="w-6 h-6 text-primary" />
                 </div>
-                <h3 className="font-semibold mb-2">2. Create Charts</h3>
+                <h3 className="font-semibold mb-2">2. Criar Gráficos</h3>
                 <p className="text-sm text-muted-foreground">
-                  Build visualizations with SQL queries
+                  Construa visualizações com consultas SQL
                 </p>
               </div>
               <div className="text-center p-4">
                 <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mx-auto mb-3">
                   <TrendingUp className="w-6 h-6 text-primary" />
                 </div>
-                <h3 className="font-semibold mb-2">3. Build Dashboards</h3>
+                <h3 className="font-semibold mb-2">3. Construir Dashboards</h3>
                 <p className="text-sm text-muted-foreground">
-                  Combine charts into interactive dashboards
+                  Combine gráficos em dashboards interativos
                 </p>
               </div>
             </div>
