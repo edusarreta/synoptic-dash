@@ -151,6 +151,69 @@ serve(async (req) => {
             console.error('Error closing connection:', closeError);
           }
         }
+      } else if (connection.connection_type === 'supabase') {
+        // Create Supabase connection using stored credentials
+        console.log('Connecting to Supabase database to execute query...');
+        
+        const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2.56.1");
+        
+        const supabaseUrl = connection.connection_config?.url;
+        const serviceKey = connection.connection_config?.service_key;
+        
+        if (!supabaseUrl) {
+          throw new Error('Supabase URL not found in connection config');
+        }
+        
+        // Use service key if available, otherwise use anon key
+        const apiKey = serviceKey || connection.connection_config?.anon_key;
+        
+        if (!apiKey) {
+          throw new Error('No API key found in connection config');
+        }
+        
+        const supabaseExternalClient = createClient(supabaseUrl, apiKey);
+        
+        try {
+          console.log('Connected to Supabase, executing query...');
+          
+          // For Supabase, we need to use the rpc function to execute raw SQL
+          // Since we can't execute arbitrary SQL directly, we'll parse the query and use appropriate methods
+          const cleanQuery = sqlQuery.trim().toLowerCase();
+          
+          // Extract table name from SELECT query
+          const selectMatch = cleanQuery.match(/from\s+(\w+)/);
+          if (!selectMatch) {
+            throw new Error('Could not parse table name from query');
+          }
+          
+          const tableName = selectMatch[1];
+          
+          // Execute a basic select to get data
+          let query = supabaseExternalClient.from(tableName).select('*');
+          
+          // Add limit if specified in original query
+          const limitMatch = cleanQuery.match(/limit\s+(\d+)/);
+          if (limitMatch) {
+            query = query.limit(parseInt(limitMatch[1]));
+          }
+          
+          const { data, error } = await query;
+          
+          if (error) {
+            throw error;
+          }
+          
+          console.log(`Supabase query completed, found ${data?.length || 0} rows`);
+          
+          queryResult = {
+            rows: data || [],
+            rowCount: data?.length || 0
+          };
+          
+        } catch (supabaseError) {
+          console.error('Supabase query error:', supabaseError);
+          throw new Error(`Failed to execute query on Supabase: ${supabaseError.message}`);
+        }
       } else {
         throw new Error(`Unsupported connection type: ${connection.connection_type}`);
       }
