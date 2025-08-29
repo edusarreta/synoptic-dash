@@ -30,7 +30,8 @@ const App = () => (
             <Route path="/dashboards" element={<Dashboard />} />
             <Route path="/data-sources" element={<DataSources />} />
             <Route path="/charts/new" element={<ChartBuilder />} />
-            <Route path="/settings" element={<Settings />} />
+            <Route path="/charts" element={<ChartBuilder />} />
+            <Route path="/analytics" element={<Dashboard />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
