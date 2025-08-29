@@ -169,6 +169,7 @@ export type Database = {
       client: {
         Row: {
           access_token_wa_business: string | null
+          account_id: string | null
           created_at: string
           id: string
           instance_id: string | null
@@ -176,9 +177,11 @@ export type Database = {
           integration: string | null
           name: string | null
           status: string | null
+          user_id: string | null
         }
         Insert: {
           access_token_wa_business?: string | null
+          account_id?: string | null
           created_at?: string
           id?: string
           instance_id?: string | null
@@ -186,9 +189,11 @@ export type Database = {
           integration?: string | null
           name?: string | null
           status?: string | null
+          user_id?: string | null
         }
         Update: {
           access_token_wa_business?: string | null
+          account_id?: string | null
           created_at?: string
           id?: string
           instance_id?: string | null
@@ -196,6 +201,7 @@ export type Database = {
           integration?: string | null
           name?: string | null
           status?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }
