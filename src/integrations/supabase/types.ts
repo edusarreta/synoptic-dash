@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      accounts: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       client: {
         Row: {
           access_token_wa_business: string | null
@@ -46,6 +70,148 @@ export type Database = {
           status?: string | null
         }
         Relationships: []
+      }
+      dashboard_charts: {
+        Row: {
+          chart_id: string
+          created_at: string
+          dashboard_id: string
+          id: string
+          position_config: Json | null
+        }
+        Insert: {
+          chart_id: string
+          created_at?: string
+          dashboard_id: string
+          id?: string
+          position_config?: Json | null
+        }
+        Update: {
+          chart_id?: string
+          created_at?: string
+          dashboard_id?: string
+          id?: string
+          position_config?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dashboard_charts_chart_id_fkey"
+            columns: ["chart_id"]
+            isOneToOne: false
+            referencedRelation: "saved_charts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dashboard_charts_dashboard_id_fkey"
+            columns: ["dashboard_id"]
+            isOneToOne: false
+            referencedRelation: "dashboards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dashboards: {
+        Row: {
+          account_id: string
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          is_public: boolean | null
+          layout_config: Json | null
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          is_public?: boolean | null
+          layout_config?: Json | null
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          is_public?: boolean | null
+          layout_config?: Json | null
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dashboards_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      data_connections: {
+        Row: {
+          account_id: string
+          connection_type: string
+          created_at: string
+          created_by: string
+          database_name: string | null
+          encrypted_password: string | null
+          host: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          port: number | null
+          ssl_enabled: boolean | null
+          updated_at: string
+          username: string | null
+        }
+        Insert: {
+          account_id: string
+          connection_type?: string
+          created_at?: string
+          created_by: string
+          database_name?: string | null
+          encrypted_password?: string | null
+          host?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          port?: number | null
+          ssl_enabled?: boolean | null
+          updated_at?: string
+          username?: string | null
+        }
+        Update: {
+          account_id?: string
+          connection_type?: string
+          created_at?: string
+          created_by?: string
+          database_name?: string | null
+          encrypted_password?: string | null
+          host?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          port?: number | null
+          ssl_enabled?: boolean | null
+          updated_at?: string
+          username?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "data_connections_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       instance: {
         Row: {
@@ -85,6 +251,101 @@ export type Database = {
           wamid?: string | null
         }
         Relationships: []
+      }
+      profiles: {
+        Row: {
+          account_id: string
+          created_at: string
+          email: string
+          full_name: string | null
+          id: string
+          role: string
+          updated_at: string
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          email: string
+          full_name?: string | null
+          id: string
+          role?: string
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          email?: string
+          full_name?: string | null
+          id?: string
+          role?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      saved_charts: {
+        Row: {
+          account_id: string
+          chart_config: Json | null
+          chart_type: string
+          created_at: string
+          created_by: string
+          data_connection_id: string
+          description: string | null
+          id: string
+          name: string
+          sql_query: string
+          updated_at: string
+        }
+        Insert: {
+          account_id: string
+          chart_config?: Json | null
+          chart_type?: string
+          created_at?: string
+          created_by: string
+          data_connection_id: string
+          description?: string | null
+          id?: string
+          name: string
+          sql_query: string
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string
+          chart_config?: Json | null
+          chart_type?: string
+          created_at?: string
+          created_by?: string
+          data_connection_id?: string
+          description?: string | null
+          id?: string
+          name?: string
+          sql_query?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_charts_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "saved_charts_data_connection_id_fkey"
+            columns: ["data_connection_id"]
+            isOneToOne: false
+            referencedRelation: "data_connections"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
