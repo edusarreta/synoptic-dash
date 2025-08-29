@@ -177,6 +177,132 @@ serve(async (req) => {
             console.error('Error closing connection:', closeError);
           }
         }
+      } else if (connection.connection_type === 'supabase') {
+        // Create Supabase connection using stored credentials
+        console.log('Connecting to Supabase database to get schema...');
+        
+        const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2.56.1");
+        
+        const supabaseUrl = connection.connection_config?.url;
+        const serviceKey = connection.connection_config?.service_key;
+        
+        if (!supabaseUrl) {
+          throw new Error('Supabase URL not found in connection config');
+        }
+        
+        // Use service key if available, otherwise use anon key
+        const apiKey = serviceKey || connection.connection_config?.anon_key;
+        
+        if (!apiKey) {
+          throw new Error('No API key found in connection config');
+        }
+        
+        const supabaseClient = createClient(supabaseUrl, apiKey);
+        
+        try {
+          console.log('Connected to Supabase, fetching schema...');
+          
+          // Get tables from information_schema
+          const { data: tablesData, error: tablesError } = await supabaseClient
+            .from('information_schema.tables')
+            .select('table_name, table_type')
+            .eq('table_schema', 'public')
+            .in('table_type', ['BASE TABLE', 'VIEW']);
+          
+          if (tablesError && !tablesError.message?.includes('permission denied')) {
+            throw tablesError;
+          }
+          
+          // If information_schema is not accessible, try to get tables using RPC or alternative method
+          let tables = tablesData || [];
+          
+          if (tables.length === 0) {
+            console.log('Trying alternative method to get table names...');
+            // Try to use the REST API to get table metadata
+            const response = await fetch(`${supabaseUrl}/rest/v1/`, {
+              headers: {
+                'apikey': apiKey,
+                'Authorization': `Bearer ${apiKey}`,
+                'Accept': 'application/json'
+              }
+            });
+            
+            if (response.ok) {
+              const openApiSpec = await response.json();
+              if (openApiSpec?.definitions) {
+                tables = Object.keys(openApiSpec.definitions).map(tableName => ({
+                  table_name: tableName,
+                  table_type: 'BASE TABLE'
+                }));
+              }
+            }
+          }
+          
+          // For each table, get its columns
+          const tablesWithColumns = [];
+          
+          for (const table of tables.slice(0, 20)) { // Limit to first 20 tables to avoid timeout
+            try {
+              const { data: columnsData, error: columnsError } = await supabaseClient
+                .from('information_schema.columns')
+                .select('column_name, data_type, is_nullable, column_default, ordinal_position')
+                .eq('table_schema', 'public')
+                .eq('table_name', table.table_name)
+                .order('ordinal_position');
+              
+              let columns = columnsData || [];
+              
+              // If we can't get columns from information_schema, try to get a sample row
+              if (columns.length === 0) {
+                try {
+                  const { data: sampleData } = await supabaseClient
+                    .from(table.table_name)
+                    .select('*')
+                    .limit(1);
+                  
+                  if (sampleData && sampleData.length > 0) {
+                    columns = Object.keys(sampleData[0]).map((columnName, index) => ({
+                      column_name: columnName,
+                      data_type: typeof sampleData[0][columnName] === 'number' ? 'numeric' : 'text',
+                      is_nullable: 'YES',
+                      column_default: null,
+                      ordinal_position: index + 1
+                    }));
+                  }
+                } catch (sampleError) {
+                  console.log(`Could not get sample data for table ${table.table_name}:`, sampleError.message);
+                }
+              }
+              
+              tablesWithColumns.push({
+                name: table.table_name,
+                type: table.table_type,
+                columns: columns.map(col => ({
+                  name: col.column_name,
+                  dataType: col.data_type,
+                  isNullable: col.is_nullable === 'YES',
+                  defaultValue: col.column_default,
+                  position: col.ordinal_position
+                }))
+              });
+            } catch (tableError) {
+              console.log(`Error getting columns for table ${table.table_name}:`, tableError.message);
+              // Add table without columns
+              tablesWithColumns.push({
+                name: table.table_name,
+                type: table.table_type,
+                columns: []
+              });
+            }
+          }
+          
+          schemaResult = tablesWithColumns;
+          console.log(`Supabase schema fetched successfully, found ${schemaResult.length} tables`);
+          
+        } catch (supabaseError) {
+          console.error('Supabase connection error:', supabaseError);
+          throw new Error(`Failed to connect to Supabase: ${supabaseError.message}`);
+        }
       } else {
         throw new Error(`Unsupported connection type: ${connection.connection_type}`);
       }
