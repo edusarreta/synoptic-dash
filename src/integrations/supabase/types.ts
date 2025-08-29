@@ -55,6 +55,54 @@ export type Database = {
           },
         ]
       }
+      account_settings: {
+        Row: {
+          account_id: string
+          company_name: string | null
+          created_at: string
+          custom_domain: string | null
+          id: string
+          logo_url: string | null
+          primary_color: string | null
+          secondary_color: string | null
+          sso_config: Json | null
+          sso_enabled: boolean | null
+          sso_provider: string | null
+          updated_at: string
+          white_label_enabled: boolean | null
+        }
+        Insert: {
+          account_id: string
+          company_name?: string | null
+          created_at?: string
+          custom_domain?: string | null
+          id?: string
+          logo_url?: string | null
+          primary_color?: string | null
+          secondary_color?: string | null
+          sso_config?: Json | null
+          sso_enabled?: boolean | null
+          sso_provider?: string | null
+          updated_at?: string
+          white_label_enabled?: boolean | null
+        }
+        Update: {
+          account_id?: string
+          company_name?: string | null
+          created_at?: string
+          custom_domain?: string | null
+          id?: string
+          logo_url?: string | null
+          primary_color?: string | null
+          secondary_color?: string | null
+          sso_config?: Json | null
+          sso_enabled?: boolean | null
+          sso_provider?: string | null
+          updated_at?: string
+          white_label_enabled?: boolean | null
+        }
+        Relationships: []
+      }
       accounts: {
         Row: {
           created_at: string
@@ -76,6 +124,45 @@ export type Database = {
           name?: string
           slug?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      audit_logs: {
+        Row: {
+          account_id: string
+          action: string
+          created_at: string
+          id: string
+          ip_address: unknown | null
+          metadata: Json | null
+          resource_id: string | null
+          resource_type: string
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          account_id: string
+          action: string
+          created_at?: string
+          id?: string
+          ip_address?: unknown | null
+          metadata?: Json | null
+          resource_id?: string | null
+          resource_type: string
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          account_id?: string
+          action?: string
+          created_at?: string
+          id?: string
+          ip_address?: unknown | null
+          metadata?: Json | null
+          resource_id?: string | null
+          resource_type?: string
+          user_agent?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -295,6 +382,44 @@ export type Database = {
           },
         ]
       }
+      installed_marketplace_items: {
+        Row: {
+          account_id: string
+          config: Json | null
+          id: string
+          installed_at: string
+          installed_by: string
+          is_active: boolean | null
+          marketplace_item_id: string
+        }
+        Insert: {
+          account_id: string
+          config?: Json | null
+          id?: string
+          installed_at?: string
+          installed_by: string
+          is_active?: boolean | null
+          marketplace_item_id: string
+        }
+        Update: {
+          account_id?: string
+          config?: Json | null
+          id?: string
+          installed_at?: string
+          installed_by?: string
+          is_active?: boolean | null
+          marketplace_item_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "installed_marketplace_items_marketplace_item_id_fkey"
+            columns: ["marketplace_item_id"]
+            isOneToOne: false
+            referencedRelation: "marketplace_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       instance: {
         Row: {
           contactId: string | null
@@ -331,6 +456,51 @@ export type Database = {
           token?: string | null
           "user.phone"?: string | null
           wamid?: string | null
+        }
+        Relationships: []
+      }
+      marketplace_items: {
+        Row: {
+          category: string
+          config: Json | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          icon_url: string | null
+          id: string
+          is_active: boolean | null
+          is_featured: boolean | null
+          name: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          config?: Json | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          icon_url?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_featured?: boolean | null
+          name: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          config?: Json | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          icon_url?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_featured?: boolean | null
+          name?: string
+          type?: string
+          updated_at?: string
         }
         Relationships: []
       }
