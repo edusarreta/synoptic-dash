@@ -84,6 +84,7 @@ export default function DataSources() {
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
+    console.log('🔧 Form submit started', { selectedType, formData });
     e.preventDefault();
     if (!user) return;
 
@@ -236,6 +237,7 @@ export default function DataSources() {
       setAuthType('none');
       loadConnections();
     } catch (error: any) {
+      console.error('❌ Submit error:', error);
       toast({
         variant: "destructive",
         title: editingConnection ? "Erro ao atualizar conexão" : "Error adding data source",
