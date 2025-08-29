@@ -1,4 +1,5 @@
 import React, { useCallback, useState, useEffect } from 'react';
+import { SmartDashboardFilters } from "@/components/dashboard/SmartDashboardFilters";
 import {
   ReactFlow,
   addEdge,
@@ -16,19 +17,21 @@ import '@xyflow/react/dist/style.css';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ChartRenderer } from "@/components/charts/ChartRenderer";
-import { Plus, Settings, Grid3X3, LayoutGrid, Maximize2, Minimize2 } from 'lucide-react';
+import { Plus, Settings, Grid3X3, LayoutGrid, Maximize2, Minimize2, Edit2 } from 'lucide-react';
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 
 interface ChartNodeProps {
   data: {
     chart: any;
     onDelete: (id: string) => void;
+    onEdit: (id: string) => void;
     onResize: (id: string, width: number, height: number) => void;
   };
 }
 
 const ChartNode = ({ data }: ChartNodeProps) => {
-  const { chart, onDelete, onResize } = data;
+  const { chart, onDelete, onEdit, onResize } = data;
   
   return (
     <>
@@ -43,14 +46,26 @@ const ChartNode = ({ data }: ChartNodeProps) => {
         <CardHeader className="pb-2 px-3 py-2">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-semibold truncate">{chart.name}</CardTitle>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
-              onClick={() => onDelete(chart.id)}
-            >
-              ×
-            </Button>
+            <div className="flex gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0 text-muted-foreground hover:text-primary"
+                onClick={() => onEdit(chart.id)}
+                title="Editar Gráfico"
+              >
+                <Edit2 className="w-3 h-3" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                onClick={() => onDelete(chart.id)}
+                title="Remover Gráfico"
+              >
+                ×
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="p-3 pt-0 h-[calc(100%-60px)]">
@@ -79,9 +94,12 @@ interface AdvancedDashboardProps {
   charts: any[];
   onDeleteChart: (id: string) => void;
   onCreateChart: () => void;
+  smartFilters?: any;
+  onFiltersChange?: (filters: any) => void;
 }
 
-export function AdvancedDashboard({ charts, onDeleteChart, onCreateChart }: AdvancedDashboardProps) {
+export function AdvancedDashboard({ charts, onDeleteChart, onCreateChart, smartFilters, onFiltersChange }: AdvancedDashboardProps) {
+  const navigate = useNavigate();
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [layoutMode, setLayoutMode] = useState<'free' | 'grid'>('free');
@@ -98,6 +116,7 @@ export function AdvancedDashboard({ charts, onDeleteChart, onCreateChart }: Adva
       data: {
         chart,
         onDelete: handleDeleteChart,
+        onEdit: handleEditChart,
         onResize: handleResizeChart,
       },
       style: {
@@ -108,6 +127,10 @@ export function AdvancedDashboard({ charts, onDeleteChart, onCreateChart }: Adva
     
     setNodes(chartNodes);
   }, [charts]);
+
+  const handleEditChart = useCallback((chartId: string) => {
+    navigate(`/charts?edit=${chartId}`);
+  }, [navigate]);
 
   const handleDeleteChart = useCallback((chartId: string) => {
     onDeleteChart(chartId);
@@ -168,114 +191,126 @@ export function AdvancedDashboard({ charts, onDeleteChart, onCreateChart }: Adva
   }, []);
 
   return (
-    <div className="h-[600px] w-full border rounded-lg bg-background">
-      {/* Dashboard Controls */}
-      <div className="flex items-center justify-between p-4 border-b bg-background/50">
-        <div className="flex items-center gap-2">
-          <h3 className="text-lg font-semibold">Dashboard Avançado</h3>
-          <span className="text-sm text-muted-foreground">
-            {charts.length} gráfico{charts.length !== 1 ? 's' : ''}
-          </span>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          {/* Layout Controls */}
-          <div className="flex items-center gap-1 mr-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={arrangeInGrid}
-              title="Organizar em Grade"
-            >
-              <Grid3X3 className="w-4 h-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setLayoutMode(layoutMode === 'free' ? 'grid' : 'free')}
-              title="Alternar Modo de Layout"
-            >
-              <LayoutGrid className="w-4 h-4" />
-            </Button>
+    <div className="space-y-6">
+      {/* Smart Filters */}
+      {smartFilters && onFiltersChange && charts.length > 0 && (
+        <SmartDashboardFilters 
+          charts={charts}
+          activeFilters={smartFilters}
+          onFiltersChange={onFiltersChange}
+          className="mb-6"
+        />
+      )}
+
+      <div className="h-[600px] w-full border rounded-lg bg-background">
+        {/* Dashboard Controls */}
+        <div className="flex items-center justify-between p-4 border-b bg-background/50">
+          <div className="flex items-center gap-2">
+            <h3 className="text-lg font-semibold">Dashboard Avançado</h3>
+            <span className="text-sm text-muted-foreground">
+              {charts.length} gráfico{charts.length !== 1 ? 's' : ''}
+            </span>
           </div>
-
-          {/* Size Controls */}
-          <div className="flex items-center gap-1 mr-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => autoResize('small')}
-              title="Redimensionar Pequeno"
-            >
-              <Minimize2 className="w-3 h-3" />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => autoResize('medium')}
-              title="Redimensionar Médio"
-            >
-              <Settings className="w-3 h-3" />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => autoResize('large')}
-              title="Redimensionar Grande"
-            >
-              <Maximize2 className="w-3 h-3" />
-            </Button>
-          </div>
-
-          <Button size="sm" onClick={onCreateChart}>
-            <Plus className="w-4 h-4 mr-2" />
-            Novo Gráfico
-          </Button>
-        </div>
-      </div>
-
-      {/* React Flow Dashboard */}
-      <div className="h-[calc(100%-80px)]">
-        {charts.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center">
-            <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
-              <LayoutGrid className="w-8 h-8 text-muted-foreground" />
+          
+          <div className="flex items-center gap-2">
+            {/* Layout Controls */}
+            <div className="flex items-center gap-1 mr-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={arrangeInGrid}
+                title="Organizar em Grade"
+              >
+                <Grid3X3 className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setLayoutMode(layoutMode === 'free' ? 'grid' : 'free')}
+                title="Alternar Modo de Layout"
+              >
+                <LayoutGrid className="w-4 h-4" />
+              </Button>
             </div>
-            <h3 className="text-lg font-semibold mb-2">Nenhum gráfico criado ainda</h3>
-            <p className="text-muted-foreground mb-4 max-w-md">
-              Comece criando seu primeiro gráfico para visualizar seus dados de forma interativa
-            </p>
-            <Button onClick={onCreateChart}>
+
+            {/* Size Controls */}
+            <div className="flex items-center gap-1 mr-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => autoResize('small')}
+                title="Redimensionar Pequeno"
+              >
+                <Minimize2 className="w-3 h-3" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => autoResize('medium')}
+                title="Redimensionar Médio"
+              >
+                <Settings className="w-3 h-3" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => autoResize('large')}
+                title="Redimensionar Grande"
+              >
+                <Maximize2 className="w-3 h-3" />
+              </Button>
+            </div>
+
+            <Button size="sm" onClick={onCreateChart}>
               <Plus className="w-4 h-4 mr-2" />
-              Criar Primeiro Gráfico
+              Novo Gráfico
             </Button>
           </div>
-        ) : (
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            nodeTypes={nodeTypes}
-            fitView
-            style={{ backgroundColor: "transparent" }}
-            proOptions={{ hideAttribution: true }}
-          >
-            <Controls />
-            <MiniMap 
-              zoomable 
-              pannable 
-              nodeStrokeWidth={3}
-              className="!bg-background/80 !border"
-            />
-            <Background 
-              gap={20} 
-              size={1}
-              className="opacity-30"
-            />
-          </ReactFlow>
-        )}
+        </div>
+
+        {/* React Flow Dashboard */}
+        <div className="h-[calc(100%-80px)]">
+          {charts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-center">
+              <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
+                <LayoutGrid className="w-8 h-8 text-muted-foreground" />
+              </div>
+              <h3 className="text-lg font-semibold mb-2">Nenhum gráfico criado ainda</h3>
+              <p className="text-muted-foreground mb-4 max-w-md">
+                Comece criando seu primeiro gráfico para visualizar seus dados de forma interativa
+              </p>
+              <Button onClick={onCreateChart}>
+                <Plus className="w-4 h-4 mr-2" />
+                Criar Primeiro Gráfico
+              </Button>
+            </div>
+          ) : (
+            <ReactFlow
+              nodes={nodes}
+              edges={edges}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onConnect={onConnect}
+              nodeTypes={nodeTypes}
+              fitView
+              style={{ backgroundColor: "transparent" }}
+              proOptions={{ hideAttribution: true }}
+            >
+              <Controls />
+              <MiniMap 
+                zoomable 
+                pannable 
+                nodeStrokeWidth={3}
+                className="!bg-background/80 !border"
+              />
+              <Background 
+                gap={20} 
+                size={1}
+                className="opacity-30"
+              />
+            </ReactFlow>
+          )}
+        </div>
       </div>
     </div>
   );

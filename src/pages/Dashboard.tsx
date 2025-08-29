@@ -276,6 +276,8 @@ export default function Dashboard() {
             charts={filteredCharts}
             onDeleteChart={handleDeleteChart}
             onCreateChart={handleCreateChart}
+            smartFilters={smartFilters}
+            onFiltersChange={handleSmartFiltersChange}
           />
         ) : (
           <div className="space-y-6">
