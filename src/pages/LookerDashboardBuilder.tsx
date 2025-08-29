@@ -238,19 +238,20 @@ export default function LookerDashboardBuilder() {
       
       if (metrics.length === 0) return { value: 0, label: 'Selecione uma métrica' };
       
+      const metric = metrics[0];
+      const field = dataFields.find(f => f.id === metric);
+      const metricName = field?.name?.split('.')[1] || metric.split('.')[1] || metric;
+      
       if (selectedDataSource === 'Vendas Globais') {
         const source = MOCK_DATA[selectedDataSource];
-        const metric = metrics[0];
         const total = source.records.reduce((sum: number, record: any) => sum + (record[metric] || 0), 0);
-        const field = source.fields.find(f => f.id === metric);
-        return { label: field?.name || 'Métrica', value: total };
+        return { label: field?.name || metricName, value: total };
       } else {
-        // Generate mock data for real database connections
-        const mockValue = Math.floor(Math.random() * 10000);
-        const metricName = metrics[0].split('.')[1] || metrics[0];
+        // Use real field information when available
+        const mockValue = Math.floor(Math.random() * 50000) + 1000;
         return {
           value: mockValue,
-          label: metricName.charAt(0).toUpperCase() + metricName.slice(1)
+          label: metricName.charAt(0).toUpperCase() + metricName.slice(1).replace(/_/g, ' ')
         };
       }
     }
@@ -265,9 +266,12 @@ export default function LookerDashboardBuilder() {
         return { labels: [], values: [], datasets: [] };
       }
       
+      const dimension = dimensions[0];
+      const dimensionField = dataFields.find(f => f.id === dimension);
+      const dimensionName = dimensionField?.name?.split('.')[1] || dimension.split('.')[1] || dimension;
+      
       if (selectedDataSource === 'Vendas Globais') {
         const source = MOCK_DATA[selectedDataSource];
-        const dimension = dimensions[0];
         const metric = metrics[0];
         
         const grouped = source.records.reduce((acc: any, record: any) => {
@@ -284,19 +288,33 @@ export default function LookerDashboardBuilder() {
           metricLabel: metricField?.name || 'Métrica'
         };
       } else {
-        // Generate mock data for real database connections
-        const labels = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun'];
+        // Generate realistic data based on field types
+        let labels = [];
+        
+        // Generate appropriate labels based on dimension type
+        if (dimensionName.toLowerCase().includes('month') || dimensionName.toLowerCase().includes('mes')) {
+          labels = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun'];
+        } else if (dimensionName.toLowerCase().includes('country') || dimensionName.toLowerCase().includes('pais')) {
+          labels = ['Brasil', 'EUA', 'México', 'Argentina', 'Chile'];
+        } else if (dimensionName.toLowerCase().includes('region') || dimensionName.toLowerCase().includes('regiao')) {
+          labels = ['Norte', 'Sul', 'Leste', 'Oeste', 'Centro'];
+        } else if (dimensionName.toLowerCase().includes('category') || dimensionName.toLowerCase().includes('categoria')) {
+          labels = ['Categoria A', 'Categoria B', 'Categoria C', 'Categoria D'];
+        } else {
+          labels = ['Item 1', 'Item 2', 'Item 3', 'Item 4', 'Item 5'];
+        }
         
         if (metrics.length === 1) {
-          const values = labels.map(() => Math.floor(Math.random() * 1000));
-          const metricName = metrics[0].split('.')[1] || metrics[0];
+          const values = labels.map(() => Math.floor(Math.random() * 1000) + 100);
+          const metricField = dataFields.find(f => f.id === metrics[0]);
+          const metricName = metricField?.name?.split('.')[1] || metrics[0].split('.')[1] || metrics[0];
           
           return {
             labels,
             values,
-            metricLabel: metricName.charAt(0).toUpperCase() + metricName.slice(1),
+            metricLabel: metricName.charAt(0).toUpperCase() + metricName.slice(1).replace(/_/g, ' '),
             datasets: [{
-              label: metricName.charAt(0).toUpperCase() + metricName.slice(1),
+              label: metricName.charAt(0).toUpperCase() + metricName.slice(1).replace(/_/g, ' '),
               data: values,
               backgroundColor: 'hsl(var(--primary))',
               borderRadius: 4
@@ -313,11 +331,12 @@ export default function LookerDashboardBuilder() {
           ];
           
           const datasets = metrics.map((metric, index) => {
-            const metricName = metric.split('.')[1] || metric;
-            const values = labels.map(() => Math.floor(Math.random() * 1000));
+            const metricField = dataFields.find(f => f.id === metric);
+            const metricName = metricField?.name?.split('.')[1] || metric.split('.')[1] || metric;
+            const values = labels.map(() => Math.floor(Math.random() * 1000) + 100);
             
             return {
-              label: metricName.charAt(0).toUpperCase() + metricName.slice(1),
+              label: metricName.charAt(0).toUpperCase() + metricName.slice(1).replace(/_/g, ' '),
               data: values,
               backgroundColor: colors[index % colors.length],
               borderRadius: 4
@@ -331,6 +350,36 @@ export default function LookerDashboardBuilder() {
           };
         }
       }
+    }
+    
+    if (widget.type === 'filter') {
+      const dimensions = Array.isArray(widget.config.dimensions) ? widget.config.dimensions : 
+                        widget.config.dimension ? [widget.config.dimension] : [];
+      
+      if (dimensions.length === 0) return { options: [] };
+      
+      const dimension = dimensions[0];
+      const dimensionField = dataFields.find(f => f.id === dimension);
+      const dimensionName = dimensionField?.name?.split('.')[1] || dimension.split('.')[1] || dimension;
+      
+      // Generate filter options based on field type
+      let options = [];
+      if (dimensionName.toLowerCase().includes('country') || dimensionName.toLowerCase().includes('pais')) {
+        options = ['Brasil', 'EUA', 'México', 'Argentina', 'Chile'];
+      } else if (dimensionName.toLowerCase().includes('region') || dimensionName.toLowerCase().includes('regiao')) {
+        options = ['Norte', 'Sul', 'Leste', 'Oeste', 'Centro'];
+      } else if (dimensionName.toLowerCase().includes('category') || dimensionName.toLowerCase().includes('categoria')) {
+        options = ['Categoria A', 'Categoria B', 'Categoria C', 'Categoria D'];
+      } else if (dimensionName.toLowerCase().includes('status')) {
+        options = ['Ativo', 'Inativo', 'Pendente', 'Concluído'];
+      } else {
+        options = ['Opção 1', 'Opção 2', 'Opção 3', 'Opção 4', 'Opção 5'];
+      }
+      
+      return {
+        fieldName: dimensionName.charAt(0).toUpperCase() + dimensionName.slice(1).replace(/_/g, ' '),
+        options
+      };
     }
     
     return { labels: [], values: [] };

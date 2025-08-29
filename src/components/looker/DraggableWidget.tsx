@@ -263,21 +263,15 @@ export function DraggableWidget({
         {widget.type === 'filter' && (
           <div className="flex flex-col h-full">
             <label className="text-sm font-medium mb-2 text-muted-foreground">
-              {(() => {
-                const dimensions = Array.isArray(widget.config.dimensions) ? widget.config.dimensions : 
-                                 widget.config.dimension ? [widget.config.dimension] : [];
-                if (dimensions.length > 0) {
-                  const fieldName = dimensions[0].split('.')[1] || dimensions[0];
-                  return fieldName.charAt(0).toUpperCase() + fieldName.slice(1);
-                }
-                return 'Selecione um Campo';
-              })()}
+              {data.fieldName || 'Selecione um Campo'}
             </label>
             <select className="w-full p-2 border border-input rounded-md text-sm bg-background">
               <option value="">Todos</option>
-              <option value="brasil">Brasil</option>
-              <option value="eua">EUA</option>
-              <option value="alemanha">Alemanha</option>
+              {data.options && data.options.map((option: string, index: number) => (
+                <option key={index} value={option.toLowerCase().replace(/ /g, '_')}>
+                  {option}
+                </option>
+              ))}
             </select>
           </div>
         )}
