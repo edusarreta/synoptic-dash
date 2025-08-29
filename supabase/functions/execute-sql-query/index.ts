@@ -144,12 +144,17 @@ serve(async (req) => {
 
       console.log(`Query executed successfully for user ${user.id}, connection ${connectionId}`);
       
+      // Get column names from the first row if available
+      const columns = queryResult.rows && queryResult.rows.length > 0 
+        ? Object.keys(queryResult.rows[0]) 
+        : [];
+      
       return new Response(
         JSON.stringify({
           success: true,
-          data: queryResult.rows,
-          rowCount: queryResult.rowCount,
-          columns: queryResult.rowDescription?.map(col => col.name) || []
+          data: queryResult.rows || [],
+          rowCount: queryResult.rowCount || 0,
+          columns: columns
         }),
         { 
           status: 200, 
