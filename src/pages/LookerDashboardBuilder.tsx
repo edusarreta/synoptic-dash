@@ -35,6 +35,9 @@ interface DataField {
 interface WidgetConfig {
   dimension?: string;
   metric?: string;
+  dimensions?: string[];
+  metrics?: string[];
+  timeDimension?: string;
   chartType?: string;
   aggregation?: string;
 }
@@ -227,34 +230,110 @@ export default function LookerDashboardBuilder() {
   };
 
   const processDataForWidget = (widget: Widget) => {
-    const source = MOCK_DATA[selectedDataSource];
-    if (!source || !widget.config) return {};
-
-    if (widget.type === 'scorecard' && widget.config.metric) {
-      const metric = widget.config.metric;
-      const total = source.records.reduce((sum: number, record: any) => sum + (record[metric] || 0), 0);
-      const field = source.fields.find(f => f.id === metric);
-      return { label: field?.name || 'Métrica', value: total };
+    console.log('🔄 Processing data for widget:', widget.type, widget.config);
+    
+    if (widget.type === 'scorecard') {
+      const metrics = Array.isArray(widget.config.metrics) ? widget.config.metrics : 
+                      widget.config.metric ? [widget.config.metric] : [];
+      
+      if (metrics.length === 0) return { value: 0, label: 'Selecione uma métrica' };
+      
+      if (selectedDataSource === 'Vendas Globais') {
+        const source = MOCK_DATA[selectedDataSource];
+        const metric = metrics[0];
+        const total = source.records.reduce((sum: number, record: any) => sum + (record[metric] || 0), 0);
+        const field = source.fields.find(f => f.id === metric);
+        return { label: field?.name || 'Métrica', value: total };
+      } else {
+        // Generate mock data for real database connections
+        const mockValue = Math.floor(Math.random() * 10000);
+        const metricName = metrics[0].split('.')[1] || metrics[0];
+        return {
+          value: mockValue,
+          label: metricName.charAt(0).toUpperCase() + metricName.slice(1)
+        };
+      }
     }
     
-    if (widget.type === 'bar' && widget.config.dimension && widget.config.metric) {
-      const dimension = widget.config.dimension;
-      const metric = widget.config.metric;
-      const grouped = source.records.reduce((acc: any, record: any) => {
-        const key = record[dimension];
-        if (!acc[key]) acc[key] = 0;
-        acc[key] += record[metric];
-        return acc;
-      }, {});
-      const metricField = source.fields.find(f => f.id === metric);
-      return {
-        labels: Object.keys(grouped),
-        values: Object.values(grouped),
-        metricLabel: metricField?.name || 'Métrica'
-      };
+    if (widget.type === 'bar') {
+      const dimensions = Array.isArray(widget.config.dimensions) ? widget.config.dimensions : 
+                        widget.config.dimension ? [widget.config.dimension] : [];
+      const metrics = Array.isArray(widget.config.metrics) ? widget.config.metrics : 
+                     widget.config.metric ? [widget.config.metric] : [];
+      
+      if (dimensions.length === 0 || metrics.length === 0) {
+        return { labels: [], values: [], datasets: [] };
+      }
+      
+      if (selectedDataSource === 'Vendas Globais') {
+        const source = MOCK_DATA[selectedDataSource];
+        const dimension = dimensions[0];
+        const metric = metrics[0];
+        
+        const grouped = source.records.reduce((acc: any, record: any) => {
+          const key = record[dimension];
+          if (!acc[key]) acc[key] = 0;
+          acc[key] += record[metric];
+          return acc;
+        }, {});
+        
+        const metricField = source.fields.find(f => f.id === metric);
+        return {
+          labels: Object.keys(grouped),
+          values: Object.values(grouped),
+          metricLabel: metricField?.name || 'Métrica'
+        };
+      } else {
+        // Generate mock data for real database connections
+        const labels = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun'];
+        
+        if (metrics.length === 1) {
+          const values = labels.map(() => Math.floor(Math.random() * 1000));
+          const metricName = metrics[0].split('.')[1] || metrics[0];
+          
+          return {
+            labels,
+            values,
+            metricLabel: metricName.charAt(0).toUpperCase() + metricName.slice(1),
+            datasets: [{
+              label: metricName.charAt(0).toUpperCase() + metricName.slice(1),
+              data: values,
+              backgroundColor: 'hsl(var(--primary))',
+              borderRadius: 4
+            }]
+          };
+        } else {
+          // Multiple metrics
+          const colors = [
+            'hsl(var(--primary))',
+            'hsl(210, 70%, 60%)',
+            'hsl(120, 70%, 60%)',
+            'hsl(280, 70%, 60%)',
+            'hsl(60, 70%, 60%)'
+          ];
+          
+          const datasets = metrics.map((metric, index) => {
+            const metricName = metric.split('.')[1] || metric;
+            const values = labels.map(() => Math.floor(Math.random() * 1000));
+            
+            return {
+              label: metricName.charAt(0).toUpperCase() + metricName.slice(1),
+              data: values,
+              backgroundColor: colors[index % colors.length],
+              borderRadius: 4
+            };
+          });
+          
+          return {
+            labels,
+            datasets,
+            metricLabel: `${metrics.length} métricas`
+          };
+        }
+      }
     }
     
-    return {};
+    return { labels: [], values: [] };
   };
 
   const updateWidgetConfig = (widgetId: number, configUpdates: Partial<WidgetConfig>) => {

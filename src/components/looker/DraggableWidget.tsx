@@ -192,7 +192,19 @@ export function DraggableWidget({
         {widget.type === 'bar' && (
           <div className="flex flex-col h-full">
             <h3 className="text-sm font-medium mb-2">
-              {data.metricLabel ? `${data.metricLabel} por ${widget.config.dimension}` : 'Gráfico de Barras'}
+              {(() => {
+                const dimensions = Array.isArray(widget.config.dimensions) ? widget.config.dimensions : 
+                                 widget.config.dimension ? [widget.config.dimension] : [];
+                const metrics = Array.isArray(widget.config.metrics) ? widget.config.metrics : 
+                               widget.config.metric ? [widget.config.metric] : [];
+                
+                if (metrics.length > 0 && dimensions.length > 0) {
+                  const firstMetric = metrics[0].split('.')[1] || metrics[0];
+                  const firstDimension = dimensions[0].split('.')[1] || dimensions[0];
+                  return `${firstMetric} por ${firstDimension}`;
+                }
+                return 'Gráfico de Barras';
+              })()}
             </h3>
             <div className="flex-1 relative">
               <canvas
@@ -206,12 +218,12 @@ export function DraggableWidget({
                     // Create new chart
                     const ctx = canvas.getContext('2d');
                     if (ctx) {
-                      chartRef.current = new Chart(ctx, {
-                        type: 'bar',
+                      const chartConfig = {
+                        type: 'bar' as const,
                         data: {
                           labels: data.labels,
-                          datasets: [{
-                            label: data.metricLabel,
+                          datasets: data.datasets || [{
+                            label: data.metricLabel || 'Valor',
                             data: data.values,
                             backgroundColor: 'hsl(var(--primary))',
                             borderRadius: 4
@@ -221,7 +233,10 @@ export function DraggableWidget({
                           responsive: true,
                           maintainAspectRatio: false,
                           plugins: {
-                            legend: { display: false }
+                            legend: { 
+                              display: data.datasets && data.datasets.length > 1,
+                              position: 'top' as const
+                            }
                           },
                           scales: {
                             y: {
@@ -229,7 +244,13 @@ export function DraggableWidget({
                             }
                           }
                         }
-                      });
+                      };
+                      
+                      try {
+                        chartRef.current = new Chart(ctx, chartConfig);
+                      } catch (error) {
+                        console.error('Chart creation error:', error);
+                      }
                     }
                   }
                 }}
@@ -242,10 +263,15 @@ export function DraggableWidget({
         {widget.type === 'filter' && (
           <div className="flex flex-col h-full">
             <label className="text-sm font-medium mb-2 text-muted-foreground">
-              {widget.config.dimension ? 
-                widget.config.dimension.charAt(0).toUpperCase() + widget.config.dimension.slice(1) : 
-                'Selecione um Campo'
-              }
+              {(() => {
+                const dimensions = Array.isArray(widget.config.dimensions) ? widget.config.dimensions : 
+                                 widget.config.dimension ? [widget.config.dimension] : [];
+                if (dimensions.length > 0) {
+                  const fieldName = dimensions[0].split('.')[1] || dimensions[0];
+                  return fieldName.charAt(0).toUpperCase() + fieldName.slice(1);
+                }
+                return 'Selecione um Campo';
+              })()}
             </label>
             <select className="w-full p-2 border border-input rounded-md text-sm bg-background">
               <option value="">Todos</option>
@@ -256,20 +282,32 @@ export function DraggableWidget({
           </div>
         )}
 
-        {!widget.config.dimension && !widget.config.metric && widget.type !== 'filter' && (
-          <div className="flex items-center justify-center h-full text-center">
-            <div>
-              <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center mb-3 mx-auto">
-                {widget.type === 'scorecard' && <TrendingUp className="w-6 h-6 text-muted-foreground" />}
-                {widget.type === 'bar' && <BarChart3 className="w-6 h-6 text-muted-foreground" />}
+        {(() => {
+          const dimensions = Array.isArray(widget.config.dimensions) ? widget.config.dimensions : 
+                           widget.config.dimension ? [widget.config.dimension] : [];
+          const metrics = Array.isArray(widget.config.metrics) ? widget.config.metrics : 
+                         widget.config.metric ? [widget.config.metric] : [];
+          
+          const hasConfiguration = dimensions.length > 0 || metrics.length > 0;
+          
+          if (!hasConfiguration && widget.type !== 'filter') {
+            return (
+              <div className="flex items-center justify-center h-full text-center">
+                <div>
+                  <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center mb-3 mx-auto">
+                    {widget.type === 'scorecard' && <TrendingUp className="w-6 h-6 text-muted-foreground" />}
+                    {widget.type === 'bar' && <BarChart3 className="w-6 h-6 text-muted-foreground" />}
+                  </div>
+                  <h3 className="font-medium text-sm mb-1">Configurar {widget.type}</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Arraste campos do painel de dados
+                  </p>
+                </div>
               </div>
-              <h3 className="font-medium text-sm mb-1">Configurar {widget.type}</h3>
-              <p className="text-xs text-muted-foreground">
-                Arraste campos do painel de dados
-              </p>
-            </div>
-          </div>
-        )}
+            );
+          }
+          return null;
+        })()}
       </div>
     </div>
   );

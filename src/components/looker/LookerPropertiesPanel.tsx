@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { X, Settings, Palette, Plus, Trash2 } from "lucide-react";
+import { X, Settings, Palette, Plus, Trash2, Calendar, Clock } from "lucide-react";
 
 interface DataField {
   id: string;
@@ -50,56 +50,104 @@ export function LookerPropertiesPanel({
     );
   }
 
-  const createDropZone = (label: string, acceptedType: 'dimension' | 'metric', currentFieldId?: string) => {
-    const field = currentFieldId ? dataFields.find(f => f.id === currentFieldId) : null;
-    
+  const createMultiDropZone = (
+    label: string, 
+    acceptedType: 'dimension' | 'metric', 
+    configKey: string, 
+    currentValues: string[] = [],
+    allowMultiple: boolean = true
+  ) => {
     return (
       <div className="p-4 border-b border-border">
-        <p className="text-sm font-semibold mb-2 text-muted-foreground">{label}</p>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-sm font-semibold text-muted-foreground">{label}</p>
+          {allowMultiple && (
+            <Badge variant="outline" className="text-xs">
+              {currentValues.length} item{currentValues.length !== 1 ? 's' : ''}
+            </Badge>
+          )}
+        </div>
+        
+        {/* Drop Zone */}
         <div
-          className="drop-zone border-2 border-dashed border-muted-foreground/25 rounded-md min-h-[60px] p-1 bg-muted/10"
+          className={`drop-zone border-2 border-dashed rounded-md min-h-[60px] p-2 bg-muted/10 transition-all ${
+            currentValues.length > 0 ? 'border-primary/30' : 'border-muted-foreground/25'
+          }`}
           onDrop={(e) => {
             e.preventDefault();
             try {
               const dragData = JSON.parse(e.dataTransfer.getData('application/json'));
               if (dragData.type === 'field' && dragData.field.type === acceptedType) {
-                const propertyName = label.toLowerCase().includes('dimensão') ? 'dimension' : 
-                                   label.toLowerCase().includes('métrica') ? 'metric' : 'dimension';
-                onWidgetConfigUpdate(selectedWidget.id, { [propertyName]: dragData.field.id });
+                const fieldId = dragData.field.id;
+                let newValues;
+                
+                if (allowMultiple) {
+                  // Add to array if not already present
+                  newValues = currentValues.includes(fieldId) 
+                    ? currentValues 
+                    : [...currentValues, fieldId];
+                } else {
+                  // Replace single value
+                  newValues = [fieldId];
+                }
+                
+                onWidgetConfigUpdate(selectedWidget.id, { [configKey]: allowMultiple ? newValues : newValues[0] });
               }
             } catch (error) {
               console.error('Error processing dropped field:', error);
             }
           }}
           onDragOver={(e) => e.preventDefault()}
+          onDragEnter={(e) => e.preventDefault()}
         >
-          {field ? (
-            <div className={`field-item flex items-center p-2 rounded-md text-sm select-none ${
-              field.type === 'dimension' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
-            }`}>
-              <div className={`w-2 h-2 rounded-full mr-2 ${
-                field.type === 'dimension' ? 'bg-green-500' : 'bg-blue-500'
-              }`}></div>
-              <span className="truncate">{field.name.split('.')[1] || field.name}</span>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="ml-auto h-5 w-5 p-0 hover:bg-destructive hover:text-destructive-foreground"
-                onClick={() => {
-                  const propertyName = label.toLowerCase().includes('dimensão') ? 'dimension' : 
-                                     label.toLowerCase().includes('métrica') ? 'metric' : 'dimension';
-                  onWidgetConfigUpdate(selectedWidget.id, { [propertyName]: null });
-                }}
-              >
-                <X className="w-3 h-3" />
-              </Button>
+          {currentValues.length > 0 ? (
+            <div className="space-y-1">
+              {currentValues.map((fieldId, index) => {
+                const field = dataFields.find(f => f.id === fieldId);
+                if (!field) return null;
+                
+                return (
+                  <div 
+                    key={fieldId}
+                    className={`field-item flex items-center p-2 rounded-md text-sm select-none ${
+                      field.type === 'dimension' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
+                    }`}
+                  >
+                    <div className={`w-2 h-2 rounded-full mr-2 ${
+                      field.type === 'dimension' ? 'bg-green-500' : 'bg-blue-500'
+                    }`}></div>
+                    <span className="truncate flex-1">{field.name.split('.')[1] || field.name}</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="ml-2 h-5 w-5 p-0 hover:bg-destructive hover:text-destructive-foreground"
+                      onClick={() => {
+                        let newValues;
+                        if (allowMultiple) {
+                          newValues = currentValues.filter(id => id !== fieldId);
+                        } else {
+                          newValues = [];
+                        }
+                        onWidgetConfigUpdate(selectedWidget.id, { 
+                          [configKey]: allowMultiple ? newValues : (newValues[0] || null) 
+                        });
+                      }}
+                    >
+                      <X className="w-3 h-3" />
+                    </Button>
+                  </div>
+                );
+              })}
             </div>
           ) : (
             <div className="text-center text-muted-foreground text-sm p-4">
               <div className="w-8 h-8 border-2 border-dashed border-muted-foreground/50 rounded mx-auto mb-2 flex items-center justify-center">
                 <Plus className="w-4 h-4" />
               </div>
-              <p>Arraste {acceptedType === 'dimension' ? 'uma dimensão' : 'uma métrica'} aqui</p>
+              <p>Arraste {acceptedType === 'dimension' ? 'dimensões' : 'métricas'} aqui</p>
+              {allowMultiple && (
+                <p className="text-xs mt-1">Múltiplos itens permitidos</p>
+              )}
             </div>
           )}
         </div>
@@ -107,20 +155,75 @@ export function LookerPropertiesPanel({
     );
   };
 
-  const renderSetupTab = () => {
-    let content = '';
+  const createTimeDimensionSelector = () => {
+    const timeFields = dataFields.filter(field => 
+      field.type === 'dimension' && 
+      (field.dataType.toLowerCase().includes('date') || 
+       field.dataType.toLowerCase().includes('time') ||
+       field.name.toLowerCase().includes('date') ||
+       field.name.toLowerCase().includes('time'))
+    );
     
+    return (
+      <div className="p-4 border-b border-border">
+        <div className="flex items-center gap-2 mb-2">
+          <Clock className="w-4 h-4 text-muted-foreground" />
+          <p className="text-sm font-semibold text-muted-foreground">Dimensão Temporal</p>
+        </div>
+        
+        <div className="space-y-2">
+          {timeFields.length > 0 ? (
+            timeFields.map(field => (
+              <div
+                key={field.id}
+                className={`field-item flex items-center p-2 rounded-md text-sm cursor-pointer transition-colors border ${
+                  selectedWidget.config.timeDimension === field.id
+                    ? 'bg-orange-100 text-orange-800 border-orange-300'
+                    : 'bg-muted hover:bg-muted/80 border-border'
+                }`}
+                onClick={() => {
+                  onWidgetConfigUpdate(selectedWidget.id, { 
+                    timeDimension: selectedWidget.config.timeDimension === field.id ? null : field.id 
+                  });
+                }}
+              >
+                <Calendar className="w-3 h-3 mr-2" />
+                <span className="truncate">{field.name.split('.')[1] || field.name}</span>
+              </div>
+            ))
+          ) : (
+            <p className="text-xs text-muted-foreground">Nenhum campo temporal encontrado</p>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderSetupTab = () => {
     if (selectedWidget.type === 'scorecard') {
-      return createDropZone('Métrica', 'metric', selectedWidget.config.metric);
+      return (
+        <div>
+          {createMultiDropZone('Métrica', 'metric', 'metrics', 
+            Array.isArray(selectedWidget.config.metrics) ? selectedWidget.config.metrics : 
+            selectedWidget.config.metric ? [selectedWidget.config.metric] : [], false)}
+        </div>
+      );
     } else if (selectedWidget.type === 'bar') {
       return (
         <div>
-          {createDropZone('Dimensão', 'dimension', selectedWidget.config.dimension)}
-          {createDropZone('Métrica', 'metric', selectedWidget.config.metric)}
+          {createMultiDropZone('Dimensões', 'dimension', 'dimensions', 
+            Array.isArray(selectedWidget.config.dimensions) ? selectedWidget.config.dimensions : 
+            selectedWidget.config.dimension ? [selectedWidget.config.dimension] : [], true)}
+          {createMultiDropZone('Métricas', 'metric', 'metrics', 
+            Array.isArray(selectedWidget.config.metrics) ? selectedWidget.config.metrics : 
+            selectedWidget.config.metric ? [selectedWidget.config.metric] : [], true)}
+          {createTimeDimensionSelector()}
         </div>
       );
     } else if (selectedWidget.type === 'filter') {
-      return createDropZone('Campo de Controle', 'dimension', selectedWidget.config.dimension);
+      return createMultiDropZone('Campo de Controle', 'dimension', 'dimensions', 
+        Array.isArray(selectedWidget.config.dimensions) ? selectedWidget.config.dimensions : 
+        selectedWidget.config.dimension ? [selectedWidget.config.dimension] : [], false);
     }
     
     return (
