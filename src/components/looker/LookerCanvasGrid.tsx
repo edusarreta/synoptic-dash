@@ -1,10 +1,19 @@
 import { useRef, useEffect } from "react";
-import { Chart, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js';
+import { 
+  Chart, 
+  CategoryScale, 
+  LinearScale, 
+  BarElement, 
+  BarController,
+  Title, 
+  Tooltip, 
+  Legend 
+} from 'chart.js';
 import { Button } from "@/components/ui/button";
 import { Trash2, BarChart3, Filter as FilterIcon, TrendingUp } from "lucide-react";
 
-// Register Chart.js components
-Chart.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
+// Register Chart.js components including BarController
+Chart.register(CategoryScale, LinearScale, BarElement, BarController, Title, Tooltip, Legend);
 
 interface Widget {
   id: number;
