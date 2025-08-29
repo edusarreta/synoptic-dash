@@ -639,20 +639,32 @@ export default function LookerDashboardBuilder() {
           )}
 
           <div className="flex flex-1 overflow-hidden">
-            {/* Left Sidebar - Data Panel */}
+            {/* Left Sidebar - Data and Properties Panels */}
             <div className="w-80 border-r border-border bg-card flex flex-col shrink-0">
               <div className="p-4 border-b border-border">
                 <h2 className="font-semibold text-base">Dados</h2>
               </div>
-              <LookerDataPanel
-                dataSources={dataSources}
-                selectedDataSource={selectedDataSource}
-                selectedTable={selectedTable}
-                tables={tables}
+              <div className="flex-1 overflow-auto">
+                <LookerDataPanel
+                  dataSources={dataSources}
+                  selectedDataSource={selectedDataSource}
+                  selectedTable={selectedTable}
+                  tables={tables}
+                  dataFields={dataFields}
+                  isLoadingFields={isLoadingFields}
+                  onDataSourceChange={handleDataSourceChange}
+                  onTableChange={handleTableChange}
+                />
+              </div>
+            </div>
+
+            {/* Properties Panel */}
+            <div className="w-80 border-r border-border bg-card shrink-0">
+              <LookerPropertiesPanel
+                selectedWidget={selectedWidget ? widgets.find(w => w.id === selectedWidget) || null : null}
                 dataFields={dataFields}
-                isLoadingFields={isLoadingFields}
-                onDataSourceChange={handleDataSourceChange}
-                onTableChange={handleTableChange}
+                onWidgetConfigUpdate={updateWidgetConfig}
+                onDeselectWidget={() => setSelectedWidget(null)}
               />
             </div>
 
@@ -672,16 +684,6 @@ export default function LookerDashboardBuilder() {
                   processDataForWidget={processDataForWidget}
                 />
               </div>
-            </div>
-
-            {/* Right Sidebar - Properties Panel */}
-            <div className="w-80 border-l border-border bg-card shrink-0">
-              <LookerPropertiesPanel
-                selectedWidget={selectedWidget ? widgets.find(w => w.id === selectedWidget) || null : null}
-                dataFields={dataFields}
-                onWidgetConfigUpdate={updateWidgetConfig}
-                onDeselectWidget={() => setSelectedWidget(null)}
-              />
             </div>
           </div>
         </div>
