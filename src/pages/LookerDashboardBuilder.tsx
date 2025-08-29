@@ -102,21 +102,30 @@ export default function LookerDashboardBuilder() {
   }, []);
 
   useEffect(() => {
-    // Set initial data source to first available connection or mock data
-    if (connections.length > 0 && !selectedDataSource) {
-      setSelectedDataSource(connections[0].id);
-      loadDataFields(connections[0].id);
-    } else if (connections.length === 0 && !selectedDataSource) {
-      // Use mock data as fallback
+    // Initialize with mock data first if no connections
+    if (connections.length === 0 && !selectedDataSource) {
+      console.log('🔧 Initializing with mock data...');
       setSelectedDataSource('Vendas Globais');
       setDataFields(MOCK_DATA['Vendas Globais'].fields);
     }
-  }, [connections, selectedDataSource]);
+    // Auto-select first real connection if available
+    else if (connections.length > 0 && !selectedDataSource) {
+      console.log('🔧 Auto-selecting first connection:', connections[0]);
+      const firstConnection = connections[0];
+      setSelectedDataSource(firstConnection.id);
+      loadDataFields(firstConnection.id);
+    }
+  }, [connections]);
 
   const loadDataFields = async (connectionId: string) => {
+    if (!connectionId || connectionId === 'Vendas Globais') return;
+    
     setIsLoadingFields(true);
+    setDataFields([]); // Clear previous data
+    
     try {
       console.log('📤 Loading data fields for connection:', connectionId);
+      
       const { data, error } = await supabase.functions.invoke('get-database-schema', {
         body: { connectionId }
       });
@@ -128,25 +137,37 @@ export default function LookerDashboardBuilder() {
         throw error;
       }
       
-      if (data?.success && data?.tables) {
+      if (data?.success && data?.tables && Array.isArray(data.tables)) {
         const fields: DataField[] = [];
+        
         data.tables.forEach((table: any) => {
-          table.columns.forEach((column: any) => {
-            const isNumeric = ['integer', 'bigint', 'decimal', 'numeric', 'real', 'double', 'money', 'float4', 'float8'].includes(column.type.toLowerCase());
-            fields.push({
-              id: `${table.name}.${column.name}`,
-              name: `${table.name}.${column.name}`,
-              type: isNumeric ? 'metric' : 'dimension',
-              dataType: column.type,
-              table: table.name
+          if (table.columns && Array.isArray(table.columns)) {
+            table.columns.forEach((column: any) => {
+              // More comprehensive numeric type detection
+              const isNumeric = ['integer', 'bigint', 'decimal', 'numeric', 'real', 'double', 'money', 'float4', 'float8', 'int', 'smallint'].includes(column.dataType?.toLowerCase() || column.type?.toLowerCase() || '');
+              
+              fields.push({
+                id: `${table.name}.${column.name}`,
+                name: `${table.name}.${column.name}`,
+                type: isNumeric ? 'metric' : 'dimension',
+                dataType: column.dataType || column.type || 'unknown',
+                table: table.name
+              });
             });
-          });
+          }
         });
-        console.log('✅ Fields loaded:', fields.length);
+        
+        console.log('✅ Fields loaded successfully:', {
+          totalFields: fields.length,
+          dimensions: fields.filter(f => f.type === 'dimension').length,
+          metrics: fields.filter(f => f.type === 'metric').length,
+          tables: data.tables.length
+        });
+        
         setDataFields(fields);
       } else {
-        console.error('❌ Schema response failed:', data);
-        throw new Error(data?.error || 'Failed to fetch database schema');
+        console.error('❌ Invalid schema response structure:', data);
+        throw new Error(data?.error || 'Invalid response structure from database schema API');
       }
     } catch (error: any) {
       console.error('💥 Error loading data fields:', error);
@@ -158,7 +179,9 @@ export default function LookerDashboardBuilder() {
   };
 
   const handleDataSourceChange = (connectionId: string) => {
+    console.log('🔄 Data source changed to:', connectionId);
     setSelectedDataSource(connectionId);
+    
     if (connectionId === 'Vendas Globais') {
       setDataFields(MOCK_DATA['Vendas Globais'].fields);
       setIsLoadingFields(false);
@@ -362,7 +385,7 @@ export default function LookerDashboardBuilder() {
               <div className="w-1/2 border-r border-border">
                 <LookerDataPanel
                   connections={[
-                    { id: 'Vendas Globais', name: 'Vendas Globais', connection_type: 'mock' },
+                    { id: 'Vendas Globais', name: 'Vendas Globais (Exemplo)', connection_type: 'demo' },
                     ...connections
                   ]}
                   selectedDataSource={selectedDataSource}

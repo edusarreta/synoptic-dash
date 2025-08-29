@@ -39,6 +39,15 @@ export function LookerDataPanel({
 }: LookerDataPanelProps) {
   const [searchTerm, setSearchTerm] = useState("");
 
+  console.log('🔍 LookerDataPanel render:', {
+    connectionsCount: connections.length,
+    selectedDataSource,
+    dataFieldsCount: dataFields.length,
+    isLoadingFields,
+    firstConnection: connections[0]?.name,
+    firstField: dataFields[0]?.name
+  });
+
   const filteredFields = dataFields.filter(field =>
     field.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     field.table.toLowerCase().includes(searchTerm.toLowerCase())
@@ -181,12 +190,25 @@ export function LookerDataPanel({
               </div>
             )}
 
-            {/* Empty State */}
+            {/* Empty State for Search */}
             {filteredFields.length === 0 && searchTerm && (
               <div className="text-center py-8">
                 <Search className="w-8 h-8 mx-auto mb-2 opacity-30" />
                 <p className="text-sm text-muted-foreground">
                   Nenhum campo encontrado para "{searchTerm}"
+                </p>
+              </div>
+            )}
+            
+            {/* Empty State for No Data */}
+            {dataFields.length === 0 && !searchTerm && !isLoadingFields && selectedDataSource && selectedDataSource !== 'Vendas Globais' && (
+              <div className="text-center py-8">
+                <Database className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                <p className="text-sm text-muted-foreground">
+                  Nenhum campo encontrado nesta fonte de dados
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Verifique se a conexão está funcionando
                 </p>
               </div>
             )}
