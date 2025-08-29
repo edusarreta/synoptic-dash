@@ -97,62 +97,51 @@ export default function LookerDashboardBuilder() {
   const [tables, setTables] = useState<any[]>([]);
   const [dataFields, setDataFields] = useState<DataField[]>([]);
   const [isLoadingFields, setIsLoadingFields] = useState(false);
+  const [isAddingWidget, setIsAddingWidget] = useState(false);
   
-  // Widgets State
+  // Widget State
   const [widgets, setWidgets] = useState<Widget[]>([]);
-  const [selectedWidgetId, setSelectedWidgetId] = useState<number | null>(null);
+  const [selectedWidget, setSelectedWidget] = useState<number | null>(null);
+  
+  // Add proper handleDragEnd function
+  const handleDragEnd = (event: DragEndEvent) => {
+    console.log('🎯 Drag ended:', event);
+    // Handle widget reordering or other drag end logic here
+  };
+
+  // Initialize data sources
+  const dataSources = [
+    { id: 'Vendas Globais', name: 'Vendas Globais (Mock)', type: 'mock' },
+    ...connections.map(conn => ({
+      id: conn.id,
+      name: conn.name,
+      type: conn.connection_type
+    }))
+  ];
 
   useEffect(() => {
-    loadConnections();
-  }, []);
-
-  useEffect(() => {
-    // Initialize with mock data first if no connections
-    if (connections.length === 0 && !selectedDataSource) {
-      console.log('🔧 Initializing with mock data...');
-      setSelectedDataSource('Vendas Globais');
-      setDataFields(MOCK_DATA['Vendas Globais'].fields);
+    if (connections.length === 0) {
+      loadConnections();
     }
-    // Auto-select first real connection if available
-    else if (connections.length > 0 && !selectedDataSource) {
-      console.log('🔧 Auto-selecting first connection:', connections[0]);
-      const firstConnection = connections[0];
-      setSelectedDataSource(firstConnection.id);
-      loadTables(firstConnection.id);
-    }
-  }, [connections]);
+  }, [connections.length, loadConnections]);
 
   const loadTables = async (connectionId: string) => {
     if (!connectionId || connectionId === 'Vendas Globais') return;
     
     setIsLoadingFields(true);
-    setTables([]);
-    setSelectedTable('');
-    setDataFields([]);
-    
     try {
-      console.log('📤 Loading tables for connection:', connectionId);
+      console.log('🔄 Loading tables for connection:', connectionId);
       
       const { data, error } = await supabase.functions.invoke('get-database-schema', {
         body: { connectionId }
       });
+
+      if (error) throw error;
       
-      console.log('📥 Tables response:', data);
-      
-      if (error) {
-        console.error('❌ Tables error:', error);
-        throw error;
-      }
-      
-      if (data?.success && data?.tables && Array.isArray(data.tables)) {
-        console.log('✅ Tables loaded:', data.tables.length);
-        setTables(data.tables);
-      } else {
-        console.error('❌ Invalid tables response:', data);
-        throw new Error(data?.error || 'Failed to fetch database tables');
-      }
+      console.log('📊 Tables loaded:', data);
+      setTables(data.tables || []);
     } catch (error: any) {
-      console.error('💥 Error loading tables:', error);
+      console.error('❌ Error loading tables:', error);
       toast.error(`Erro ao carregar tabelas: ${error.message}`);
       setTables([]);
     } finally {
@@ -164,39 +153,31 @@ export default function LookerDashboardBuilder() {
     if (!tableName || !selectedDataSource) return;
     
     setIsLoadingFields(true);
-    setDataFields([]);
-    
     try {
-      console.log('📤 Loading fields for table:', tableName);
+      console.log('🔄 Loading fields for table:', tableName, 'in connection:', selectedDataSource);
       
-      // Find the selected table from the tables array
-      const table = tables.find(t => t.name === tableName);
-      if (!table || !table.columns) {
-        throw new Error('Tabela não encontrada ou sem colunas');
-      }
-      
-      const fields: DataField[] = table.columns.map((column: any) => {
-        const isNumeric = ['integer', 'bigint', 'decimal', 'numeric', 'real', 'double', 'money', 'float4', 'float8', 'int', 'smallint'].includes(column.dataType?.toLowerCase() || column.type?.toLowerCase() || '');
-        
-        return {
-          id: `${table.name}.${column.name}`,
-          name: `${table.name}.${column.name}`,
-          type: isNumeric ? 'metric' : 'dimension',
-          dataType: column.dataType || column.type || 'unknown',
-          table: table.name
-        };
+      const { data, error } = await supabase.functions.invoke('get-database-schema', {
+        body: { connectionId: selectedDataSource, tableName }
       });
+
+      if (error) throw error;
       
-      console.log('✅ Table fields loaded:', {
-        table: tableName,
-        totalFields: fields.length,
-        dimensions: fields.filter(f => f.type === 'dimension').length,
-        metrics: fields.filter(f => f.type === 'metric').length
-      });
+      console.log('📊 Fields loaded:', data);
       
-      setDataFields(fields);
+      // Process fields to match our DataField interface
+      const processedFields: DataField[] = data.fields?.map((field: any) => ({
+        id: `${tableName}.${field.name}`,
+        name: `${tableName}.${field.name}`,
+        type: field.type?.includes('char') || field.type?.includes('text') || field.type?.includes('varchar') 
+          ? 'dimension' as const 
+          : 'metric' as const,
+        dataType: field.type || 'unknown',
+        table: tableName
+      })) || [];
+      
+      setDataFields(processedFields);
     } catch (error: any) {
-      console.error('💥 Error loading table fields:', error);
+      console.error('❌ Error loading table fields:', error);
       toast.error(`Erro ao carregar campos da tabela: ${error.message}`);
       setDataFields([]);
     } finally {
@@ -402,13 +383,14 @@ export default function LookerDashboardBuilder() {
       layout: { x: 1, y: 1, w: 4, h: 3 }
     };
     setWidgets([...widgets, newWidget]);
-    setSelectedWidgetId(newId);
+    setSelectedWidget(newId);
+    setIsAddingWidget(false);
   };
 
   const removeWidget = (widgetId: number) => {
     setWidgets(widgets.filter(w => w.id !== widgetId));
-    if (selectedWidgetId === widgetId) {
-      setSelectedWidgetId(null);
+    if (selectedWidget === widgetId) {
+      setSelectedWidget(null);
     }
   };
 
@@ -468,7 +450,7 @@ export default function LookerDashboardBuilder() {
 
   return (
     <AppLayout>
-      <DndContext onDragEnd={() => {}}>
+      <DndContext onDragEnd={handleDragEnd}>
         <div className="h-screen flex flex-col bg-background">
           {/* Header */}
           <header className="bg-card border-b border-border px-4 py-2 flex items-center justify-between shadow-sm shrink-0">
@@ -489,33 +471,16 @@ export default function LookerDashboardBuilder() {
                 variant="outline" 
                 size="sm" 
                 className="gap-2"
-                onClick={() => addWidget('bar')}
+                onClick={() => setIsAddingWidget(true)}
               >
                 <Plus className="w-4 h-4" />
-                Adicionar Gráfico
+                Adicionar Widget
               </Button>
               
               <Button 
-                variant="outline" 
                 size="sm" 
-                className="gap-2"
-                onClick={() => addWidget('filter')}
-              >
-                <Filter className="w-4 h-4" />
-                Adicionar Controle
-              </Button>
-            </div>
-            
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" className="gap-2">
-                <Eye className="w-4 h-4" />
-                Ver
-              </Button>
-              
-              <Button
                 onClick={handleSaveDashboard}
                 disabled={isSaving}
-                size="sm"
                 className="gap-2"
               >
                 <Save className="w-4 h-4" />
@@ -523,53 +488,97 @@ export default function LookerDashboardBuilder() {
               </Button>
             </div>
           </header>
+          
+          {/* Widget Type Selector */}
+          {isAddingWidget && (
+            <div className="bg-card border-b border-border p-4">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-medium">Selecione o tipo de widget:</p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsAddingWidget(false)}
+                >
+                  ✕
+                </Button>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => addWidget('scorecard')}
+                  className="gap-2"
+                >
+                  📊 Scorecard
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => addWidget('bar')}
+                  className="gap-2"
+                >
+                  <BarChart3 className="w-4 h-4" />
+                  Gráfico de Barras
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => addWidget('filter')}
+                  className="gap-2"
+                >
+                  <Filter className="w-4 h-4" />
+                  Filtro
+                </Button>
+              </div>
+            </div>
+          )}
 
-          {/* Main Content */}
-          <main className="flex flex-1 overflow-hidden">
-            {/* Canvas Area */}
-            <div className="flex-1 bg-slate-200 overflow-auto">
-              <LookerCanvasGrid
-                widgets={widgets}
-                selectedWidgetId={selectedWidgetId}
-                onWidgetSelect={setSelectedWidgetId}
-                onWidgetUpdate={(id, updates) => {
-                  setWidgets(widgets.map(w => w.id === id ? { ...w, ...updates } : w));
-                }}
-                onWidgetRemove={removeWidget}
-                processDataForWidget={processDataForWidget}
+          <div className="flex flex-1 overflow-hidden">
+            {/* Left Sidebar - Data Panel */}
+            <div className="w-80 border-r border-border bg-card flex flex-col shrink-0">
+              <div className="p-4 border-b border-border">
+                <h2 className="font-semibold text-base">Dados</h2>
+              </div>
+              <LookerDataPanel
+                dataSources={dataSources}
+                selectedDataSource={selectedDataSource}
+                selectedTable={selectedTable}
+                tables={tables}
+                dataFields={dataFields}
+                isLoadingFields={isLoadingFields}
+                onDataSourceChange={handleDataSourceChange}
+                onTableChange={handleTableChange}
               />
             </div>
 
-            {/* Side Panel Container */}
-            <div className="flex w-[600px] shrink-0 bg-card border-l border-border shadow-lg">
-              {/* Data Panel */}
-              <div className="w-1/2 border-r border-border">
-                <LookerDataPanel
-                  connections={[
-                    { id: 'Vendas Globais', name: 'Vendas Globais (Exemplo)', connection_type: 'demo' },
-                    ...connections
-                  ]}
-                  selectedDataSource={selectedDataSource}
-                  selectedTable={selectedTable}
-                  tables={tables}
-                  dataFields={dataFields}
-                  isLoadingFields={isLoadingFields}
-                  onDataSourceChange={handleDataSourceChange}
-                  onTableChange={handleTableChange}
-                />
-              </div>
-
-              {/* Properties Panel */}
-              <div className="w-1/2">
-                <LookerPropertiesPanel
-                  selectedWidget={widgets.find(w => w.id === selectedWidgetId) || null}
-                  dataFields={dataFields}
-                  onWidgetConfigUpdate={updateWidgetConfig}
-                  onDeselectWidget={() => setSelectedWidgetId(null)}
+            {/* Main Canvas */}
+            <div className="flex-1 flex flex-col overflow-hidden">
+              <div className="flex-1 p-4 bg-muted/20 overflow-auto">
+                <LookerCanvasGrid
+                  widgets={widgets}
+                  selectedWidgetId={selectedWidget}
+                  onWidgetSelect={setSelectedWidget}
+                  onWidgetUpdate={(id, updates) => {
+                    setWidgets(widgets.map(widget => 
+                      widget.id === id ? { ...widget, ...updates } : widget
+                    ));
+                  }}
+                  onWidgetRemove={removeWidget}
+                  processDataForWidget={processDataForWidget}
                 />
               </div>
             </div>
-          </main>
+
+            {/* Right Sidebar - Properties Panel */}
+            <div className="w-80 border-l border-border bg-card shrink-0">
+              <LookerPropertiesPanel
+                selectedWidget={selectedWidget ? widgets.find(w => w.id === selectedWidget) || null : null}
+                dataFields={dataFields}
+                onWidgetConfigUpdate={updateWidgetConfig}
+                onDeselectWidget={() => setSelectedWidget(null)}
+              />
+            </div>
+          </div>
         </div>
       </DndContext>
     </AppLayout>

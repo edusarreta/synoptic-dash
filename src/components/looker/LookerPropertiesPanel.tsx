@@ -77,6 +77,8 @@ export function LookerPropertiesPanel({
             e.preventDefault();
             try {
               const dragData = JSON.parse(e.dataTransfer.getData('application/json'));
+              console.log('📥 Drop data received:', dragData);
+              
               if (dragData.type === 'field' && dragData.field.type === acceptedType) {
                 const fieldId = dragData.field.id;
                 let newValues;
@@ -91,14 +93,25 @@ export function LookerPropertiesPanel({
                   newValues = [fieldId];
                 }
                 
+                console.log('✅ Updating widget config:', configKey, newValues);
                 onWidgetConfigUpdate(selectedWidget.id, { [configKey]: allowMultiple ? newValues : newValues[0] });
               }
             } catch (error) {
-              console.error('Error processing dropped field:', error);
+              console.error('❌ Error processing dropped field:', error);
             }
           }}
-          onDragOver={(e) => e.preventDefault()}
-          onDragEnter={(e) => e.preventDefault()}
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+          }}
+          onDragEnter={(e) => {
+            e.preventDefault();
+            e.currentTarget.classList.add('border-primary/50', 'bg-primary/5');
+          }}
+          onDragLeave={(e) => {
+            e.preventDefault();
+            e.currentTarget.classList.remove('border-primary/50', 'bg-primary/5');
+          }}
         >
           {currentValues.length > 0 ? (
             <div className="space-y-1">

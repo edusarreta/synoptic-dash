@@ -2,17 +2,16 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { 
+  Database, 
   Search, 
   Plus, 
-  Database, 
   Hash, 
+  Calendar, 
   Type, 
-  Calendar,
-  Loader2,
-  PlusCircle,
-  ArrowLeft
+  BarChart3,
+  ArrowLeft,
+  Loader2
 } from "lucide-react";
 
 interface DataField {
@@ -23,19 +22,30 @@ interface DataField {
   table: string;
 }
 
-interface LookerDataPanelProps {
-  connections: any[];
+interface DataSource {
+  id: string;
+  name: string;
+  type: string;
+}
+
+interface Table {
+  name: string;
+  columns?: any[];
+}
+
+interface DataFieldsPanelProps {
+  dataSources: DataSource[];
   selectedDataSource: string;
   selectedTable: string;
-  tables: any[];
+  tables: Table[];
   dataFields: DataField[];
   isLoadingFields: boolean;
-  onDataSourceChange: (connectionId: string) => void;
+  onDataSourceChange: (dataSourceId: string) => void;
   onTableChange: (tableName: string) => void;
 }
 
 export function LookerDataPanel({
-  connections,
+  dataSources,
   selectedDataSource,
   selectedTable,
   tables,
@@ -43,11 +53,12 @@ export function LookerDataPanel({
   isLoadingFields,
   onDataSourceChange,
   onTableChange
-}: LookerDataPanelProps) {
+}: DataFieldsPanelProps) {
   const [searchTerm, setSearchTerm] = useState("");
+  const [showCalculatedFieldDialog, setShowCalculatedFieldDialog] = useState(false);
 
   console.log('🔍 LookerDataPanel render:', {
-    connectionsCount: connections.length,
+    connectionsCount: dataSources.length,
     selectedDataSource,
     selectedTable,
     tablesCount: tables.length,
@@ -55,23 +66,25 @@ export function LookerDataPanel({
     isLoadingFields
   });
 
+  // Filter fields based on search term
   const filteredFields = dataFields.filter(field =>
     field.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    field.table.toLowerCase().includes(searchTerm.toLowerCase())
+    field.dataType.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Separate dimensions and metrics
   const dimensionFields = filteredFields.filter(field => field.type === 'dimension');
   const metricFields = filteredFields.filter(field => field.type === 'metric');
 
   const getFieldIcon = (dataType: string) => {
     const type = dataType.toLowerCase();
-    if (type.includes('text') || type.includes('varchar') || type.includes('char')) {
-      return <Type className="w-3 h-3" />;
+    if (type.includes('int') || type.includes('decimal') || type.includes('float') || type.includes('numeric')) {
+      return <Hash className="w-3 h-3 text-muted-foreground mr-2" />;
+    } else if (type.includes('date') || type.includes('time')) {
+      return <Calendar className="w-3 h-3 text-muted-foreground mr-2" />;
+    } else {
+      return <Type className="w-3 h-3 text-muted-foreground mr-2" />;
     }
-    if (type.includes('date') || type.includes('time')) {
-      return <Calendar className="w-3 h-3" />;
-    }
-    return <Hash className="w-3 h-3" />;
   };
 
   const handleBackToTables = () => {
@@ -79,73 +92,42 @@ export function LookerDataPanel({
   };
 
   return (
-    <div className="h-full flex flex-col bg-card">
-      {/* Header */}
-      <div className="p-3 border-b border-border shrink-0">
-        <h2 className="font-semibold flex items-center gap-2">
-          <Database className="w-4 h-4 text-primary" />
-          Dados
-        </h2>
-        
-        {/* Data Source Selector */}
+    <div className="flex-1 flex flex-col overflow-hidden">
+      {/* Data Source Selector */}
+      <div className="p-4 border-b border-border">
+        <label className="text-sm font-medium text-muted-foreground mb-2 block">
+          Fonte de Dados
+        </label>
         <Select value={selectedDataSource} onValueChange={onDataSourceChange}>
-          <SelectTrigger className="w-full mt-2">
-            <SelectValue placeholder="Selecionar fonte de dados" />
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Selecione uma fonte de dados" />
           </SelectTrigger>
-          <SelectContent>
-            {/* Mock data option first */}
-            <SelectItem value="Vendas Globais">
-              <div className="flex items-center gap-2">
-                <Database className="w-3 h-3" />
-                <span>Vendas Globais (Exemplo)</span>
-                <Badge variant="outline" className="text-xs">
-                  demo
-                </Badge>
-              </div>
-            </SelectItem>
-            {connections.filter(conn => conn.id !== 'Vendas Globais').map((connection) => (
-              <SelectItem key={connection.id} value={connection.id}>
-                <div className="flex items-center gap-2">
-                  <Database className="w-3 h-3" />
-                  <span>{connection.name}</span>
-                  <Badge variant="outline" className="text-xs">
-                    {connection.connection_type}
-                  </Badge>
+          <SelectContent className="bg-popover border border-border shadow-lg z-50">
+            {dataSources.map((source) => (
+              <SelectItem 
+                key={source.id} 
+                value={source.id}
+                className="hover:bg-accent cursor-pointer"
+              >
+                <div className="flex items-center">
+                  <Database className="w-4 h-4 mr-2" />
+                  {source.name}
                 </div>
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
-
-        {/* Table Selector - Show only if data source is selected and not loading */}
-        {selectedDataSource && selectedDataSource !== 'Vendas Globais' && !isLoadingFields && tables.length > 0 && (
-          <Select value={selectedTable} onValueChange={onTableChange}>
-            <SelectTrigger className="w-full mt-2">
-              <SelectValue placeholder="Selecionar tabela" />
-            </SelectTrigger>
-            <SelectContent>
-              {tables.map((table) => (
-                <SelectItem key={table.name} value={table.name}>
-                  <div className="flex items-center gap-2">
-                    <Database className="w-3 h-3" />
-                    <span>{table.name}</span>
-                    <Badge variant="outline" className="text-xs">
-                      {table.columns?.length || 0} campos
-                    </Badge>
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-3 custom-scrollbar">
+      {/* Content Area */}
+      <div className="flex-1 overflow-y-auto">
         {!selectedDataSource ? (
-          <div className="text-center text-muted-foreground py-8">
-            <Database className="w-8 h-8 mx-auto mb-2 opacity-50" />
-            <p className="text-sm">Selecione uma fonte de dados</p>
+          <div className="p-4 text-center">
+            <Database className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+            <h3 className="font-medium mb-2">Selecione uma Fonte de Dados</h3>
+            <p className="text-sm text-muted-foreground">
+              Escolha uma conexão de banco de dados para começar a construir seu relatório.
+            </p>
           </div>
         ) : selectedDataSource !== 'Vendas Globais' && tables.length === 0 && isLoadingFields ? (
           <div className="text-center py-8">
@@ -173,7 +155,7 @@ export function LookerDataPanel({
               ))}
             </div>
           </div>
-        ) : isLoadingFields ? (
+        ) : isLoadingFields && selectedTable ? (
           <div className="text-center py-8">
             <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
             <p className="text-sm text-muted-foreground">Carregando campos...</p>
@@ -217,17 +199,23 @@ export function LookerDataPanel({
                       <div
                         key={field.id}
                         className="field-item flex items-center p-2 rounded-md text-sm select-none bg-green-100 text-green-800 cursor-grab hover:bg-green-200 transition-colors"
-                        draggable
+                        draggable={true}
                         onDragStart={(e) => {
-                          e.dataTransfer.setData('application/json', JSON.stringify({
+                          console.log('🎯 Starting drag for field:', field);
+                          const dragData = {
                             type: 'field',
                             field: field
-                          }));
+                          };
+                          e.dataTransfer.setData('application/json', JSON.stringify(dragData));
                           e.dataTransfer.effectAllowed = 'copy';
                         }}
                       >
+                        <div className={`w-2 h-2 rounded-full mr-2 bg-green-500`}></div>
                         {getFieldIcon(field.dataType)}
-                        <span className="ml-2 truncate">{field.name.split('.')[1] || field.name}</span>
+                        <span className="truncate flex-1">{field.name.split('.')[1] || field.name}</span>
+                        <span className="text-xs text-green-600 opacity-75 ml-1">
+                          {field.dataType}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -246,50 +234,65 @@ export function LookerDataPanel({
                       <div
                         key={field.id}
                         className="field-item flex items-center p-2 rounded-md text-sm select-none bg-blue-100 text-blue-800 cursor-grab hover:bg-blue-200 transition-colors"
-                        draggable
+                        draggable={true}
                         onDragStart={(e) => {
-                          e.dataTransfer.setData('application/json', JSON.stringify({
+                          console.log('🎯 Starting drag for field:', field);
+                          const dragData = {
                             type: 'field',
                             field: field
-                          }));
+                          };
+                          e.dataTransfer.setData('application/json', JSON.stringify(dragData));
                           e.dataTransfer.effectAllowed = 'copy';
                         }}
                       >
+                        <div className={`w-2 h-2 rounded-full mr-2 bg-blue-500`}></div>
                         {getFieldIcon(field.dataType)}
-                        <span className="ml-2 truncate">{field.name.split('.')[1] || field.name}</span>
+                        <span className="truncate flex-1">{field.name.split('.')[1] || field.name}</span>
+                        <span className="text-xs text-blue-600 opacity-75 ml-1">
+                          {field.dataType}
+                        </span>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
 
-              {/* Empty State for Search */}
-              {filteredFields.length === 0 && searchTerm && (
-                <div className="text-center py-8">
-                  <Search className="w-8 h-8 mx-auto mb-2 opacity-30" />
+              {/* Empty search results */}
+              {searchTerm && filteredFields.length === 0 && (
+                <div className="text-center py-6">
+                  <Search className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
                   <p className="text-sm text-muted-foreground">
                     Nenhum campo encontrado para "{searchTerm}"
                   </p>
                 </div>
               )}
             </div>
+
+            {/* Add Calculated Field Button */}
+            <div className="mt-4 pt-4 border-t border-border">
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full gap-2"
+                onClick={() => setShowCalculatedFieldDialog(true)}
+              >
+                <Plus className="w-4 h-4" />
+                Adicionar Campo Calculado
+              </Button>
+            </div>
           </div>
-        ) : selectedDataSource !== 'Vendas Globais' && selectedTable ? (
-          <div className="text-center py-8">
-            <Database className="w-8 h-8 mx-auto mb-2 opacity-30" />
+        ) : selectedDataSource && !isLoadingFields ? (
+          <div className="p-4 text-center">
+            <BarChart3 className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+            <h3 className="font-medium mb-2">Nenhum Campo Disponível</h3>
             <p className="text-sm text-muted-foreground">
-              Nenhum campo encontrado na tabela "{selectedTable}"
+              {selectedDataSource === 'Vendas Globais' 
+                ? 'Esta fonte de dados não possui campos configurados.'
+                : 'Selecione uma tabela para ver os campos disponíveis.'
+              }
             </p>
           </div>
         ) : null}
-      </div>
-
-      {/* Footer */}
-      <div className="p-3 border-t border-border shrink-0">
-        <Button variant="ghost" className="w-full justify-center gap-2 text-primary hover:bg-primary/10">
-          <PlusCircle className="w-4 h-4" />
-          Adicionar um Campo
-        </Button>
       </div>
     </div>
   );
