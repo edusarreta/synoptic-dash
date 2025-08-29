@@ -243,38 +243,30 @@ export default function Dashboard() {
   const getSizeClasses = (size: string) => {
     switch (size) {
       case 'small':
-        return 'col-span-1 row-span-1 h-64';
+        return 'w-full min-h-[250px] max-h-[300px]';
       case 'medium':
-        return 'col-span-1 row-span-1 h-80';
+        return 'w-full min-h-[350px] max-h-[400px]';
       case 'large':
-        return 'col-span-2 row-span-1 h-80';
+        return 'w-full min-h-[450px] max-h-[500px]';
       case 'extra-large':
-        return 'col-span-2 row-span-2 h-96';
-      case 'wide':
-        return 'col-span-3 row-span-1 h-64';
-      case 'tall':
-        return 'col-span-1 row-span-2 h-96';
+        return 'w-full min-h-[550px] max-h-[600px]';
       default:
-        return 'col-span-1 row-span-1 h-80';
+        return 'w-full min-h-[350px] max-h-[400px]';
     }
   };
 
-  const getChartHeight = (size: string) => {
+  const getGridClasses = (size: string) => {
     switch (size) {
       case 'small':
-        return 'h-48';
+        return 'col-span-1';
       case 'medium':
-        return 'h-64';
+        return 'col-span-1';
       case 'large':
-        return 'h-64';
+        return 'col-span-2';
       case 'extra-large':
-        return 'h-80';
-      case 'wide':
-        return 'h-48';
-      case 'tall':
-        return 'h-80';
+        return 'col-span-2';
       default:
-        return 'h-64';
+        return 'col-span-1';
     }
   };
 
@@ -395,12 +387,12 @@ export default function Dashboard() {
                   <div
                     {...provided.droppableProps}
                     ref={provided.innerRef}
-                    className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 auto-rows-min"
+                    className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 auto-rows-min"
                   >
                     {filteredCharts.map((chart, index) => {
                       const currentSize = getChartSize(chart.id);
                       const sizeClasses = getSizeClasses(currentSize);
-                      const chartHeight = getChartHeight(currentSize);
+                      const gridClasses = getGridClasses(currentSize);
                       
                       return (
                         <Draggable key={chart.id} draggableId={chart.id} index={index}>
@@ -408,7 +400,7 @@ export default function Dashboard() {
                             <Card 
                               ref={provided.innerRef}
                               {...provided.draggableProps}
-                              className={`glass-card border-0 shadow-card transition-all duration-200 ${sizeClasses} ${
+                              className={`glass-card border-0 shadow-card transition-all duration-200 ${gridClasses} ${sizeClasses} ${
                                 snapshot.isDragging ? 'rotate-2 scale-105 shadow-xl z-50' : ''
                               }`}
                             >
@@ -489,17 +481,18 @@ export default function Dashboard() {
                                   </div>
                                 </div>
                               </CardHeader>
-                              <CardContent className="pt-0">
-                                <div className={`border rounded-lg p-3 bg-background/50 ${chartHeight}`}>
+                              <CardContent className="p-0 flex-1">
+                                <div className="h-full p-4">
                                   <ChartRenderer
                                     config={{
-                                      type: chart.chart_type as any,
+                                      type: chart.chart_type,
                                       title: chart.name,
                                       description: chart.description,
                                       xAxis: chart.chart_config?.xAxis || '',
                                       yAxis: chart.chart_config?.yAxis || [],
                                       data: chart.filteredData || chart.data || []
                                     }}
+                                    className="w-full h-full"
                                   />
                                 </div>
                                 <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
