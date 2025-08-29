@@ -397,11 +397,15 @@ export default function Dashboard() {
                       return (
                         <Draggable key={chart.id} draggableId={chart.id} index={index}>
                           {(provided, snapshot) => (
-                            <Card 
+                            <div 
                               ref={provided.innerRef}
                               {...provided.draggableProps}
-                              className={`glass-card border-0 shadow-card transition-all duration-200 ${gridClasses} ${sizeClasses} ${
-                                snapshot.isDragging ? 'rotate-2 scale-105 shadow-xl z-50' : ''
+                              className={`${gridClasses} ${
+                                snapshot.isDragging ? 'z-50' : ''
+                              }`}
+                            >
+                              <Card className={`glass-card border-0 shadow-card transition-all duration-200 ${sizeClasses} flex flex-col ${
+                                snapshot.isDragging ? 'rotate-2 scale-105 shadow-xl' : ''
                               }`}
                             >
                               <CardHeader className="pb-3">
@@ -505,7 +509,8 @@ export default function Dashboard() {
                                   </span>
                                 </div>
                               </CardContent>
-                            </Card>
+                              </Card>
+                            </div>
                           )}
                         </Draggable>
                       );
