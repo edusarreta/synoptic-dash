@@ -109,6 +109,9 @@ export type Database = {
           id: string
           name: string
           slug: string
+          status: string | null
+          suspended_at: string | null
+          suspended_by: string | null
           updated_at: string
         }
         Insert: {
@@ -116,6 +119,9 @@ export type Database = {
           id?: string
           name: string
           slug: string
+          status?: string | null
+          suspended_at?: string | null
+          suspended_by?: string | null
           updated_at?: string
         }
         Update: {
@@ -123,6 +129,9 @@ export type Database = {
           id?: string
           name?: string
           slug?: string
+          status?: string | null
+          suspended_at?: string | null
+          suspended_by?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -865,6 +874,7 @@ export type Database = {
           email: string
           full_name: string | null
           id: string
+          is_super_admin: boolean | null
           role: string
           updated_at: string
         }
@@ -874,6 +884,7 @@ export type Database = {
           email: string
           full_name?: string | null
           id: string
+          is_super_admin?: boolean | null
           role?: string
           updated_at?: string
         }
@@ -883,6 +894,7 @@ export type Database = {
           email?: string
           full_name?: string | null
           id?: string
+          is_super_admin?: boolean | null
           role?: string
           updated_at?: string
         }
@@ -1107,6 +1119,14 @@ export type Database = {
       get_user_role_in_account: {
         Args: { account_id: string; user_id: string }
         Returns: string
+      }
+      get_user_role_with_super_admin: {
+        Args: { account_id: string; user_id: string }
+        Returns: string
+      }
+      is_super_admin: {
+        Args: { user_id: string }
+        Returns: boolean
       }
     }
     Enums: {

@@ -58,3 +58,15 @@ verify_jwt = true
 
 [functions.audit-log]
 verify_jwt = true
+
+[functions.superadmin-accounts]
+verify_jwt = false
+
+[functions.superadmin-suspend]
+verify_jwt = false
+
+[functions.superadmin-reactivate]
+verify_jwt = false
+
+[functions.superadmin-account-details]
+verify_jwt = false

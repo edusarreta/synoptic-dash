@@ -17,6 +17,7 @@ import Billing from "./pages/Billing";
 import AIChat from "./pages/AIChat";
 import Marketplace from "./pages/Marketplace";
 import Ecosystem from "./pages/Ecosystem";
+import SuperAdmin from "./pages/SuperAdmin";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -41,7 +42,8 @@ const App = () => (
               <Route path="/ai-chat" element={<AIChat />} />
             <Route path="/marketplace" element={<Marketplace />} />
             <Route path="/ecosystem" element={<Ecosystem />} />
-              <Route path="/billing" element={<Billing />} />
+            <Route path="/super-admin" element={<SuperAdmin />} />
+            <Route path="/billing" element={<Billing />} />
               <Route path="/settings" element={<Settings />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
