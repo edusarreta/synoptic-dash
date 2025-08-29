@@ -422,6 +422,7 @@ export type Database = {
       }
       instance: {
         Row: {
+          account_id: string | null
           contactId: string | null
           conversationsId: string | null
           created_at: string
@@ -430,10 +431,12 @@ export type Database = {
           locationId: string
           name: string | null
           token: string | null
+          user_id: string | null
           "user.phone": string | null
           wamid: string | null
         }
         Insert: {
+          account_id?: string | null
           contactId?: string | null
           conversationsId?: string | null
           created_at: string
@@ -442,10 +445,12 @@ export type Database = {
           locationId: string
           name?: string | null
           token?: string | null
+          user_id?: string | null
           "user.phone"?: string | null
           wamid?: string | null
         }
         Update: {
+          account_id?: string | null
           contactId?: string | null
           conversationsId?: string | null
           created_at?: string
@@ -454,6 +459,7 @@ export type Database = {
           locationId?: string
           name?: string | null
           token?: string | null
+          user_id?: string | null
           "user.phone"?: string | null
           wamid?: string | null
         }
