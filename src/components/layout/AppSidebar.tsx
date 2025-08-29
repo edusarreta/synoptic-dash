@@ -6,7 +6,8 @@ import {
   Settings, 
   Users, 
   LogOut,
-  ChevronDown
+  ChevronDown,
+  Plus
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
@@ -108,6 +109,37 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* Quick Actions */}
+        <SidebarGroup className="px-2">
+          <SidebarGroupLabel className={!open ? "sr-only" : ""}>Quick Actions</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild className="h-10">
+                  <NavLink 
+                    to="/charts/new" 
+                    className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${getNavClass("/charts/new")}`}
+                  >
+                    <Plus className="w-5 h-5 flex-shrink-0" />
+                    {open && <span className="text-sm font-medium">New Chart</span>}
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild className="h-10">
+                  <NavLink 
+                    to="/settings" 
+                    className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${getNavClass("/settings")}`}
+                  >
+                    <Settings className="w-5 h-5 flex-shrink-0" />
+                    {open && <span className="text-sm font-medium">Settings</span>}
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

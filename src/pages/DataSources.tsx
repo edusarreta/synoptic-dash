@@ -4,26 +4,31 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Plus, Database, Check, X, Edit, Trash2 } from "lucide-react";
+import { Plus, Database, Check, X, Edit, Trash2, Globe } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 
 interface DataConnection {
   id: string;
   name: string;
-  host: string;
-  port: number;
-  database_name: string;
-  username: string;
+  connection_type: string;
+  host?: string;
+  port?: number;
+  database_name?: string;
+  username?: string;
   ssl_enabled: boolean;
   is_active: boolean;
+  connection_config: any;
   created_at: string;
 }
 
 export default function DataSources() {
+  const [selectedType, setSelectedType] = useState<'postgresql' | 'supabase' | 'rest_api'>('postgresql');
+  const [authType, setAuthType] = useState<string>('none');
   const { user } = useAuth();
   const { toast } = useToast();
   const [connections, setConnections] = useState<DataConnection[]>([]);
@@ -199,98 +204,223 @@ export default function DataSources() {
                 Add Data Source
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Add PostgreSQL Connection</DialogTitle>
+                <DialogTitle>Add Data Source</DialogTitle>
                 <DialogDescription>
-                  Connect to your PostgreSQL database securely
+                  Connect to your data source to start analyzing your data
                 </DialogDescription>
               </DialogHeader>
               
               <form onSubmit={handleSubmit}>
                 <div className="grid gap-4 py-4">
+                  {/* Connection Type Selector */}
+                  <div className="space-y-2">
+                    <Label>Connection Type</Label>
+                    <Select value={selectedType} onValueChange={(value: any) => setSelectedType(value)}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="postgresql">
+                          <div className="flex items-center gap-2">
+                            <Database className="w-4 h-4" />
+                            PostgreSQL
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="supabase">
+                          <div className="flex items-center gap-2">
+                            <Database className="w-4 h-4" />
+                            Supabase
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="rest_api">
+                          <div className="flex items-center gap-2">
+                            <Globe className="w-4 h-4" />
+                            REST API
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="name">Connection Name</Label>
                     <Input
                       id="name"
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      placeholder="My Database"
+                      placeholder={selectedType === 'postgresql' ? 'My PostgreSQL DB' : selectedType === 'supabase' ? 'My Supabase Project' : 'My API Service'}
                       required
                     />
                   </div>
                   
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="col-span-2 space-y-2">
-                      <Label htmlFor="host">Host</Label>
-                      <Input
-                        id="host"
-                        value={formData.host}
-                        onChange={(e) => setFormData({ ...formData, host: e.target.value })}
-                        placeholder="localhost"
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="port">Port</Label>
-                      <Input
-                        id="port"
-                        type="number"
-                        value={formData.port}
-                        onChange={(e) => setFormData({ ...formData, port: parseInt(e.target.value) })}
-                        placeholder="5432"
-                        required
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="database_name">Database Name</Label>
-                    <Input
-                      id="database_name"
-                      value={formData.database_name}
-                      onChange={(e) => setFormData({ ...formData, database_name: e.target.value })}
-                      placeholder="myapp_production"
-                      required
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="username">Username</Label>
-                    <Input
-                      id="username"
-                      value={formData.username}
-                      onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                      placeholder="postgres"
-                      required
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      value={formData.password}
-                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                      placeholder="••••••••"
-                      required
-                    />
-                  </div>
+                  {/* PostgreSQL Fields */}
+                  {selectedType === 'postgresql' && (
+                    <>
+                      <div className="grid grid-cols-3 gap-4">
+                        <div className="col-span-2 space-y-2">
+                          <Label htmlFor="host">Host</Label>
+                          <Input
+                            id="host"
+                            value={formData.host}
+                            onChange={(e) => setFormData({ ...formData, host: e.target.value })}
+                            placeholder="localhost"
+                            required
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="port">Port</Label>
+                          <Input
+                            id="port"
+                            type="number"
+                            value={formData.port}
+                            onChange={(e) => setFormData({ ...formData, port: parseInt(e.target.value) })}
+                            placeholder="5432"
+                            required
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="database_name">Database Name</Label>
+                        <Input
+                          id="database_name"
+                          value={formData.database_name}
+                          onChange={(e) => setFormData({ ...formData, database_name: e.target.value })}
+                          placeholder="myapp_production"
+                          required
+                        />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="username">Username</Label>
+                        <Input
+                          id="username"
+                          value={formData.username}
+                          onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                          placeholder="postgres"
+                          required
+                        />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="password">Password</Label>
+                        <Input
+                          id="password"
+                          type="password"
+                          value={formData.password}
+                          onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                          placeholder="••••••••"
+                          required
+                        />
+                      </div>
 
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="ssl"
-                      checked={formData.ssl_enabled}
-                      onCheckedChange={(checked) => setFormData({ ...formData, ssl_enabled: checked })}
-                    />
-                    <Label htmlFor="ssl">Enable SSL</Label>
-                  </div>
+                      <div className="flex items-center space-x-2">
+                        <Switch
+                          id="ssl"
+                          checked={formData.ssl_enabled}
+                          onCheckedChange={(checked) => setFormData({ ...formData, ssl_enabled: checked })}
+                        />
+                        <Label htmlFor="ssl">Enable SSL</Label>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Supabase Fields */}
+                  {selectedType === 'supabase' && (
+                    <>
+                      <div className="space-y-2">
+                        <Label htmlFor="supabase_url">Project URL</Label>
+                        <Input
+                          id="supabase_url"
+                          placeholder="https://your-project.supabase.co"
+                          required
+                        />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="anon_key">Anon Key (Public)</Label>
+                        <Input
+                          id="anon_key"
+                          placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                          required
+                        />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="service_key">Service Role Key (Optional)</Label>
+                        <Input
+                          id="service_key"
+                          type="password"
+                          placeholder="For admin access to all tables"
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  {/* REST API Fields */}
+                  {selectedType === 'rest_api' && (
+                    <>
+                      <div className="space-y-2">
+                        <Label htmlFor="base_url">Base URL</Label>
+                        <Input
+                          id="base_url"
+                          placeholder="https://api.example.com"
+                          required
+                        />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label>Authentication Type</Label>
+                        <Select value={authType} onValueChange={setAuthType}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">No Authentication</SelectItem>
+                            <SelectItem value="bearer">Bearer Token</SelectItem>
+                            <SelectItem value="api_key">API Key</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      {authType === 'bearer' && (
+                        <div className="space-y-2">
+                          <Label htmlFor="bearer_token">Bearer Token</Label>
+                          <Input
+                            id="bearer_token"
+                            type="password"
+                            placeholder="Your bearer token"
+                          />
+                        </div>
+                      )}
+                      
+                      {authType === 'api_key' && (
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="header_name">Header Name</Label>
+                            <Input
+                              id="header_name"
+                              placeholder="X-API-Key"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="api_key">API Key</Label>
+                            <Input
+                              id="api_key"
+                              type="password"
+                              placeholder="Your API key"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
                 
-                <DialogFooter>
+                 <DialogFooter>
                   <Button type="submit" disabled={isSubmitting} className="gradient-primary">
-                    {isSubmitting ? "Adding..." : "Add Connection"}
+                    {isSubmitting ? "Adding..." : "Add Data Source"}
                   </Button>
                 </DialogFooter>
               </form>
@@ -330,7 +460,9 @@ export default function DataSources() {
                       <div>
                         <CardTitle className="text-lg">{connection.name}</CardTitle>
                         <CardDescription className="text-sm">
-                          PostgreSQL Database
+                          {connection.connection_type === 'postgresql' ? 'PostgreSQL Database' : 
+                           connection.connection_type === 'supabase' ? 'Supabase Project' : 
+                           connection.connection_type === 'rest_api' ? 'REST API' : 'Database'}
                         </CardDescription>
                       </div>
                     </div>
@@ -345,18 +477,43 @@ export default function DataSources() {
                 
                 <CardContent className="space-y-3">
                   <div className="text-sm space-y-1">
+                    {connection.connection_type === 'postgresql' && (
+                      <>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Host:</span>
+                          <span className="font-mono">{connection.host}:{connection.port}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Database:</span>
+                          <span className="font-mono">{connection.database_name}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">SSL:</span>
+                          <span className={connection.ssl_enabled ? "text-accent" : "text-muted-foreground"}>
+                            {connection.ssl_enabled ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
+                          </span>
+                        </div>
+                      </>
+                    )}
+                    
+                    {connection.connection_type === 'supabase' && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Project URL:</span>
+                        <span className="font-mono truncate max-w-32">{connection.connection_config?.url}</span>
+                      </div>
+                    )}
+                    
+                    {connection.connection_type === 'rest_api' && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Base URL:</span>
+                        <span className="font-mono truncate max-w-32">{connection.connection_config?.base_url}</span>
+                      </div>
+                    )}
+                    
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Host:</span>
-                      <span className="font-mono">{connection.host}:{connection.port}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Database:</span>
-                      <span className="font-mono">{connection.database_name}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">SSL:</span>
-                      <span className={connection.ssl_enabled ? "text-accent" : "text-muted-foreground"}>
-                        {connection.ssl_enabled ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
+                      <span className="text-muted-foreground">Status:</span>
+                      <span className={connection.is_active ? "text-accent" : "text-muted-foreground"}>
+                        {connection.is_active ? "Active" : "Inactive"}
                       </span>
                     </div>
                   </div>
