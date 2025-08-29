@@ -92,15 +92,35 @@ export default function LookerDashboardBuilder() {
   const [isSaving, setIsSaving] = useState(false);
   
   // Data State
-  const [selectedDataSource, setSelectedDataSource] = useState<string>('');
+  const [selectedDataSource, setSelectedDataSource] = useState<string>('Vendas Globais');
   const [selectedTable, setSelectedTable] = useState<string>('');
   const [tables, setTables] = useState<any[]>([]);
-  const [dataFields, setDataFields] = useState<DataField[]>([]);
+  const [dataFields, setDataFields] = useState<DataField[]>(MOCK_DATA['Vendas Globais'].fields);
   const [isLoadingFields, setIsLoadingFields] = useState(false);
   const [isAddingWidget, setIsAddingWidget] = useState(false);
   
-  // Widget State
-  const [widgets, setWidgets] = useState<Widget[]>([]);
+  // Widget State with example data
+  const [widgets, setWidgets] = useState<Widget[]>([
+    {
+      id: 1,
+      type: 'scorecard',
+      config: { 
+        metrics: ['vendas'],
+        aggregation: 'sum'
+      },
+      layout: { x: 1, y: 1, w: 3, h: 2 }
+    },
+    {
+      id: 2,
+      type: 'bar',
+      config: { 
+        dimensions: ['pais'],
+        metrics: ['vendas'],
+        aggregation: 'sum'
+      },
+      layout: { x: 5, y: 1, w: 6, h: 4 }
+    }
+  ]);
   const [selectedWidget, setSelectedWidget] = useState<number | null>(null);
   
   // Add proper handleDragEnd function
@@ -222,17 +242,55 @@ export default function LookerDashboardBuilder() {
       const metric = metrics[0];
       const field = dataFields.find(f => f.id === metric);
       const metricName = field?.name?.split('.')[1] || metric.split('.')[1] || metric;
+      const aggregation = widget.config.aggregation || 'sum';
       
       if (selectedDataSource === 'Vendas Globais') {
         const source = MOCK_DATA[selectedDataSource];
-        const total = source.records.reduce((sum: number, record: any) => sum + (record[metric] || 0), 0);
-        return { label: field?.name || metricName, value: total };
+        let result = 0;
+        
+        switch (aggregation) {
+          case 'sum':
+            result = source.records.reduce((sum: number, record: any) => sum + (record[metric] || 0), 0);
+            break;
+          case 'count':
+            result = source.records.length;
+            break;
+          case 'count_distinct':
+            result = new Set(source.records.map(record => record[metric])).size;
+            break;
+          case 'avg':
+            result = source.records.reduce((sum: number, record: any) => sum + (record[metric] || 0), 0) / source.records.length;
+            break;
+          case 'min':
+            result = Math.min(...source.records.map(record => record[metric] || 0));
+            break;
+          case 'max':
+            result = Math.max(...source.records.map(record => record[metric] || 0));
+            break;
+        }
+        
+        return { 
+          label: `${metricName} (${aggregation})`, 
+          value: Math.round(result * 100) / 100 
+        };
       } else {
-        // Use real field information when available
-        const mockValue = Math.floor(Math.random() * 50000) + 1000;
+        // Generate realistic mock data based on aggregation type
+        let mockValue;
+        switch (aggregation) {
+          case 'count':
+          case 'count_distinct':
+            mockValue = Math.floor(Math.random() * 1000) + 100;
+            break;
+          case 'avg':
+            mockValue = Math.floor(Math.random() * 100) + 10;
+            break;
+          default:
+            mockValue = Math.floor(Math.random() * 50000) + 1000;
+        }
+        
         return {
           value: mockValue,
-          label: metricName.charAt(0).toUpperCase() + metricName.slice(1).replace(/_/g, ' ')
+          label: `${metricName.charAt(0).toUpperCase() + metricName.slice(1).replace(/_/g, ' ')} (${aggregation})`
         };
       }
     }

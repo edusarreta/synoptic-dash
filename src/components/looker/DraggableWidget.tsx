@@ -207,55 +207,67 @@ export function DraggableWidget({
               })()}
             </h3>
             <div className="flex-1 relative">
-              <canvas
-                ref={(canvas) => {
-                  if (canvas && data.labels && data.values) {
-                    // Clear existing chart
-                    if (chartRef.current) {
-                      chartRef.current.destroy();
-                    }
+              {data.labels && data.labels.length > 0 ? (
+                <canvas
+                  ref={(canvas) => {
+                    if (canvas && data.labels && (data.values || data.datasets)) {
+                      // Clear existing chart
+                      if (chartRef.current) {
+                        chartRef.current.destroy();
+                        chartRef.current = null;
+                      }
 
-                    // Create new chart
-                    const ctx = canvas.getContext('2d');
-                    if (ctx) {
-                      const chartConfig = {
-                        type: 'bar' as const,
-                        data: {
-                          labels: data.labels,
-                          datasets: data.datasets || [{
-                            label: data.metricLabel || 'Valor',
-                            data: data.values,
-                            backgroundColor: 'hsl(var(--primary))',
-                            borderRadius: 4
-                          }]
-                        },
-                        options: {
-                          responsive: true,
-                          maintainAspectRatio: false,
-                          plugins: {
-                            legend: { 
-                              display: data.datasets && data.datasets.length > 1,
-                              position: 'top' as const
+                      // Create new chart
+                      const ctx = canvas.getContext('2d');
+                      if (ctx) {
+                        try {
+                          const chartConfig = {
+                            type: 'bar' as const,
+                            data: {
+                              labels: data.labels,
+                              datasets: data.datasets || [{
+                                label: data.metricLabel || 'Valor',
+                                data: data.values,
+                                backgroundColor: 'hsl(var(--primary))',
+                                borderRadius: 4
+                              }]
+                            },
+                            options: {
+                              responsive: true,
+                              maintainAspectRatio: false,
+                              plugins: {
+                                legend: { 
+                                  display: data.datasets && data.datasets.length > 1,
+                                  position: 'top' as const
+                                }
+                              },
+                              scales: {
+                                y: {
+                                  beginAtZero: true
+                                }
+                              }
                             }
-                          },
-                          scales: {
-                            y: {
-                              beginAtZero: true
-                            }
-                          }
+                          };
+                          
+                          chartRef.current = new Chart(ctx, chartConfig);
+                        } catch (error) {
+                          console.error('Chart creation error:', error);
                         }
-                      };
-                      
-                      try {
-                        chartRef.current = new Chart(ctx, chartConfig);
-                      } catch (error) {
-                        console.error('Chart creation error:', error);
                       }
                     }
-                  }
-                }}
-                className="w-full h-full"
-              />
+                  }}
+                  className="w-full h-full"
+                />
+              ) : (
+                <div className="flex items-center justify-center h-full text-center">
+                  <div>
+                    <BarChart3 className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                    <p className="text-xs text-muted-foreground">
+                      Configure dimensões e métricas
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

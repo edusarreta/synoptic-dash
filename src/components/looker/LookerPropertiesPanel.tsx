@@ -219,6 +219,25 @@ export function LookerPropertiesPanel({
           {createMultiDropZone('Métrica', 'metric', 'metrics', 
             Array.isArray(selectedWidget.config.metrics) ? selectedWidget.config.metrics : 
             selectedWidget.config.metric ? [selectedWidget.config.metric] : [], false)}
+            
+          {/* Aggregation Function Selector */}
+          <div className="p-4 border-b border-border">
+            <label className="text-sm font-medium text-muted-foreground mb-2 block">
+              Função de Agregação
+            </label>
+            <select 
+              className="w-full p-2 border border-input rounded-md text-sm bg-background"
+              value={selectedWidget.config.aggregation || 'sum'}
+              onChange={(e) => onWidgetConfigUpdate(selectedWidget.id, { aggregation: e.target.value })}
+            >
+              <option value="sum">Somar</option>
+              <option value="count">Contar</option>
+              <option value="count_distinct">Contar Diferentes</option>
+              <option value="avg">Média</option>
+              <option value="min">Mínimo</option>
+              <option value="max">Máximo</option>
+            </select>
+          </div>
         </div>
       );
     } else if (selectedWidget.type === 'bar') {
@@ -231,6 +250,25 @@ export function LookerPropertiesPanel({
             Array.isArray(selectedWidget.config.metrics) ? selectedWidget.config.metrics : 
             selectedWidget.config.metric ? [selectedWidget.config.metric] : [], true)}
           {createTimeDimensionSelector()}
+          
+          {/* Aggregation Functions for Metrics */}
+          <div className="p-4 border-b border-border">
+            <label className="text-sm font-medium text-muted-foreground mb-2 block">
+              Função de Agregação
+            </label>
+            <select 
+              className="w-full p-2 border border-input rounded-md text-sm bg-background"
+              value={selectedWidget.config.aggregation || 'sum'}
+              onChange={(e) => onWidgetConfigUpdate(selectedWidget.id, { aggregation: e.target.value })}
+            >
+              <option value="sum">Somar</option>
+              <option value="count">Contar</option>
+              <option value="count_distinct">Contar Diferentes</option>
+              <option value="avg">Média</option>
+              <option value="min">Mínimo</option>
+              <option value="max">Máximo</option>
+            </select>
+          </div>
         </div>
       );
     } else if (selectedWidget.type === 'filter') {
