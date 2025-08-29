@@ -14,6 +14,47 @@ export type Database = {
   }
   public: {
     Tables: {
+      account_members: {
+        Row: {
+          account_id: string
+          created_at: string
+          id: string
+          invited_at: string | null
+          invited_by: string | null
+          role: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          id?: string
+          invited_at?: string | null
+          invited_by?: string | null
+          role?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          id?: string
+          invited_at?: string | null
+          invited_by?: string | null
+          role?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "account_members_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       accounts: {
         Row: {
           created_at: string
@@ -110,6 +151,44 @@ export type Database = {
           },
         ]
       }
+      dashboard_filters: {
+        Row: {
+          created_at: string
+          dashboard_id: string
+          filter_config: Json
+          filter_name: string
+          id: string
+          position_config: Json | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          dashboard_id: string
+          filter_config?: Json
+          filter_name: string
+          id?: string
+          position_config?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          dashboard_id?: string
+          filter_config?: Json
+          filter_name?: string
+          id?: string
+          position_config?: Json | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dashboard_filters_dashboard_id_fkey"
+            columns: ["dashboard_id"]
+            isOneToOne: false
+            referencedRelation: "dashboards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       dashboards: {
         Row: {
           account_id: string
@@ -157,6 +236,7 @@ export type Database = {
       data_connections: {
         Row: {
           account_id: string
+          connection_config: Json | null
           connection_type: string
           created_at: string
           created_by: string
@@ -173,6 +253,7 @@ export type Database = {
         }
         Insert: {
           account_id: string
+          connection_config?: Json | null
           connection_type?: string
           created_at?: string
           created_by: string
@@ -189,6 +270,7 @@ export type Database = {
         }
         Update: {
           account_id?: string
+          connection_config?: Json | null
           connection_type?: string
           created_at?: string
           created_by?: string
@@ -299,6 +381,7 @@ export type Database = {
           created_by: string
           data_connection_id: string
           description: string | null
+          filter_config: Json | null
           id: string
           name: string
           sql_query: string
@@ -312,6 +395,7 @@ export type Database = {
           created_by: string
           data_connection_id: string
           description?: string | null
+          filter_config?: Json | null
           id?: string
           name: string
           sql_query: string
@@ -325,6 +409,7 @@ export type Database = {
           created_by?: string
           data_connection_id?: string
           description?: string | null
+          filter_config?: Json | null
           id?: string
           name?: string
           sql_query?: string
@@ -352,7 +437,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_user_role_in_account: {
+        Args: { account_id: string; user_id: string }
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never
