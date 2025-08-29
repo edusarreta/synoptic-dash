@@ -7,7 +7,8 @@ import {
   Users, 
   LogOut,
   ChevronDown,
-  Plus
+  Plus,
+  CreditCard
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
@@ -126,6 +127,17 @@ export function AppSidebar() {
                   >
                     <Plus className="w-5 h-5 flex-shrink-0" />
                     {open && <span className="text-sm font-medium">New Chart</span>}
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild className="h-10">
+                  <NavLink 
+                    to="/billing" 
+                    className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${getNavClass("/billing")}`}
+                  >
+                    <CreditCard className="w-5 h-5 flex-shrink-0" />
+                    {open && <span className="text-sm font-medium">Billing</span>}
                   </NavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>
