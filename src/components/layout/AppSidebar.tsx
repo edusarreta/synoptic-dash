@@ -8,7 +8,8 @@ import {
   LogOut,
   ChevronDown,
   Plus,
-  CreditCard
+  CreditCard,
+  Bot
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
@@ -38,6 +39,7 @@ const navigationItems = [
   { title: "Dashboards", url: "/dashboards", icon: LayoutDashboard },
   { title: "Charts", url: "/charts", icon: BarChart3 },
   { title: "Data Sources", url: "/data-sources", icon: Database },
+  { title: "AI Chat", url: "/ai-chat", icon: Bot },
   { title: "Analytics", url: "/analytics", icon: BarChart3 },
 ];
 

@@ -14,6 +14,7 @@ import ChartBuilder from "./pages/ChartBuilder";
 import Settings from "./pages/Settings";
 import Onboarding from "./pages/Onboarding";
 import Billing from "./pages/Billing";
+import AIChat from "./pages/AIChat";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -35,6 +36,7 @@ const App = () => (
               <Route path="/charts/new" element={<ChartBuilder />} />
               <Route path="/charts" element={<ChartBuilder />} />
               <Route path="/analytics" element={<Dashboard />} />
+              <Route path="/ai-chat" element={<AIChat />} />
               <Route path="/billing" element={<Billing />} />
               <Route path="/settings" element={<Settings />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

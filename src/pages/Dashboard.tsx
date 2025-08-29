@@ -2,7 +2,8 @@ import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, BarChart3, Database, Users, TrendingUp } from "lucide-react";
+import { Plus, BarChart3, Database, Users, TrendingUp, Sparkles } from "lucide-react";
+import { AIInsightsModal } from "@/components/ai/AIInsightsModal";
 
 export default function Dashboard() {
   const [stats] = useState([
@@ -110,9 +111,23 @@ export default function Dashboard() {
                         {dashboard.type} • Last viewed {dashboard.lastViewed}
                       </p>
                     </div>
-                    <Button variant="ghost" size="sm">
-                      View
-                    </Button>
+                    <div className="flex gap-2">
+                      <AIInsightsModal
+                        dashboardId={`dashboard-${index}`}
+                        chartData={[
+                          { name: dashboard.name, type: "bar", data: [{ x: "Sample", y: 100 }], description: dashboard.type }
+                        ]}
+                        trigger={
+                          <Button variant="ghost" size="sm" className="gap-1">
+                            <Sparkles className="w-3 h-3" />
+                            AI Insights
+                          </Button>
+                        }
+                      />
+                      <Button variant="ghost" size="sm">
+                        View
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>
