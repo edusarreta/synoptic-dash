@@ -81,7 +81,7 @@ export default function DashboardNew() {
             const { data } = await supabase.functions.invoke('execute-sql-query', {
               body: {
                 connectionId: chart.data_connection_id,
-                query: chart.sql_query
+                sqlQuery: chart.sql_query
               }
             });
             
