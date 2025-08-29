@@ -30,7 +30,14 @@ export interface SmartFilterState {
 }
 
 interface SmartDashboardFiltersProps {
-  charts: any[];
+  charts: Array<{
+    id: string;
+    name: string;
+    data: any[];
+    chart_config?: {
+      filterableColumns?: string[];
+    };
+  }>;
   activeFilters: SmartFilterState;
   onFiltersChange: (filters: SmartFilterState) => void;
   className?: string;
@@ -58,8 +65,12 @@ export function SmartDashboardFilters({
       if (chart.data && chart.data.length > 0) {
         const sampleRow = chart.data[0];
         
-        Object.keys(sampleRow).forEach(fieldName => {
-          if (!fieldsData[fieldName]) {
+        // Get filterable columns from chart config
+        const filterableColumns = chart.chart_config?.filterableColumns || [];
+        
+        // Only process columns that are marked as filterable
+        filterableColumns.forEach(fieldName => {
+          if (fieldName in sampleRow && !fieldsData[fieldName]) {
             fieldsData[fieldName] = {
               type: detectFieldType(sampleRow[fieldName], fieldName),
               values: new Set(),
@@ -67,16 +78,18 @@ export function SmartDashboardFilters({
             };
           }
           
-          fieldsData[fieldName].chartSources.add(chart.name);
-          
-          // Collect unique values for categorical fields
-          if (fieldsData[fieldName].type === 'text') {
-            chart.data.forEach(row => {
-              const value = row[fieldName];
-              if (value != null && String(value).length < 50) { // Avoid very long strings
-                fieldsData[fieldName].values.add(String(value));
-              }
-            });
+          if (fieldName in sampleRow) {
+            fieldsData[fieldName].chartSources.add(chart.name);
+            
+            // Collect unique values for categorical fields
+            if (fieldsData[fieldName].type === 'text') {
+              chart.data.forEach(row => {
+                const value = row[fieldName];
+                if (value != null && String(value).length < 50) { // Avoid very long strings
+                  fieldsData[fieldName].values.add(String(value));
+                }
+              });
+            }
           }
         });
       }
@@ -188,7 +201,7 @@ export function SmartDashboardFilters({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Filter className="w-5 h-5 text-primary" />
-            <CardTitle className="text-lg">Filtros Inteligentes</CardTitle>
+            <CardTitle className="text-lg">Filtros Dinâmicos</CardTitle>
             {activeFiltersCount > 0 && (
               <Badge variant="secondary" className="ml-2">
                 {activeFiltersCount} {activeFiltersCount === 1 ? 'filtro ativo' : 'filtros ativos'}
@@ -217,7 +230,7 @@ export function SmartDashboardFilters({
           </div>
         </div>
         <CardDescription>
-          Filtros baseados nos campos reais dos seus gráficos • {Object.keys(availableFields).length} campos disponíveis
+          Filtros configurados no Chart Builder - estilo Looker Studio • {Object.keys(availableFields).length} campos disponíveis
         </CardDescription>
       </CardHeader>
 
@@ -401,10 +414,10 @@ export function SmartDashboardFilters({
           <div className="text-center py-8">
             <Filter className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
             <p className="text-sm text-muted-foreground">
-              Nenhum campo disponível para filtros.
+              Nenhuma coluna configurada para filtros.
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              Execute algumas consultas nos gráficos para gerar filtros.
+              Configure colunas filtráveis no Chart Builder para ativar filtros dinâmicos.
             </p>
           </div>
         )}
