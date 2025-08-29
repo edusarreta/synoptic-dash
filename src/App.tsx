@@ -10,7 +10,7 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import DataSources from "./pages/DataSources";
-import ChartBuilder from "./pages/ChartBuilder";
+import ChartBuilderWrapper from "./components/ChartBuilderWrapper";
 import Settings from "./pages/Settings";
 import Onboarding from "./pages/Onboarding";
 import Billing from "./pages/Billing";
@@ -36,8 +36,8 @@ const App = () => (
               <Route path="/onboarding" element={<Onboarding />} />
               <Route path="/dashboards" element={<Dashboard />} />
               <Route path="/data-sources" element={<DataSources />} />
-              <Route path="/charts/new" element={<ChartBuilder />} />
-              <Route path="/charts" element={<ChartBuilder />} />
+              <Route path="/charts/new" element={<ChartBuilderWrapper />} />
+              <Route path="/charts" element={<ChartBuilderWrapper />} />
               <Route path="/analytics" element={<Dashboard />} />
               <Route path="/ai-chat" element={<AIChat />} />
             <Route path="/marketplace" element={<Marketplace />} />

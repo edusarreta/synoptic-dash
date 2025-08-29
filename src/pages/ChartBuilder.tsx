@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -29,13 +28,15 @@ const SAMPLE_DATA = [
   { month: 'Jun', sales: 2390, profit: 3800, customers: 250 },
 ];
 
-export default function ChartBuilder() {
+interface ChartBuilderProps {
+  editChartId?: string | null;
+}
+
+export default function ChartBuilder({ editChartId }: ChartBuilderProps = {}) {
   const { permissions } = usePermissions();
   const { toast } = useToast();
   const { user } = useAuth();
   const { connections, tables, loading, loadConnections, loadTables, executeQuery } = useDatabase();
-  const [searchParams] = useSearchParams();
-  const editChartId = searchParams.get('edit');
   
   // Chart configuration
   const [chartType, setChartType] = useState<'table' | 'bar' | 'line' | 'pie' | 'kpi' | 'area' | 'composed' | 'scatter' | 'radial' | 'treemap' | 'funnel' | 'advanced-table'>('advanced-table');
