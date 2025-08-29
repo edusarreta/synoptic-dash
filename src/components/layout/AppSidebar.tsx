@@ -9,7 +9,8 @@ import {
   ChevronDown,
   Plus,
   CreditCard,
-  Bot
+  Bot,
+  ShoppingBag
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
@@ -40,6 +41,7 @@ const navigationItems = [
   { title: "Charts", url: "/charts", icon: BarChart3 },
   { title: "Data Sources", url: "/data-sources", icon: Database },
   { title: "AI Chat", url: "/ai-chat", icon: Bot },
+  { title: "Marketplace", url: "/marketplace", icon: ShoppingBag },
   { title: "Analytics", url: "/analytics", icon: BarChart3 },
 ];
 
