@@ -125,7 +125,9 @@ export default function ChartBuilder() {
   };
 
   const handleConnectionChange = (connectionId: string) => {
-    console.log('Changing connection to:', connectionId);
+    console.log('🔄 Changing connection to:', connectionId);
+    console.log('🔄 Available connections:', connections.map(c => ({ id: c.id, name: c.name, database: c.database_name })));
+    
     // Force clear everything immediately
     setSelectedTables([]);
     setSelectedFields([]);

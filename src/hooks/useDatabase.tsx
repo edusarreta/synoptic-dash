@@ -70,34 +70,41 @@ export function useDatabase() {
       return [];
     }
     
-    console.log('Loading tables for connection:', connectionId);
+    console.log('🔍 Loading tables for connection:', connectionId);
     
     // Force clear tables immediately
     setTables([]);
     setLoading(true);
     
     try {
+      console.log('📤 Calling get-database-schema with:', { connectionId });
+      
       const { data, error } = await supabase.functions.invoke('get-database-schema', {
         body: { connectionId }
       });
 
-      console.log('Schema response:', data);
+      console.log('📥 Schema response received:', data);
 
       if (error) {
-        console.error('Schema error:', error);
+        console.error('❌ Schema error:', error);
         throw error;
       }
 
       if (data?.success && data?.tables) {
-        console.log('Tables loaded successfully:', data.tables.length, 'tables');
+        console.log('✅ Tables loaded successfully:', {
+          count: data.tables.length,
+          databaseName: data.databaseName,
+          firstFewTables: data.tables.slice(0, 3).map(t => t.name),
+          connectionId
+        });
         setTables(data.tables);
         return data.tables;
       } else {
-        console.error('Schema response failed:', data);
+        console.error('❌ Schema response failed:', data);
         throw new Error(data?.error || 'Failed to fetch database schema');
       }
     } catch (error: any) {
-      console.error('Error loading tables:', error);
+      console.error('💥 Error loading tables:', error);
       toast({
         title: "Schema Error",
         description: error.message || 'Failed to load database tables',
