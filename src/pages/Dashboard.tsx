@@ -3,7 +3,7 @@ import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, BarChart3, Database, Users, TrendingUp, Sparkles, Edit2, Trash2, GripVertical } from "lucide-react";
+import { Plus, BarChart3, Database, Users, TrendingUp, Sparkles, Edit2, Trash2, GripVertical, Maximize2, Minimize2, Square, RectangleHorizontal, RectangleVertical } from "lucide-react";
 import { AIInsightsModal } from "@/components/ai/AIInsightsModal";
 import { ChartRenderer } from "@/components/charts/ChartRenderer";
 import { SmartDashboardFilters, SmartFilterState } from "@/components/dashboard/SmartDashboardFilters";
@@ -18,6 +18,7 @@ export default function Dashboard() {
   const [savedCharts, setSavedCharts] = useState([]);
   const [filteredCharts, setFilteredCharts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [chartSizes, setChartSizes] = useState<Record<string, string>>({});
   const [smartFilters, setSmartFilters] = useState<SmartFilterState>({
     dateRange: { from: undefined, to: undefined, field: '' },
     fieldFilters: {},
@@ -230,6 +231,53 @@ export default function Dashboard() {
     toast.success('Ordem dos gráficos atualizada');
   };
 
+  const getChartSize = (chartId: string) => {
+    return chartSizes[chartId] || 'medium';
+  };
+
+  const setChartSize = (chartId: string, size: string) => {
+    setChartSizes(prev => ({ ...prev, [chartId]: size }));
+    toast.success(`Tamanho do gráfico alterado para ${size}`);
+  };
+
+  const getSizeClasses = (size: string) => {
+    switch (size) {
+      case 'small':
+        return 'col-span-1 row-span-1 h-64';
+      case 'medium':
+        return 'col-span-1 row-span-1 h-80';
+      case 'large':
+        return 'col-span-2 row-span-1 h-80';
+      case 'extra-large':
+        return 'col-span-2 row-span-2 h-96';
+      case 'wide':
+        return 'col-span-3 row-span-1 h-64';
+      case 'tall':
+        return 'col-span-1 row-span-2 h-96';
+      default:
+        return 'col-span-1 row-span-1 h-80';
+    }
+  };
+
+  const getChartHeight = (size: string) => {
+    switch (size) {
+      case 'small':
+        return 'h-48';
+      case 'medium':
+        return 'h-64';
+      case 'large':
+        return 'h-64';
+      case 'extra-large':
+        return 'h-80';
+      case 'wide':
+        return 'h-48';
+      case 'tall':
+        return 'h-80';
+      default:
+        return 'h-64';
+    }
+  };
+
   return (
     <AppLayout>
       <div className="p-6 space-y-6">
@@ -347,81 +395,128 @@ export default function Dashboard() {
                   <div
                     {...provided.droppableProps}
                     ref={provided.innerRef}
-                    className="grid grid-cols-1 lg:grid-cols-2 gap-6"
+                    className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 auto-rows-min"
                   >
-                    {filteredCharts.map((chart, index) => (
-                      <Draggable key={chart.id} draggableId={chart.id} index={index}>
-                        {(provided, snapshot) => (
-                          <Card 
-                            ref={provided.innerRef}
-                            {...provided.draggableProps}
-                            className={`glass-card border-0 shadow-card transition-all duration-200 ${
-                              snapshot.isDragging ? 'rotate-2 scale-105 shadow-xl' : ''
-                            }`}
-                          >
-                            <CardHeader className="pb-4">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                  <div 
-                                    {...provided.dragHandleProps}
-                                    className="cursor-grab active:cursor-grabbing p-1 rounded hover:bg-muted/50 transition-colors"
-                                  >
-                                    <GripVertical className="w-4 h-4 text-muted-foreground" />
+                    {filteredCharts.map((chart, index) => {
+                      const currentSize = getChartSize(chart.id);
+                      const sizeClasses = getSizeClasses(currentSize);
+                      const chartHeight = getChartHeight(currentSize);
+                      
+                      return (
+                        <Draggable key={chart.id} draggableId={chart.id} index={index}>
+                          {(provided, snapshot) => (
+                            <Card 
+                              ref={provided.innerRef}
+                              {...provided.draggableProps}
+                              className={`glass-card border-0 shadow-card transition-all duration-200 ${sizeClasses} ${
+                                snapshot.isDragging ? 'rotate-2 scale-105 shadow-xl z-50' : ''
+                              }`}
+                            >
+                              <CardHeader className="pb-3">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <div 
+                                      {...provided.dragHandleProps}
+                                      className="cursor-grab active:cursor-grabbing p-1 rounded hover:bg-muted/50 transition-colors"
+                                    >
+                                      <GripVertical className="w-4 h-4 text-muted-foreground" />
+                                    </div>
+                                    <div>
+                                      <CardTitle className="text-sm font-semibold">{chart.name}</CardTitle>
+                                      {chart.description && (
+                                        <CardDescription className="text-xs mt-1">
+                                          {chart.description}
+                                        </CardDescription>
+                                      )}
+                                    </div>
                                   </div>
-                                  <div>
-                                    <CardTitle className="text-lg">{chart.name}</CardTitle>
-                                    {chart.description && (
-                                      <CardDescription className="mt-1">
-                                        {chart.description}
-                                      </CardDescription>
-                                    )}
+                                  <div className="flex gap-1">
+                                    {/* Size Controls */}
+                                    <div className="flex gap-1 mr-2">
+                                      <Button 
+                                        variant="ghost" 
+                                        size="sm"
+                                        className="h-6 w-6 p-0"
+                                        onClick={() => setChartSize(chart.id, 'small')}
+                                        title="Pequeno"
+                                      >
+                                        <Minimize2 className="w-3 h-3" />
+                                      </Button>
+                                      <Button 
+                                        variant="ghost" 
+                                        size="sm"
+                                        className="h-6 w-6 p-0"
+                                        onClick={() => setChartSize(chart.id, 'medium')}
+                                        title="Médio"
+                                      >
+                                        <Square className="w-3 h-3" />
+                                      </Button>
+                                      <Button 
+                                        variant="ghost" 
+                                        size="sm"
+                                        className="h-6 w-6 p-0"
+                                        onClick={() => setChartSize(chart.id, 'large')}
+                                        title="Grande"
+                                      >
+                                        <RectangleHorizontal className="w-3 h-3" />
+                                      </Button>
+                                      <Button 
+                                        variant="ghost" 
+                                        size="sm"
+                                        className="h-6 w-6 p-0"
+                                        onClick={() => setChartSize(chart.id, 'extra-large')}
+                                        title="Extra Grande"
+                                      >
+                                        <Maximize2 className="w-3 h-3" />
+                                      </Button>
+                                    </div>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm"
+                                      className="h-6 w-6 p-0"
+                                      onClick={() => navigate(`/charts?edit=${chart.id}`)}
+                                    >
+                                      <Edit2 className="w-3 h-3" />
+                                    </Button>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm"
+                                      className="h-6 w-6 p-0"
+                                      onClick={() => handleDeleteChart(chart.id)}
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                    </Button>
                                   </div>
                                 </div>
-                                <div className="flex gap-2">
-                                  <Button 
-                                    variant="ghost" 
-                                    size="sm"
-                                    onClick={() => navigate(`/charts?edit=${chart.id}`)}
-                                  >
-                                    <Edit2 className="w-4 h-4" />
-                                  </Button>
-                                  <Button 
-                                    variant="ghost" 
-                                    size="sm"
-                                    onClick={() => handleDeleteChart(chart.id)}
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </Button>
+                              </CardHeader>
+                              <CardContent className="pt-0">
+                                <div className={`border rounded-lg p-3 bg-background/50 ${chartHeight}`}>
+                                  <ChartRenderer
+                                    config={{
+                                      type: chart.chart_type as any,
+                                      title: chart.name,
+                                      description: chart.description,
+                                      xAxis: chart.chart_config?.xAxis || '',
+                                      yAxis: chart.chart_config?.yAxis || [],
+                                      data: chart.filteredData || chart.data || []
+                                    }}
+                                  />
                                 </div>
-                              </div>
-                            </CardHeader>
-                            <CardContent>
-                              <div className="h-64 border rounded-lg p-4 bg-background/50">
-                                <ChartRenderer
-                                  config={{
-                                    type: chart.chart_type as any,
-                                    title: chart.name,
-                                    description: chart.description,
-                                    xAxis: chart.chart_config?.xAxis || '',
-                                    yAxis: chart.chart_config?.yAxis || [],
-                                    data: chart.filteredData || chart.data || []
-                                  }}
-                                />
-                              </div>
-                              <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
-                                <span>Tipo: {chart.chart_type}</span>
-                                <span>
-                                  {chart.filteredData ? chart.filteredData.length : chart.data?.length || 0} registros
-                                  {chart.filteredData && chart.filteredData.length !== (chart.data?.length || 0) && 
-                                    ` (${chart.data?.length || 0} total)`
-                                  }
-                                </span>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        )}
-                      </Draggable>
-                    ))}
+                                <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+                                  <span>{chart.chart_type}</span>
+                                  <span>
+                                    {chart.filteredData ? chart.filteredData.length : chart.data?.length || 0} registros
+                                    {chart.filteredData && chart.filteredData.length !== (chart.data?.length || 0) && 
+                                      ` (${chart.data?.length || 0} total)`
+                                    }
+                                  </span>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          )}
+                        </Draggable>
+                      );
+                    })}
                     {provided.placeholder}
                   </div>
                 )}
