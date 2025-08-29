@@ -39,7 +39,7 @@ export default function ChartBuilder({ editChartId }: ChartBuilderProps = {}) {
   const { connections, tables, loading, loadConnections, loadTables, executeQuery } = useDatabase();
   
   // Chart configuration
-  const [chartType, setChartType] = useState<'table' | 'bar' | 'line' | 'pie' | 'kpi' | 'area' | 'composed' | 'scatter' | 'radial' | 'treemap' | 'funnel' | 'advanced-table'>('advanced-table');
+  const [chartType, setChartType] = useState<'table' | 'bar' | 'line' | 'pie' | 'kpi' | 'area' | 'composed' | 'scatter' | 'radial' | 'treemap' | 'funnel' | 'advanced-table'>('bar');
   const [chartTitle, setChartTitle] = useState('');
   const [chartDescription, setChartDescription] = useState('');
   const [chartId, setChartId] = useState<string | null>(null);
