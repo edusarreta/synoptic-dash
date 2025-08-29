@@ -117,16 +117,33 @@ export function FieldSelector({
     return field?.aggregation || 'count';
   };
 
-  const getAggregationOptions = (dataType: string): Array<{ value: 'sum' | 'count' | 'avg' | 'min' | 'max' | 'count_distinct', label: string }> => {
+  const getAggregationOptions = (dataType: string, columnName?: string): Array<{ value: 'sum' | 'count' | 'avg' | 'min' | 'max' | 'count_distinct', label: string }> => {
     const type = dataType.toLowerCase();
-    console.log('🔍 Getting aggregation options for dataType:', dataType, 'type:', type);
+    const colName = (columnName || '').toLowerCase();
+    console.log('🔍 Getting aggregation options for dataType:', dataType, 'columnName:', columnName, 'type:', type);
     
     const baseOptions = [
       { value: 'count' as const, label: 'Contagem' },
       { value: 'count_distinct' as const, label: 'Contagem Única' }
     ];
     
-    if (type.includes('int') || type.includes('numeric') || type.includes('decimal') || type.includes('float') || type.includes('money') || type.includes('double')) {
+    // Enhanced numeric type detection
+    const isNumeric = type.includes('int') || 
+                     type.includes('numeric') || 
+                     type.includes('decimal') || 
+                     type.includes('float') || 
+                     type.includes('money') || 
+                     type.includes('double') ||
+                     type.includes('bigint') ||
+                     type.includes('smallint') ||
+                     type.includes('real') ||
+                     dataType.toLowerCase().includes('number') ||
+                     // Force specific fields to be numeric based on column name
+                     ['valor', 'price', 'amount', 'total', 'quantity', 'qty', 'count', 'sum', 'avg'].some(keyword => 
+                       colName.includes(keyword)
+                     );
+    
+    if (isNumeric) {
       const options = [
         ...baseOptions,
         { value: 'sum' as const, label: 'Soma' },
@@ -206,19 +223,19 @@ export function FieldSelector({
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Badge variant="outline" className="text-xs cursor-pointer flex items-center gap-1 hover:bg-muted">
-                            {getAggregationOptions(field.dataType).find(opt => opt.value === field.aggregation)?.label || 'Contagem'}
+                            {getAggregationOptions(field.dataType, field.columnName).find(opt => opt.value === field.aggregation)?.label || 'Contagem'}
                             <ChevronDown className="w-3 h-3" />
                           </Badge>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start" className="min-w-[120px]">
-                          {getAggregationOptions(field.dataType).map((option) => (
+                        <DropdownMenuContent align="start" className="min-w-[120px] bg-white dark:bg-gray-800 border shadow-lg z-50">
+                          {getAggregationOptions(field.dataType, field.columnName).map((option) => (
                             <DropdownMenuItem
                               key={option.value}
                               onClick={() => {
-                                console.log('🔄 Changing aggregation for', field.columnName, 'from', field.aggregation, 'to', option.value);
+                                console.log('🔄 Changing aggregation for', field.columnName, '(', field.dataType, ') from', field.aggregation, 'to', option.value);
                                 onFieldAggregationChange(field, option.value);
                               }}
-                              className={field.aggregation === option.value ? 'bg-muted' : ''}
+                              className={`${field.aggregation === option.value ? 'bg-muted' : ''} hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer`}
                             >
                               {option.label}
                               {field.aggregation === option.value && <span className="ml-2">✓</span>}
@@ -292,12 +309,12 @@ export function FieldSelector({
                                <DropdownMenu>
                                  <DropdownMenuTrigger asChild>
                                    <Badge variant="outline" className="text-xs cursor-pointer flex items-center gap-1 hover:bg-muted">
-                                     {getAggregationOptions(column.dataType).find(opt => opt.value === getFieldAggregation(table.name, column.name))?.label || 'Contagem'}
+                                     {getAggregationOptions(column.dataType, column.name).find(opt => opt.value === getFieldAggregation(table.name, column.name))?.label || 'Contagem'}
                                      <ChevronDown className="w-3 h-3" />
                                    </Badge>
                                  </DropdownMenuTrigger>
-                                 <DropdownMenuContent align="start" className="min-w-[120px]">
-                                   {getAggregationOptions(column.dataType).map((option) => (
+                                 <DropdownMenuContent align="start" className="min-w-[120px] bg-white dark:bg-gray-800 border shadow-lg z-50">
+                                   {getAggregationOptions(column.dataType, column.name).map((option) => (
                                      <DropdownMenuItem
                                        key={option.value}
                                        onClick={(e) => {
@@ -308,7 +325,7 @@ export function FieldSelector({
                                            onFieldAggregationChange(field, option.value);
                                          }
                                        }}
-                                       className={getFieldAggregation(table.name, column.name) === option.value ? 'bg-muted' : ''}
+                                       className={`${getFieldAggregation(table.name, column.name) === option.value ? 'bg-muted' : ''} hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer`}
                                      >
                                        {option.label}
                                        {getFieldAggregation(table.name, column.name) === option.value && <span className="ml-2">✓</span>}
@@ -370,12 +387,12 @@ export function FieldSelector({
                                <DropdownMenu>
                                  <DropdownMenuTrigger asChild>
                                    <Badge variant="outline" className="text-xs cursor-pointer flex items-center gap-1 hover:bg-muted">
-                                     {getAggregationOptions(column.dataType).find(opt => opt.value === getFieldAggregation(table.name, column.name))?.label || 'Contagem'}
+                                     {getAggregationOptions(column.dataType, column.name).find(opt => opt.value === getFieldAggregation(table.name, column.name))?.label || 'Contagem'}
                                      <ChevronDown className="w-3 h-3" />
                                    </Badge>
                                  </DropdownMenuTrigger>
-                                 <DropdownMenuContent align="start" className="min-w-[120px]">
-                                   {getAggregationOptions(column.dataType).map((option) => (
+                                 <DropdownMenuContent align="start" className="min-w-[120px] bg-white dark:bg-gray-800 border shadow-lg z-50">
+                                   {getAggregationOptions(column.dataType, column.name).map((option) => (
                                      <DropdownMenuItem
                                        key={option.value}
                                        onClick={(e) => {
@@ -386,7 +403,7 @@ export function FieldSelector({
                                            onFieldAggregationChange(field, option.value);
                                          }
                                        }}
-                                       className={getFieldAggregation(table.name, column.name) === option.value ? 'bg-muted' : ''}
+                                       className={`${getFieldAggregation(table.name, column.name) === option.value ? 'bg-muted' : ''} hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer`}
                                      >
                                        {option.label}
                                        {getFieldAggregation(table.name, column.name) === option.value && <span className="ml-2">✓</span>}
