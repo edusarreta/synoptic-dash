@@ -261,6 +261,14 @@ export default function ChartBuilder({ editChartId }: ChartBuilderProps = {}) {
     );
   };
 
+  const handleFieldAggregationChange = (field: SelectedField, aggregation: 'sum' | 'count' | 'avg' | 'min' | 'max' | 'count_distinct') => {
+    setSelectedFields(prev => prev.map(f => 
+      f.tableName === field.tableName && f.columnName === field.columnName 
+        ? { ...f, aggregation }
+        : f
+    ));
+  };
+
   const handleRefreshTables = () => {
     if (selectedConnection) {
       loadTables(selectedConnection);
@@ -543,6 +551,7 @@ export default function ChartBuilder({ editChartId }: ChartBuilderProps = {}) {
                 selectedFields={selectedFields}
                 onFieldToggle={handleFieldToggle}
                 onFieldRoleChange={handleFieldRoleChange}
+                onFieldAggregationChange={handleFieldAggregationChange}
               />
             )}
           </div>

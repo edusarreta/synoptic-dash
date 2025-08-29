@@ -11,8 +11,15 @@ import {
   Filter,
   Sigma,
   Eye,
-  EyeOff
+  EyeOff,
+  ChevronDown
 } from "lucide-react";
+import { 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { DatabaseTable } from "@/hooks/useDatabase";
 
 interface FieldSelectorProps {
@@ -21,6 +28,7 @@ interface FieldSelectorProps {
   selectedFields: SelectedField[];
   onFieldToggle: (field: SelectedField) => void;
   onFieldRoleChange: (field: SelectedField, role: 'dimension' | 'metric') => void;
+  onFieldAggregationChange: (field: SelectedField, aggregation: 'sum' | 'count' | 'avg' | 'min' | 'max' | 'count_distinct') => void;
 }
 
 export interface SelectedField {
@@ -28,7 +36,7 @@ export interface SelectedField {
   columnName: string;
   dataType: string;
   role: 'dimension' | 'metric';
-  aggregation?: 'sum' | 'count' | 'avg' | 'min' | 'max';
+  aggregation?: 'sum' | 'count' | 'avg' | 'min' | 'max' | 'count_distinct';
 }
 
 const getColumnIcon = (dataType: string) => {
@@ -64,7 +72,8 @@ export function FieldSelector({
   selectedTables,
   selectedFields,
   onFieldToggle,
-  onFieldRoleChange
+  onFieldRoleChange,
+  onFieldAggregationChange
 }: FieldSelectorProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [showOnlySelected, setShowOnlySelected] = useState(false);
@@ -101,6 +110,31 @@ export function FieldSelector({
   const getFieldRole = (tableName: string, columnName: string) => {
     const field = selectedFields.find(f => f.tableName === tableName && f.columnName === columnName);
     return field?.role || 'dimension';
+  };
+
+  const getFieldAggregation = (tableName: string, columnName: string) => {
+    const field = selectedFields.find(f => f.tableName === tableName && f.columnName === columnName);
+    return field?.aggregation || 'count';
+  };
+
+  const getAggregationOptions = (dataType: string): Array<{ value: 'sum' | 'count' | 'avg' | 'min' | 'max' | 'count_distinct', label: string }> => {
+    const type = dataType.toLowerCase();
+    const baseOptions = [
+      { value: 'count' as const, label: 'Contagem' },
+      { value: 'count_distinct' as const, label: 'Contagem Única' }
+    ];
+    
+    if (type.includes('int') || type.includes('numeric') || type.includes('decimal') || type.includes('float')) {
+      return [
+        ...baseOptions,
+        { value: 'sum' as const, label: 'Soma' },
+        { value: 'avg' as const, label: 'Média' },
+        { value: 'min' as const, label: 'Mínimo' },
+        { value: 'max' as const, label: 'Máximo' }
+      ];
+    }
+    
+    return baseOptions;
   };
 
   const handleFieldClick = (table: DatabaseTable, column: any) => {
@@ -151,7 +185,7 @@ export function FieldSelector({
               <Label className="text-xs">Selected Fields ({selectedFields.length}):</Label>
               <div className="max-h-24 overflow-y-auto space-y-1">
                 {selectedFields.map((field) => (
-                  <div key={`${field.tableName}.${field.columnName}`} className="flex items-center gap-2">
+                  <div key={`${field.tableName}.${field.columnName}`} className="flex items-center gap-2 flex-wrap">
                     <Badge variant="secondary" className="text-xs">
                       {field.tableName}.{field.columnName}
                     </Badge>
@@ -163,6 +197,26 @@ export function FieldSelector({
                       {field.role === 'metric' ? <Sigma className="w-3 h-3" /> : <Filter className="w-3 h-3" />}
                       {field.role}
                     </Badge>
+                    {field.role === 'metric' && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Badge variant="outline" className="text-xs cursor-pointer flex items-center gap-1">
+                            {getAggregationOptions(field.dataType).find(opt => opt.value === field.aggregation)?.label || 'Contagem'}
+                            <ChevronDown className="w-3 h-3" />
+                          </Badge>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                          {getAggregationOptions(field.dataType).map((option) => (
+                            <DropdownMenuItem
+                              key={option.value}
+                              onClick={() => onFieldAggregationChange(field, option.value)}
+                            >
+                              {option.label}
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
                   </div>
                 ))}
               </div>
@@ -217,12 +271,40 @@ export function FieldSelector({
                                 {column.dataType}
                               </Badge>
                               {isSelected && (
-                                <Badge 
-                                  variant={fieldRole === 'metric' ? 'default' : 'outline'}
-                                  className="text-xs"
-                                >
-                                  {fieldRole === 'metric' ? <Sigma className="w-3 h-3" /> : <Filter className="w-3 h-3" />}
-                                </Badge>
+                                <div className="flex items-center gap-1">
+                                  <Badge 
+                                    variant={fieldRole === 'metric' ? 'default' : 'outline'}
+                                    className="text-xs"
+                                  >
+                                    {fieldRole === 'metric' ? <Sigma className="w-3 h-3" /> : <Filter className="w-3 h-3" />}
+                                  </Badge>
+                                  {fieldRole === 'metric' && (
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Badge variant="outline" className="text-xs cursor-pointer flex items-center gap-1">
+                                          {getAggregationOptions(column.dataType).find(opt => opt.value === getFieldAggregation(table.name, column.name))?.label || 'Contagem'}
+                                          <ChevronDown className="w-3 h-3" />
+                                        </Badge>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent>
+                                        {getAggregationOptions(column.dataType).map((option) => (
+                                          <DropdownMenuItem
+                                            key={option.value}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              const field = selectedFields.find(f => f.tableName === table.name && f.columnName === column.name);
+                                              if (field) {
+                                                onFieldAggregationChange(field, option.value);
+                                              }
+                                            }}
+                                          >
+                                            {option.label}
+                                          </DropdownMenuItem>
+                                        ))}
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                  )}
+                                </div>
                               )}
                             </div>
                           </div>
@@ -256,22 +338,50 @@ export function FieldSelector({
                           {table.name}.{column.name}
                         </span>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <Badge 
-                          className={`text-xs ${getDataTypeColor(column.dataType)}`}
-                          variant="secondary"
-                        >
-                          {column.dataType}
-                        </Badge>
-                        {isSelected && (
-                          <Badge 
-                            variant={fieldRole === 'metric' ? 'default' : 'outline'}
-                            className="text-xs"
-                          >
-                            {fieldRole === 'metric' ? <Sigma className="w-3 h-3" /> : <Filter className="w-3 h-3" />}
-                          </Badge>
-                        )}
-                      </div>
+                       <div className="flex items-center gap-1">
+                         <Badge 
+                           className={`text-xs ${getDataTypeColor(column.dataType)}`}
+                           variant="secondary"
+                         >
+                           {column.dataType}
+                         </Badge>
+                         {isSelected && (
+                           <div className="flex items-center gap-1">
+                             <Badge 
+                               variant={fieldRole === 'metric' ? 'default' : 'outline'}
+                               className="text-xs"
+                             >
+                               {fieldRole === 'metric' ? <Sigma className="w-3 h-3" /> : <Filter className="w-3 h-3" />}
+                             </Badge>
+                             {fieldRole === 'metric' && (
+                               <DropdownMenu>
+                                 <DropdownMenuTrigger asChild>
+                                   <Badge variant="outline" className="text-xs cursor-pointer flex items-center gap-1">
+                                     {getAggregationOptions(column.dataType).find(opt => opt.value === getFieldAggregation(table.name, column.name))?.label || 'Contagem'}
+                                     <ChevronDown className="w-3 h-3" />
+                                   </Badge>
+                                 </DropdownMenuTrigger>
+                                 <DropdownMenuContent>
+                                   {getAggregationOptions(column.dataType).map((option) => (
+                                     <DropdownMenuItem
+                                       key={option.value}
+                                       onClick={(e) => {
+                                         e.stopPropagation();
+                                         const field = selectedFields.find(f => f.tableName === table.name && f.columnName === column.name);
+                                         if (field) {
+                                           onFieldAggregationChange(field, option.value);
+                                         }
+                                       }}
+                                     >
+                                       {option.label}
+                                     </DropdownMenuItem>
+                                   ))}
+                                 </DropdownMenuContent>
+                               </DropdownMenu>
+                             )}
+                           </div>
+                         )}
+                       </div>
                     </div>
                   );
                 })}

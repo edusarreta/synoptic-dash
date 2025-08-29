@@ -60,6 +60,19 @@ export default function Dashboard() {
     }
   }, [user]);
 
+  // Reload charts when navigating back from chart creation
+  useEffect(() => {
+    const handleFocus = () => {
+      if (user) {
+        console.log('Window focused, reloading charts...');
+        loadSavedCharts();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [user]);
+
   useEffect(() => {
     applySmartFilters();
   }, [savedCharts, smartFilters]);
