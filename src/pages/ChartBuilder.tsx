@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChartRenderer } from "@/components/charts/ChartRenderer";
 import { TableSelector } from "@/components/charts/TableSelector";
+import { DataConfigurationPanel, DataConfiguration } from "@/components/charts/DataConfigurationPanel";
 import { FieldSelector, SelectedField } from "@/components/charts/FieldSelector";
 import { useToast } from "@/hooks/use-toast";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -49,6 +50,13 @@ export default function ChartBuilder() {
   const [isExecuting, setIsExecuting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [currentTab, setCurrentTab] = useState('visual');
+  
+  // Data configuration
+  const [dataConfiguration, setDataConfiguration] = useState<DataConfiguration>({
+    fields: [],
+    categoryFields: [],
+    statusFields: []
+  });
 
   // Load connections on mount
   useEffect(() => {
@@ -259,13 +267,13 @@ export default function ChartBuilder() {
         throw profileError;
       }
 
-      // Create chart configuration
+      // Create chart configuration (simplified for JSON compatibility)
       const chartConfig = {
         type: chartType,
         title: chartTitle,
         description: chartDescription,
         xAxis: availableColumns[0] || '',
-        yAxis: availableColumns.slice(1) || [],
+        yAxis: availableColumns.slice(1) || []
       };
 
       // Save the chart
@@ -540,6 +548,16 @@ export default function ChartBuilder() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Data Configuration Panel */}
+            <DataConfigurationPanel
+              tables={tables}
+              selectedTables={selectedTables}
+              data={data}
+              configuration={dataConfiguration}
+              onConfigurationChange={setDataConfiguration}
+              className="glass-card border-0 shadow-card"
+            />
           </div>
 
           {/* Right Panel - Preview */}

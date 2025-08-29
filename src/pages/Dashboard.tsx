@@ -312,15 +312,22 @@ export default function Dashboard() {
                   </CardHeader>
                   <CardContent>
                     <div className="h-64 border rounded-lg p-4 bg-background/50">
-                      <ChartRenderer
-                        config={{
-                          type: chart.chart_type as any,
-                          title: chart.name,
-                          description: chart.description,
-                          data: [],
-                          ...chart.chart_config
-                        }}
-                      />
+                      {chart.chart_config?.data ? (
+                        <ChartRenderer
+                          config={{
+                            type: chart.chart_type as any,
+                            title: chart.name,
+                            description: chart.description,
+                            data: chart.chart_config.data || [],
+                            ...chart.chart_config
+                          }}
+                        />
+                      ) : (
+                        <div className="h-full flex items-center justify-center text-muted-foreground">
+                          <BarChart3 className="w-8 h-8 mr-2" />
+                          <span>Carregue dados para visualizar</span>
+                        </div>
+                      )}
                     </div>
                     <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
                       <span>Tipo: {chart.chart_type}</span>
