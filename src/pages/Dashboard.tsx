@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Plus, BarChart3, Database, Users, TrendingUp, Sparkles, Edit2, Trash2 } from "lucide-react";
 import { AIInsightsModal } from "@/components/ai/AIInsightsModal";
 import { ChartRenderer } from "@/components/charts/ChartRenderer";
+import { DashboardFilters, FilterState } from "@/components/dashboard/DashboardFilters";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -14,7 +15,14 @@ export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [savedCharts, setSavedCharts] = useState([]);
+  const [filteredCharts, setFilteredCharts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [filters, setFilters] = useState<FilterState>({
+    dateRange: { from: undefined, to: undefined },
+    categories: [],
+    status: [],
+    customFilters: {}
+  });
   const [stats] = useState([
     {
       title: "Total Dashboards",
@@ -52,6 +60,10 @@ export default function Dashboard() {
     }
   }, [user]);
 
+  useEffect(() => {
+    applyFilters();
+  }, [savedCharts, filters]);
+
   const loadSavedCharts = async () => {
     try {
       setLoading(true);
@@ -85,6 +97,52 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const applyFilters = () => {
+    let filtered = [...savedCharts];
+
+    // Filter by date range
+    if (filters.dateRange.from || filters.dateRange.to) {
+      filtered = filtered.filter(chart => {
+        const chartDate = new Date(chart.created_at);
+        if (filters.dateRange.from && chartDate < filters.dateRange.from) return false;
+        if (filters.dateRange.to && chartDate > filters.dateRange.to) return false;
+        return true;
+      });
+    }
+
+    // Filter by categories (assuming charts have category or description field)
+    if (filters.categories.length > 0) {
+      filtered = filtered.filter(chart => {
+        const chartCategory = chart.description || chart.name || '';
+        return filters.categories.some(category => 
+          chartCategory.toLowerCase().includes(category.toLowerCase())
+        );
+      });
+    }
+
+    // Filter by status (assuming charts have some status indication)
+    if (filters.status.length > 0) {
+      filtered = filtered.filter(chart => {
+        // For this example, we'll consider all saved charts as "Ativo"
+        return filters.status.includes("Ativo");
+      });
+    }
+
+    // Apply custom filters
+    if (filters.customFilters.department) {
+      filtered = filtered.filter(chart => {
+        const chartDescription = (chart.description || '').toLowerCase();
+        return chartDescription.includes(filters.customFilters.department.toLowerCase());
+      });
+    }
+
+    setFilteredCharts(filtered);
+  };
+
+  const handleFiltersChange = (newFilters: FilterState) => {
+    setFilters(newFilters);
   };
 
   const handleCreateChart = () => {
@@ -154,12 +212,26 @@ export default function Dashboard() {
           ))}
         </div>
 
+        {/* Filters Section */}
+        <DashboardFilters 
+          filters={filters}
+          onFiltersChange={handleFiltersChange}
+          className="mb-6"
+        />
+
         {/* Saved Charts */}
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-2xl font-semibold text-foreground">Meus Gráficos</h2>
-              <p className="text-muted-foreground">Visualize e gerencie seus gráficos salvos</p>
+              <p className="text-muted-foreground">
+                Visualize e gerencie seus gráficos salvos 
+                {filteredCharts.length !== savedCharts.length && (
+                  <span className="ml-1">
+                    ({filteredCharts.length} de {savedCharts.length} gráficos)
+                  </span>
+                )}
+              </p>
             </div>
             <Button onClick={handleCreateChart} variant="outline">
               <Plus className="w-4 h-4 mr-2" />
@@ -171,6 +243,27 @@ export default function Dashboard() {
             <div className="text-center py-8">
               <p className="text-muted-foreground">Carregando gráficos...</p>
             </div>
+          ) : filteredCharts.length === 0 && savedCharts.length > 0 ? (
+            <Card className="glass-card border-0 shadow-card">
+              <CardContent className="text-center py-12">
+                <BarChart3 className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-lg font-semibold mb-2">Nenhum gráfico encontrado</h3>
+                <p className="text-muted-foreground mb-6">
+                  Nenhum gráfico corresponde aos filtros selecionados
+                </p>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setFilters({
+                    dateRange: { from: undefined, to: undefined },
+                    categories: [],
+                    status: [],
+                    customFilters: {}
+                  })}
+                >
+                  Limpar Filtros
+                </Button>
+              </CardContent>
+            </Card>
           ) : savedCharts.length === 0 ? (
             <Card className="glass-card border-0 shadow-card">
               <CardContent className="text-center py-12">
@@ -187,7 +280,7 @@ export default function Dashboard() {
             </Card>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {savedCharts.map((chart) => (
+              {filteredCharts.map((chart) => (
                 <Card key={chart.id} className="glass-card border-0 shadow-card">
                   <CardHeader className="pb-4">
                     <div className="flex items-center justify-between">
