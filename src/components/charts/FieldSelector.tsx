@@ -20,6 +20,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { 
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { DatabaseTable } from "@/hooks/useDatabase";
 
 interface FieldSelectorProps {
@@ -78,6 +83,7 @@ export function FieldSelector({
   const [searchTerm, setSearchTerm] = useState("");
   const [showOnlySelected, setShowOnlySelected] = useState(false);
   const [groupBy, setGroupBy] = useState<'table' | 'type'>('table');
+  const [openAggregationPopover, setOpenAggregationPopover] = useState<string | null>(null);
 
   // Get available tables and their fields
   const availableTables = tables.filter(table => selectedTables.includes(table.name));
@@ -159,6 +165,72 @@ export function FieldSelector({
     return baseOptions;
   };
 
+  // Create aggregation dropdown component
+  const AggregationDropdown = ({ 
+    field, 
+    dataType, 
+    columnName, 
+    currentAggregation,
+    onSelect,
+    triggerId 
+  }: {
+    field?: SelectedField;
+    dataType: string;
+    columnName: string;
+    currentAggregation: string;
+    onSelect: (aggregation: 'sum' | 'count' | 'avg' | 'min' | 'max' | 'count_distinct') => void;
+    triggerId: string;
+  }) => {
+    const options = getAggregationOptions(dataType, columnName);
+    const currentLabel = options.find(opt => opt.value === currentAggregation)?.label || 'Contagem';
+    
+    return (
+      <Popover 
+        open={openAggregationPopover === triggerId} 
+        onOpenChange={(open) => setOpenAggregationPopover(open ? triggerId : null)}
+      >
+        <PopoverTrigger asChild>
+          <Badge 
+            variant="outline" 
+            className="text-xs cursor-pointer flex items-center gap-1 hover:bg-muted"
+            onClick={(e) => {
+              e.stopPropagation();
+              setOpenAggregationPopover(openAggregationPopover === triggerId ? null : triggerId);
+            }}
+          >
+            {currentLabel}
+            <ChevronDown className="w-3 h-3" />
+          </Badge>
+        </PopoverTrigger>
+        <PopoverContent 
+          className="w-auto p-1 bg-white dark:bg-gray-800 border shadow-lg" 
+          align="start"
+        >
+          <div className="space-y-1">
+            {options.map((option) => (
+              <div
+                key={option.value}
+                onClick={() => {
+                  console.log('🔄 Aggregation selected:', option.value, 'for', columnName);
+                  onSelect(option.value);
+                  setOpenAggregationPopover(null);
+                }}
+                className={`px-3 py-2 text-sm cursor-pointer rounded hover:bg-gray-100 dark:hover:bg-gray-700 ${
+                  currentAggregation === option.value ? 'bg-muted font-medium' : ''
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  {option.label}
+                  {currentAggregation === option.value && <span className="ml-2">✓</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </PopoverContent>
+      </Popover>
+    );
+  };
+
   const handleFieldClick = (table: DatabaseTable, column: any) => {
     const field: SelectedField = {
       tableName: table.name,
@@ -220,29 +292,14 @@ export function FieldSelector({
                       {field.role}
                     </Badge>
                     {field.role === 'metric' && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Badge variant="outline" className="text-xs cursor-pointer flex items-center gap-1 hover:bg-muted">
-                            {getAggregationOptions(field.dataType, field.columnName).find(opt => opt.value === field.aggregation)?.label || 'Contagem'}
-                            <ChevronDown className="w-3 h-3" />
-                          </Badge>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start" className="min-w-[120px] bg-white dark:bg-gray-800 border shadow-lg z-50">
-                          {getAggregationOptions(field.dataType, field.columnName).map((option) => (
-                            <DropdownMenuItem
-                              key={option.value}
-                              onClick={() => {
-                                console.log('🔄 Changing aggregation for', field.columnName, '(', field.dataType, ') from', field.aggregation, 'to', option.value);
-                                onFieldAggregationChange(field, option.value);
-                              }}
-                              className={`${field.aggregation === option.value ? 'bg-muted' : ''} hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer`}
-                            >
-                              {option.label}
-                              {field.aggregation === option.value && <span className="ml-2">✓</span>}
-                            </DropdownMenuItem>
-                          ))}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <AggregationDropdown
+                        field={field}
+                        dataType={field.dataType}
+                        columnName={field.columnName}
+                        currentAggregation={field.aggregation || 'count'}
+                        onSelect={(aggregation) => onFieldAggregationChange(field, aggregation)}
+                        triggerId={`selected-${field.tableName}-${field.columnName}`}
+                      />
                     )}
                   </div>
                 ))}
@@ -306,33 +363,18 @@ export function FieldSelector({
                                     {fieldRole === 'metric' ? <Sigma className="w-3 h-3" /> : <Filter className="w-3 h-3" />}
                                   </Badge>
                              {fieldRole === 'metric' && (
-                               <DropdownMenu>
-                                 <DropdownMenuTrigger asChild>
-                                   <Badge variant="outline" className="text-xs cursor-pointer flex items-center gap-1 hover:bg-muted">
-                                     {getAggregationOptions(column.dataType, column.name).find(opt => opt.value === getFieldAggregation(table.name, column.name))?.label || 'Contagem'}
-                                     <ChevronDown className="w-3 h-3" />
-                                   </Badge>
-                                 </DropdownMenuTrigger>
-                                 <DropdownMenuContent align="start" className="min-w-[120px] bg-white dark:bg-gray-800 border shadow-lg z-50">
-                                   {getAggregationOptions(column.dataType, column.name).map((option) => (
-                                     <DropdownMenuItem
-                                       key={option.value}
-                                       onClick={(e) => {
-                                         e.stopPropagation();
-                                         console.log('🔄 Table view - Changing aggregation for', column.name, 'to', option.value);
-                                         const field = selectedFields.find(f => f.tableName === table.name && f.columnName === column.name);
-                                         if (field) {
-                                           onFieldAggregationChange(field, option.value);
-                                         }
-                                       }}
-                                       className={`${getFieldAggregation(table.name, column.name) === option.value ? 'bg-muted' : ''} hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer`}
-                                     >
-                                       {option.label}
-                                       {getFieldAggregation(table.name, column.name) === option.value && <span className="ml-2">✓</span>}
-                                     </DropdownMenuItem>
-                                   ))}
-                                 </DropdownMenuContent>
-                               </DropdownMenu>
+                               <AggregationDropdown
+                                 dataType={column.dataType}
+                                 columnName={column.name}
+                                 currentAggregation={getFieldAggregation(table.name, column.name)}
+                                 onSelect={(aggregation) => {
+                                   const field = selectedFields.find(f => f.tableName === table.name && f.columnName === column.name);
+                                   if (field) {
+                                     onFieldAggregationChange(field, aggregation);
+                                   }
+                                 }}
+                                 triggerId={`table-${table.name}-${column.name}`}
+                               />
                              )}
                                 </div>
                               )}
@@ -383,35 +425,20 @@ export function FieldSelector({
                              >
                                {fieldRole === 'metric' ? <Sigma className="w-3 h-3" /> : <Filter className="w-3 h-3" />}
                              </Badge>
-                             {fieldRole === 'metric' && (
-                               <DropdownMenu>
-                                 <DropdownMenuTrigger asChild>
-                                   <Badge variant="outline" className="text-xs cursor-pointer flex items-center gap-1 hover:bg-muted">
-                                     {getAggregationOptions(column.dataType, column.name).find(opt => opt.value === getFieldAggregation(table.name, column.name))?.label || 'Contagem'}
-                                     <ChevronDown className="w-3 h-3" />
-                                   </Badge>
-                                 </DropdownMenuTrigger>
-                                 <DropdownMenuContent align="start" className="min-w-[120px] bg-white dark:bg-gray-800 border shadow-lg z-50">
-                                   {getAggregationOptions(column.dataType, column.name).map((option) => (
-                                     <DropdownMenuItem
-                                       key={option.value}
-                                       onClick={(e) => {
-                                         e.stopPropagation();
-                                         console.log('🔄 List view - Changing aggregation for', column.name, 'to', option.value);
-                                         const field = selectedFields.find(f => f.tableName === table.name && f.columnName === column.name);
-                                         if (field) {
-                                           onFieldAggregationChange(field, option.value);
-                                         }
-                                       }}
-                                       className={`${getFieldAggregation(table.name, column.name) === option.value ? 'bg-muted' : ''} hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer`}
-                                     >
-                                       {option.label}
-                                       {getFieldAggregation(table.name, column.name) === option.value && <span className="ml-2">✓</span>}
-                                     </DropdownMenuItem>
-                                   ))}
-                                 </DropdownMenuContent>
-                               </DropdownMenu>
-                             )}
+                              {fieldRole === 'metric' && (
+                                <AggregationDropdown
+                                  dataType={column.dataType}
+                                  columnName={column.name}
+                                  currentAggregation={getFieldAggregation(table.name, column.name)}
+                                  onSelect={(aggregation) => {
+                                    const field = selectedFields.find(f => f.tableName === table.name && f.columnName === column.name);
+                                    if (field) {
+                                      onFieldAggregationChange(field, aggregation);
+                                    }
+                                  }}
+                                  triggerId={`list-${table.name}-${column.name}`}
+                                />
+                              )}
                            </div>
                          )}
                        </div>
