@@ -16,6 +16,7 @@ import Onboarding from "./pages/Onboarding";
 import Billing from "./pages/Billing";
 import AIChat from "./pages/AIChat";
 import Marketplace from "./pages/Marketplace";
+import Ecosystem from "./pages/Ecosystem";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -38,7 +39,8 @@ const App = () => (
               <Route path="/charts" element={<ChartBuilder />} />
               <Route path="/analytics" element={<Dashboard />} />
               <Route path="/ai-chat" element={<AIChat />} />
-              <Route path="/marketplace" element={<Marketplace />} />
+            <Route path="/marketplace" element={<Marketplace />} />
+            <Route path="/ecosystem" element={<Ecosystem />} />
               <Route path="/billing" element={<Billing />} />
               <Route path="/settings" element={<Settings />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

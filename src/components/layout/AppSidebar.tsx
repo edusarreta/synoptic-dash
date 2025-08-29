@@ -42,6 +42,7 @@ const navigationItems = [
   { title: "Data Sources", url: "/data-sources", icon: Database },
   { title: "AI Chat", url: "/ai-chat", icon: Bot },
   { title: "Marketplace", url: "/marketplace", icon: ShoppingBag },
+  { title: "Ecosystem", url: "/ecosystem", icon: BarChart3 },
   { title: "Analytics", url: "/analytics", icon: BarChart3 },
 ];
 

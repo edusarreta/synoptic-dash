@@ -127,6 +127,57 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_generated_dashboards: {
+        Row: {
+          account_id: string
+          ai_model_used: string | null
+          charts_generated: number | null
+          created_at: string
+          created_by: string
+          dashboard_id: string
+          generation_metadata: Json | null
+          generation_prompt: string
+          id: string
+        }
+        Insert: {
+          account_id: string
+          ai_model_used?: string | null
+          charts_generated?: number | null
+          created_at?: string
+          created_by: string
+          dashboard_id: string
+          generation_metadata?: Json | null
+          generation_prompt: string
+          id?: string
+        }
+        Update: {
+          account_id?: string
+          ai_model_used?: string | null
+          charts_generated?: number | null
+          created_at?: string
+          created_by?: string
+          dashboard_id?: string
+          generation_metadata?: Json | null
+          generation_prompt?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_generated_dashboards_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_generated_dashboards_dashboard_id_fkey"
+            columns: ["dashboard_id"]
+            isOneToOne: false
+            referencedRelation: "dashboards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_logs: {
         Row: {
           account_id: string
@@ -165,6 +216,60 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: []
+      }
+      chart_annotations: {
+        Row: {
+          annotation_data: Json
+          annotation_type: string
+          chart_id: string
+          created_at: string
+          dashboard_id: string
+          id: string
+          is_active: boolean | null
+          position_data: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          annotation_data?: Json
+          annotation_type?: string
+          chart_id: string
+          created_at?: string
+          dashboard_id: string
+          id?: string
+          is_active?: boolean | null
+          position_data?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          annotation_data?: Json
+          annotation_type?: string
+          chart_id?: string
+          created_at?: string
+          dashboard_id?: string
+          id?: string
+          is_active?: boolean | null
+          position_data?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chart_annotations_chart_id_fkey"
+            columns: ["chart_id"]
+            isOneToOne: false
+            referencedRelation: "saved_charts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chart_annotations_dashboard_id_fkey"
+            columns: ["dashboard_id"]
+            isOneToOne: false
+            referencedRelation: "dashboards"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       client: {
         Row: {
@@ -205,6 +310,53 @@ export type Database = {
         }
         Relationships: []
       }
+      communication_integrations: {
+        Row: {
+          account_id: string
+          auth_token: string | null
+          created_at: string
+          created_by: string
+          id: string
+          integration_config: Json
+          integration_type: string
+          is_active: boolean | null
+          updated_at: string
+          webhook_url: string | null
+        }
+        Insert: {
+          account_id: string
+          auth_token?: string | null
+          created_at?: string
+          created_by: string
+          id?: string
+          integration_config?: Json
+          integration_type: string
+          is_active?: boolean | null
+          updated_at?: string
+          webhook_url?: string | null
+        }
+        Update: {
+          account_id?: string
+          auth_token?: string | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          integration_config?: Json
+          integration_type?: string
+          is_active?: boolean | null
+          updated_at?: string
+          webhook_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "communication_integrations_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       dashboard_charts: {
         Row: {
           chart_id: string
@@ -240,6 +392,80 @@ export type Database = {
             columns: ["dashboard_id"]
             isOneToOne: false
             referencedRelation: "dashboards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dashboard_comments: {
+        Row: {
+          account_id: string
+          annotation_data: Json | null
+          chart_id: string | null
+          comment_text: string
+          created_at: string
+          dashboard_id: string
+          id: string
+          is_resolved: boolean | null
+          mentioned_users: string[] | null
+          parent_comment_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_id: string
+          annotation_data?: Json | null
+          chart_id?: string | null
+          comment_text: string
+          created_at?: string
+          dashboard_id: string
+          id?: string
+          is_resolved?: boolean | null
+          mentioned_users?: string[] | null
+          parent_comment_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_id?: string
+          annotation_data?: Json | null
+          chart_id?: string | null
+          comment_text?: string
+          created_at?: string
+          dashboard_id?: string
+          id?: string
+          is_resolved?: boolean | null
+          mentioned_users?: string[] | null
+          parent_comment_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dashboard_comments_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dashboard_comments_chart_id_fkey"
+            columns: ["chart_id"]
+            isOneToOne: false
+            referencedRelation: "saved_charts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dashboard_comments_dashboard_id_fkey"
+            columns: ["dashboard_id"]
+            isOneToOne: false
+            referencedRelation: "dashboards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dashboard_comments_parent_comment_id_fkey"
+            columns: ["parent_comment_id"]
+            isOneToOne: false
+            referencedRelation: "dashboard_comments"
             referencedColumns: ["id"]
           },
         ]
@@ -384,6 +610,122 @@ export type Database = {
             columns: ["account_id"]
             isOneToOne: false
             referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      data_transformations: {
+        Row: {
+          account_id: string
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          is_materialized: boolean | null
+          last_executed: string | null
+          materialized_table_name: string | null
+          name: string
+          output_schema: Json | null
+          source_connections: Json
+          transformation_config: Json
+          updated_at: string
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          is_materialized?: boolean | null
+          last_executed?: string | null
+          materialized_table_name?: string | null
+          name: string
+          output_schema?: Json | null
+          source_connections?: Json
+          transformation_config?: Json
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          is_materialized?: boolean | null
+          last_executed?: string | null
+          materialized_table_name?: string | null
+          name?: string
+          output_schema?: Json | null
+          source_connections?: Json
+          transformation_config?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "data_transformations_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      embedded_analytics: {
+        Row: {
+          account_id: string
+          allowed_domains: string[] | null
+          created_at: string
+          created_by: string
+          dashboard_id: string
+          expires_at: string | null
+          filter_config: Json | null
+          id: string
+          is_active: boolean | null
+          public_token: string
+          security_config: Json | null
+          updated_at: string
+        }
+        Insert: {
+          account_id: string
+          allowed_domains?: string[] | null
+          created_at?: string
+          created_by: string
+          dashboard_id: string
+          expires_at?: string | null
+          filter_config?: Json | null
+          id?: string
+          is_active?: boolean | null
+          public_token?: string
+          security_config?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string
+          allowed_domains?: string[] | null
+          created_at?: string
+          created_by?: string
+          dashboard_id?: string
+          expires_at?: string | null
+          filter_config?: Json | null
+          id?: string
+          is_active?: boolean | null
+          public_token?: string
+          security_config?: Json | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "embedded_analytics_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "embedded_analytics_dashboard_id_fkey"
+            columns: ["dashboard_id"]
+            isOneToOne: false
+            referencedRelation: "dashboards"
             referencedColumns: ["id"]
           },
         ]
