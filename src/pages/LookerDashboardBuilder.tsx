@@ -16,6 +16,7 @@ import {
   Eye
 } from "lucide-react";
 import { toast } from "sonner";
+import { useToast } from "@/hooks/use-toast";
 import { DndContext, DragEndEvent, DragOverEvent } from '@dnd-kit/core';
 
 // Import adapted components
@@ -88,48 +89,69 @@ export default function LookerDashboardBuilder() {
   const [isSaving, setIsSaving] = useState(false);
   
   // Data State
-  const [selectedDataSource, setSelectedDataSource] = useState<string>('Vendas Globais');
-  const [dataFields, setDataFields] = useState<DataField[]>(MOCK_DATA['Vendas Globais'].fields);
+  const [selectedDataSource, setSelectedDataSource] = useState<string>('');
+  const [dataFields, setDataFields] = useState<DataField[]>([]);
   const [isLoadingFields, setIsLoadingFields] = useState(false);
   
   // Widgets State
-  const [widgets, setWidgets] = useState<Widget[]>([
-    { id: 1, type: 'scorecard', config: { metric: 'vendas' }, layout: { x: 1, y: 1, w: 3, h: 2 } },
-    { id: 2, type: 'bar', config: { dimension: 'pais', metric: 'vendas' }, layout: { x: 1, y: 3, w: 6, h: 5 } },
-    { id: 3, type: 'filter', config: { dimension: 'categoria' }, layout: { x: 4, y: 1, w: 3, h: 1 } }
-  ]);
+  const [widgets, setWidgets] = useState<Widget[]>([]);
   const [selectedWidgetId, setSelectedWidgetId] = useState<number | null>(null);
 
   useEffect(() => {
     loadConnections();
   }, []);
 
+  useEffect(() => {
+    // Set initial data source to first available connection or mock data
+    if (connections.length > 0 && !selectedDataSource) {
+      setSelectedDataSource(connections[0].id);
+      loadDataFields(connections[0].id);
+    } else if (connections.length === 0 && !selectedDataSource) {
+      // Use mock data as fallback
+      setSelectedDataSource('Vendas Globais');
+      setDataFields(MOCK_DATA['Vendas Globais'].fields);
+    }
+  }, [connections, selectedDataSource]);
+
   const loadDataFields = async (connectionId: string) => {
     setIsLoadingFields(true);
     try {
-      const { data } = await supabase.functions.invoke('get-database-schema', {
+      console.log('📤 Loading data fields for connection:', connectionId);
+      const { data, error } = await supabase.functions.invoke('get-database-schema', {
         body: { connectionId }
       });
       
-      if (data?.tables) {
+      console.log('📥 Schema response:', data);
+      
+      if (error) {
+        console.error('❌ Schema error:', error);
+        throw error;
+      }
+      
+      if (data?.success && data?.tables) {
         const fields: DataField[] = [];
-        Object.entries(data.tables).forEach(([tableName, tableData]: [string, any]) => {
-          tableData.columns.forEach((column: any) => {
-            const isNumeric = ['integer', 'bigint', 'decimal', 'numeric', 'real', 'double', 'money'].includes(column.type.toLowerCase());
+        data.tables.forEach((table: any) => {
+          table.columns.forEach((column: any) => {
+            const isNumeric = ['integer', 'bigint', 'decimal', 'numeric', 'real', 'double', 'money', 'float4', 'float8'].includes(column.type.toLowerCase());
             fields.push({
-              id: `${tableName}.${column.name}`,
-              name: `${tableName}.${column.name}`,
+              id: `${table.name}.${column.name}`,
+              name: `${table.name}.${column.name}`,
               type: isNumeric ? 'metric' : 'dimension',
               dataType: column.type,
-              table: tableName
+              table: table.name
             });
           });
         });
+        console.log('✅ Fields loaded:', fields.length);
         setDataFields(fields);
+      } else {
+        console.error('❌ Schema response failed:', data);
+        throw new Error(data?.error || 'Failed to fetch database schema');
       }
-    } catch (error) {
-      console.error('Error loading data fields:', error);
-      toast.error("Erro ao carregar campos de dados");
+    } catch (error: any) {
+      console.error('💥 Error loading data fields:', error);
+      toast.error(`Erro ao carregar campos: ${error.message}`);
+      setDataFields([]);
     } finally {
       setIsLoadingFields(false);
     }
@@ -139,8 +161,12 @@ export default function LookerDashboardBuilder() {
     setSelectedDataSource(connectionId);
     if (connectionId === 'Vendas Globais') {
       setDataFields(MOCK_DATA['Vendas Globais'].fields);
-    } else {
+      setIsLoadingFields(false);
+    } else if (connectionId) {
       loadDataFields(connectionId);
+    } else {
+      setDataFields([]);
+      setIsLoadingFields(false);
     }
   };
 

@@ -73,7 +73,17 @@ export function LookerDataPanel({
             <SelectValue placeholder="Selecionar fonte de dados" />
           </SelectTrigger>
           <SelectContent>
-            {connections.map((connection) => (
+            {/* Mock data option first */}
+            <SelectItem value="Vendas Globais">
+              <div className="flex items-center gap-2">
+                <Database className="w-3 h-3" />
+                <span>Vendas Globais (Exemplo)</span>
+                <Badge variant="outline" className="text-xs">
+                  demo
+                </Badge>
+              </div>
+            </SelectItem>
+            {connections.filter(conn => conn.id !== 'Vendas Globais').map((connection) => (
               <SelectItem key={connection.id} value={connection.id}>
                 <div className="flex items-center gap-2">
                   <Database className="w-3 h-3" />
