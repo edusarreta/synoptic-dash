@@ -80,14 +80,43 @@ export default function DataSources() {
     setIsSubmitting(true);
     
     try {
-      // Get user's account
-      const { data: profile } = await supabase
+      // Get user's account - create profile if it doesn't exist
+      let { data: profile } = await supabase
         .from('profiles')
         .select('account_id')
         .eq('id', user.id)
-        .single();
+        .maybeSingle();
 
-      if (!profile) throw new Error('Profile not found');
+      if (!profile) {
+        // Create default account first
+        const { data: newAccount } = await supabase
+          .from('accounts')
+          .insert({
+            name: user.user_metadata?.account_name || 'My Account',
+            slug: user.user_metadata?.account_name?.toLowerCase().replace(/\s+/g, '-') || 'my-account'
+          })
+          .select('id')
+          .single();
+
+        if (!newAccount) throw new Error('Failed to create account');
+
+        // Create profile for the user
+        const { data: newProfile } = await supabase
+          .from('profiles')
+          .insert({
+            id: user.id,
+            account_id: newAccount.id,
+            email: user.email!,
+            full_name: user.user_metadata?.full_name || 'User',
+            role: 'admin' // First user becomes admin
+          })
+          .select('account_id')
+          .single();
+
+        profile = newProfile;
+      }
+
+      if (!profile) throw new Error('Failed to get or create profile');
 
       // For now, we'll store password as plain text (in real implementation, this should be encrypted)
       const { error } = await supabase
