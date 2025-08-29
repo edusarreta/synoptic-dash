@@ -124,7 +124,7 @@ export function TableSelector({
             </div>
 
             {/* Tables List */}
-            <div className="max-h-64 overflow-y-auto space-y-2 border rounded-md p-2">
+            <div key={`tables-${selectedConnection}`} className="max-h-64 overflow-y-auto space-y-2 border rounded-md p-2">
               {loading ? (
                 <div className="flex items-center justify-center py-8">
                   <RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" />
@@ -132,7 +132,7 @@ export function TableSelector({
               ) : filteredTables.length > 0 ? (
                 filteredTables.map((table) => (
                   <div
-                    key={table.name}
+                    key={`${selectedConnection}-${table.name}`}
                     className="flex items-center space-x-3 p-2 rounded hover:bg-muted/50 cursor-pointer"
                     onClick={() => onTableToggle(table.name)}
                   >

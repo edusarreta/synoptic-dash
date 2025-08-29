@@ -264,6 +264,7 @@ export default function ChartBuilder() {
           <div className="xl:col-span-1 space-y-6">
             {/* Data Source Selection */}
             <TableSelector
+              key={selectedConnection} // Force re-render when connection changes
               connections={connections}
               tables={tables}
               selectedConnection={selectedConnection}
