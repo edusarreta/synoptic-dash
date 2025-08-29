@@ -92,9 +92,9 @@ export function TableSelector({
               </Button>
             </div>
 
-            {selectedConnection_ && (
+            {selectedConnection && selectedConnection_ && (
               <div className="text-sm text-muted-foreground">
-                Database: {selectedConnection_.database_name}
+                Database: {selectedConnection_.database_name || 'Loading...'}
               </div>
             )}
 
