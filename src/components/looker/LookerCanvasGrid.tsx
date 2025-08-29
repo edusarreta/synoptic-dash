@@ -1,6 +1,10 @@
 import { useRef, useEffect } from "react";
+import { Chart, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js';
 import { Button } from "@/components/ui/button";
 import { Trash2, BarChart3, Filter as FilterIcon, TrendingUp } from "lucide-react";
+
+// Register Chart.js components
+Chart.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
 interface Widget {
   id: number;
@@ -110,35 +114,33 @@ export function LookerCanvasGrid({
                       }
 
                       // Create new chart
-                      import('chart.js/auto').then((Chart) => {
-                        const ctx = canvas.getContext('2d');
-                        if (ctx) {
-                          chartRefs.current[widget.id] = new Chart.default(ctx, {
-                            type: 'bar',
-                            data: {
-                              labels: data.labels,
-                              datasets: [{
-                                label: data.metricLabel,
-                                data: data.values,
-                                backgroundColor: 'hsl(var(--primary))',
-                                borderRadius: 4
-                              }]
+                      const ctx = canvas.getContext('2d');
+                      if (ctx) {
+                        chartRefs.current[widget.id] = new Chart(ctx, {
+                          type: 'bar',
+                          data: {
+                            labels: data.labels,
+                            datasets: [{
+                              label: data.metricLabel,
+                              data: data.values,
+                              backgroundColor: 'hsl(var(--primary))',
+                              borderRadius: 4
+                            }]
+                          },
+                          options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                              legend: { display: false }
                             },
-                            options: {
-                              responsive: true,
-                              maintainAspectRatio: false,
-                              plugins: {
-                                legend: { display: false }
-                              },
-                              scales: {
-                                y: {
-                                  beginAtZero: true
-                                }
+                            scales: {
+                              y: {
+                                beginAtZero: true
                               }
                             }
-                          });
-                        }
-                      });
+                          }
+                        });
+                      }
                     }
                   }}
                   className="w-full h-full"
