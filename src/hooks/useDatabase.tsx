@@ -65,7 +65,14 @@ export function useDatabase() {
   };
 
   const loadTables = async (connectionId: string) => {
+    if (!connectionId) {
+      setTables([]);
+      return [];
+    }
+    
     setLoading(true);
+    setTables([]); // Clear tables immediately when starting to load
+    
     try {
       const { data, error } = await supabase.functions.invoke('get-database-schema', {
         body: { connectionId }
