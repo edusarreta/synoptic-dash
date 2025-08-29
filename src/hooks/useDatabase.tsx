@@ -71,22 +71,30 @@ export function useDatabase() {
     }
     
     console.log('Loading tables for connection:', connectionId);
+    
+    // Force clear tables immediately
+    setTables([]);
     setLoading(true);
-    setTables([]); // Clear tables immediately when starting to load
     
     try {
       const { data, error } = await supabase.functions.invoke('get-database-schema', {
         body: { connectionId }
       });
 
-      if (error) throw error;
+      console.log('Schema response:', data);
 
-      if (data.success && data.tables) {
-        console.log('Tables loaded successfully:', data.tables.length);
+      if (error) {
+        console.error('Schema error:', error);
+        throw error;
+      }
+
+      if (data?.success && data?.tables) {
+        console.log('Tables loaded successfully:', data.tables.length, 'tables');
         setTables(data.tables);
         return data.tables;
       } else {
-        throw new Error(data.error || 'Failed to fetch database schema');
+        console.error('Schema response failed:', data);
+        throw new Error(data?.error || 'Failed to fetch database schema');
       }
     } catch (error: any) {
       console.error('Error loading tables:', error);
