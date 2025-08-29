@@ -162,10 +162,21 @@ serve(async (req) => {
         ? Object.keys(queryResult.rows[0]) 
         : [];
       
+      // Convert BigInt values to strings for JSON serialization
+      const processedData = queryResult.rows?.map((row: any) => {
+        const processedRow = { ...row };
+        for (const key in processedRow) {
+          if (typeof processedRow[key] === 'bigint') {
+            processedRow[key] = processedRow[key].toString();
+          }
+        }
+        return processedRow;
+      }) || [];
+      
       return new Response(
         JSON.stringify({
           success: true,
-          data: queryResult.rows || [],
+          data: processedData,
           rowCount: queryResult.rowCount || 0,
           columns: columns
         }),
