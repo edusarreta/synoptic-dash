@@ -432,6 +432,47 @@ export type Database = {
           },
         ]
       }
+      shared_dashboard_links: {
+        Row: {
+          created_at: string
+          created_by: string
+          dashboard_id: string
+          expires_at: string | null
+          id: string
+          is_active: boolean
+          last_accessed: string | null
+          public_token: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          dashboard_id: string
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          last_accessed?: string | null
+          public_token?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          dashboard_id?: string
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          last_accessed?: string | null
+          public_token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shared_dashboard_links_dashboard_id_fkey"
+            columns: ["dashboard_id"]
+            isOneToOne: false
+            referencedRelation: "dashboards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subscriptions: {
         Row: {
           account_id: string
