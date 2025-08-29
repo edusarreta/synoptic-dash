@@ -267,13 +267,13 @@ export default function ChartBuilder() {
         throw profileError;
       }
 
-      // Create chart configuration (simplified for JSON compatibility)
+      // Create chart configuration (JSON compatible)
       const chartConfig = {
         type: chartType,
         title: chartTitle,
         description: chartDescription,
-        xAxis: availableColumns[0] || '',
-        yAxis: availableColumns.slice(1) || []
+        xAxis: selectedFields.find(f => f.role === 'dimension')?.columnName || availableColumns[0] || '',
+        yAxis: selectedFields.filter(f => f.role === 'metric').map(f => f.columnName) || availableColumns.slice(1) || []
       };
 
       // Save the chart
@@ -569,14 +569,37 @@ export default function ChartBuilder() {
                   Live preview of your chart
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-4">
+                {/* Selected Fields Display */}
+                {selectedFields.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-medium">Campos Selecionados:</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedFields.map((field, index) => (
+                        <div 
+                          key={`${field.tableName}-${field.columnName}`}
+                          className={`px-2 py-1 text-xs rounded-md border ${
+                            field.role === 'dimension' 
+                              ? 'bg-blue-50 text-blue-700 border-blue-200' 
+                              : 'bg-green-50 text-green-700 border-green-200'
+                          }`}
+                        >
+                          {field.role === 'dimension' ? '📊' : '📈'} {field.columnName}
+                          {field.aggregation && ` (${field.aggregation})`}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Chart Preview */}
                 <ChartRenderer
                   config={{
                     type: chartType,
                     title: chartTitle || 'Chart Preview',
                     description: chartDescription,
-                    xAxis: availableColumns[0] || '',
-                    yAxis: availableColumns.slice(1) || [],
+                    xAxis: selectedFields.find(f => f.role === 'dimension')?.columnName || availableColumns[0] || '',
+                    yAxis: selectedFields.filter(f => f.role === 'metric').map(f => f.columnName) || availableColumns.slice(1) || [],
                     data
                   }}
                 />

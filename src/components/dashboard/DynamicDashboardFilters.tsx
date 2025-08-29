@@ -27,155 +27,40 @@ export interface DynamicFilterState {
 }
 
 interface DynamicDashboardFiltersProps {
-  filters: DynamicFilterState;
-  onFiltersChange: (filters: DynamicFilterState) => void;
-  savedCharts: any[];
+  activeFilters: Record<string, any>;
+  onFiltersChange: (filters: Record<string, any>) => void;
   className?: string;
 }
 
 export function DynamicDashboardFilters({
-  filters,
+  activeFilters,
   onFiltersChange,
-  savedCharts,
   className
 }: DynamicDashboardFiltersProps) {
-  const { user } = useAuth();
-  const { connections, executeQuery } = useDatabase();
   const [isExpanded, setIsExpanded] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [availableFields, setAvailableFields] = useState<Record<string, any[]>>({});
-  const [fieldTypes, setFieldTypes] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    if (savedCharts.length > 0) {
-      loadAvailableFields();
-    }
-  }, [savedCharts]);
-
-  const loadAvailableFields = async () => {
-    setLoading(true);
-    try {
-      const fieldsMap: Record<string, any[]> = {};
-      const typesMap: Record<string, string> = {};
-
-      // Process each saved chart to extract available fields
-      for (const chart of savedCharts.slice(0, 5)) { // Limit to avoid too many requests
-        try {
-          if (chart.sql_query && chart.data_connection_id) {
-            // Execute a modified query to get sample data and field types
-            const sampleQuery = `${chart.sql_query.replace(/LIMIT\s+\d+/i, '')} LIMIT 10`;
-            
-            const result = await executeQuery(chart.data_connection_id, sampleQuery);
-            
-            if (result.data && result.data.length > 0) {
-              const sampleRow = result.data[0];
-              
-              Object.keys(sampleRow).forEach(fieldName => {
-                const value = sampleRow[fieldName];
-                const fieldType = detectFieldType(value, fieldName);
-                
-                typesMap[fieldName] = fieldType;
-                
-                // Collect unique values for text fields
-                if (fieldType === 'text' || fieldType === 'boolean') {
-                  const uniqueValues = [...new Set(result.data.map(row => row[fieldName]))];
-                  
-                  if (!fieldsMap[fieldName]) {
-                    fieldsMap[fieldName] = [];
-                  }
-                  
-                  uniqueValues.forEach(value => {
-                    if (value != null && !fieldsMap[fieldName].includes(value)) {
-                      fieldsMap[fieldName].push(value);
-                    }
-                  });
-                }
-              });
-            }
-          }
-        } catch (error) {
-          console.error(`Error loading fields for chart ${chart.name}:`, error);
-        }
-      }
-
-      setAvailableFields(fieldsMap);
-      setFieldTypes(typesMap);
-    } catch (error) {
-      console.error('Error loading available fields:', error);
-      toast.error('Erro ao carregar campos disponíveis');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const detectFieldType = (value: any, fieldName: string): string => {
-    if (value === null || value === undefined) return 'text';
-    
-    const fieldLower = fieldName.toLowerCase();
-    
-    // Date detection
-    if (fieldLower.includes('date') || fieldLower.includes('time') || fieldLower.includes('created') || fieldLower.includes('updated')) {
-      return 'date';
-    }
-    
-    // Type-based detection
-    if (typeof value === 'number') return 'number';
-    if (typeof value === 'boolean') return 'boolean';
-    if (typeof value === 'string') {
-      // Try to parse as date
-      if (!isNaN(Date.parse(value))) return 'date';
-      return 'text';
-    }
-    
-    return 'text';
-  };
-
-  const updateFilters = (updates: Partial<DynamicFilterState>) => {
-    onFiltersChange({
-      ...filters,
-      ...updates
-    });
-  };
+  const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({ from: undefined, to: undefined });
 
   const updateDateRange = (range: { from: Date | undefined; to: Date | undefined }) => {
-    updateFilters({
+    setDateRange(range);
+    onFiltersChange({
+      ...activeFilters,
       dateRange: range
     });
   };
 
-  const toggleFieldFilter = (fieldName: string, value: string) => {
-    const currentValues = filters.fieldFilters[fieldName] || [];
-    const newValues = currentValues.includes(value)
-      ? currentValues.filter(v => v !== value)
-      : [...currentValues, value];
-    
-    updateFilters({
-      fieldFilters: {
-        ...filters.fieldFilters,
-        [fieldName]: newValues
-      }
-    });
-  };
-
   const clearAllFilters = () => {
-    onFiltersChange({
-      dateRange: { from: undefined, to: undefined },
-      fieldFilters: {},
-      customFilters: {}
-    });
+    setDateRange({ from: undefined, to: undefined });
+    onFiltersChange({});
   };
 
   const getActiveFiltersCount = () => {
     let count = 0;
-    if (filters.dateRange.from || filters.dateRange.to) count++;
-    count += Object.values(filters.fieldFilters).reduce((sum, values) => sum + values.length, 0);
-    count += Object.keys(filters.customFilters).length;
+    if (dateRange.from || dateRange.to) count++;
+    count += Object.keys(activeFilters).length;
     return count;
   };
 
   const activeFiltersCount = getActiveFiltersCount();
-  const dateFields = Object.keys(fieldTypes).filter(field => fieldTypes[field] === 'date');
-  const textFields = Object.keys(availableFields).filter(field => fieldTypes[field] === 'text');
 
   return (
     <Card className={cn("glass-card border-0 shadow-card", className)}>
@@ -191,7 +76,6 @@ export function DynamicDashboardFilters({
             )}
           </div>
           <div className="flex items-center gap-2">
-            {loading && <Loader2 className="w-4 h-4 animate-spin" />}
             {activeFiltersCount > 0 && (
               <Button
                 variant="ghost"
@@ -219,97 +103,66 @@ export function DynamicDashboardFilters({
 
       <CardContent className="space-y-6">
         {/* Date Range Filter */}
-        {dateFields.length > 0 && (
-          <div className="space-y-3">
-            <Label className="text-sm font-medium">Período</Label>
-            <div className="flex gap-2">
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !filters.dateRange.from && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {filters.dateRange.from ? (
-                      filters.dateRange.to ? (
-                        <>
-                          {format(filters.dateRange.from, "d MMM", { locale: ptBR })} -{" "}
-                          {format(filters.dateRange.to, "d MMM yyyy", { locale: ptBR })}
-                        </>
-                      ) : (
-                        format(filters.dateRange.from, "d MMM yyyy", { locale: ptBR })
-                      )
+        <div className="space-y-3">
+          <Label className="text-sm font-medium">Período</Label>
+          <div className="flex gap-2">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "w-full justify-start text-left font-normal",
+                    !dateRange.from && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {dateRange.from ? (
+                    dateRange.to ? (
+                      <>
+                        {format(dateRange.from, "d MMM", { locale: ptBR })} -{" "}
+                        {format(dateRange.to, "d MMM yyyy", { locale: ptBR })}
+                      </>
                     ) : (
-                      <span>Selecionar período</span>
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    initialFocus
-                    mode="range"
-                    defaultMonth={filters.dateRange.from}
-                    selected={filters.dateRange}
-                    onSelect={(range) => {
-                      if (range) {
-                        updateDateRange({ from: range.from, to: range.to });
-                      } else {
-                        updateDateRange({ from: undefined, to: undefined });
-                      }
-                    }}
-                    numberOfMonths={2}
-                    className={cn("p-3 pointer-events-auto")}
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
+                      format(dateRange.from, "d MMM yyyy", { locale: ptBR })
+                    )
+                  ) : (
+                    <span>Selecionar período</span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  initialFocus
+                  mode="range"
+                  defaultMonth={dateRange.from}
+                  selected={dateRange}
+                  onSelect={(range) => {
+                    if (range) {
+                      updateDateRange({ from: range.from, to: range.to });
+                    } else {
+                      updateDateRange({ from: undefined, to: undefined });
+                    }
+                  }}
+                  numberOfMonths={2}
+                  className={cn("p-3 pointer-events-auto")}
+                />
+              </PopoverContent>
+            </Popover>
           </div>
-        )}
+        </div>
 
-        {/* Dynamic Field Filters */}
-        {textFields.map((fieldName) => (
-          <div key={fieldName} className="space-y-3">
-            <Label className="text-sm font-medium">{fieldName}</Label>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-              {availableFields[fieldName]?.slice(0, 6).map((value: any) => (
-                <div key={`${fieldName}-${value}`} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`${fieldName}-${value}`}
-                    checked={(filters.fieldFilters[fieldName] || []).includes(String(value))}
-                    onCheckedChange={() => toggleFieldFilter(fieldName, String(value))}
-                  />
-                  <Label
-                    htmlFor={`${fieldName}-${value}`}
-                    className="text-sm font-normal cursor-pointer truncate"
-                    title={String(value)}
-                  >
-                    {String(value)}
-                  </Label>
-                </div>
-              ))}
-            </div>
-            {filters.fieldFilters[fieldName]?.length > 0 && (
-              <div className="flex flex-wrap gap-1 mt-2">
-                {filters.fieldFilters[fieldName].map((value) => (
-                  <Badge key={value} variant="secondary" className="text-xs">
-                    {value}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="ml-1 h-auto p-0 text-muted-foreground hover:text-foreground"
-                      onClick={() => toggleFieldFilter(fieldName, value)}
-                    >
-                      <X className="w-3 h-3" />
-                    </Button>
-                  </Badge>
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
+        {/* Simple Text Filter */}
+        <div className="space-y-3">
+          <Label className="text-sm font-medium">Filtro de Texto</Label>
+          <Input
+            placeholder="Digite para filtrar..."
+            value={activeFilters.textFilter || ''}
+            onChange={(e) => onFiltersChange({
+              ...activeFilters,
+              textFilter: e.target.value
+            })}
+          />
+        </div>
 
         {/* Expanded Filters */}
         {isExpanded && (
@@ -354,14 +207,9 @@ export function DynamicDashboardFilters({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={loadAvailableFields}
-                  disabled={loading}
+                  onClick={clearAllFilters}
                 >
-                  {loading ? (
-                    <Loader2 className="w-4 h-4 animate-spin mr-1" />
-                  ) : (
-                    "Atualizar Filtros"
-                  )}
+                  Atualizar Filtros
                 </Button>
               </div>
             </div>
@@ -379,15 +227,12 @@ export function DynamicDashboardFilters({
         )}
 
         {/* No filters message */}
-        {Object.keys(availableFields).length === 0 && !loading && (
-          <div className="text-center py-8">
-            <Filter className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
+        {activeFiltersCount === 0 && (
+          <div className="text-center py-4">
+            <Filter className="w-6 h-6 mx-auto text-muted-foreground mb-2" />
             <p className="text-sm text-muted-foreground">
-              Execute algumas consultas nos gráficos para gerar filtros dinâmicos
+              Configure filtros acima para refinar a visualização dos gráficos
             </p>
-            <Button variant="outline" size="sm" onClick={loadAvailableFields} className="mt-2">
-              Carregar Filtros
-            </Button>
           </div>
         )}
       </CardContent>
