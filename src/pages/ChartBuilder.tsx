@@ -102,16 +102,19 @@ export default function ChartBuilder() {
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Function invoke error:', error);
+        throw error;
+      }
 
-      if (data.success && data.data) {
+      if (data && data.success && data.data) {
         setData(data.data);
         toast({
           title: "Query Executed",
           description: `Retrieved ${data.rowCount} rows`,
         });
       } else {
-        throw new Error(data.error || 'Query execution failed');
+        throw new Error(data?.details || data?.error || 'Query execution failed');
       }
     } catch (error: any) {
       console.error('Error executing query:', error);

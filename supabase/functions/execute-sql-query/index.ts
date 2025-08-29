@@ -119,6 +119,8 @@ serve(async (req) => {
         // Create PostgreSQL connection
         const { Client } = await import("https://deno.land/x/postgres@v0.17.0/mod.ts");
         
+        console.log('Connecting to PostgreSQL database...');
+        
         const client = new Client({
           user: connection.username,
           database: connection.database_name,
@@ -128,16 +130,27 @@ serve(async (req) => {
           tls: connection.ssl_enabled ? 'require' : 'disable',
         });
 
-        await client.connect();
-        
-        // Execute the query with a timeout
-        const result = await Promise.race([
-          client.queryObject(sqlQuery),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Query timeout')), 30000))
-        ]);
-        
-        await client.end();
-        queryResult = result;
+        try {
+          await client.connect();
+          console.log('Connected to database, executing query...');
+          
+          // Execute the query with a timeout
+          const result = await Promise.race([
+            client.queryObject(sqlQuery),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Query timeout after 30 seconds')), 30000))
+          ]);
+          
+          queryResult = result;
+          console.log(`Query completed, found ${result.rowCount} rows`);
+          
+        } finally {
+          try {
+            await client.end();
+            console.log('Database connection closed');
+          } catch (closeError) {
+            console.error('Error closing connection:', closeError);
+          }
+        }
       } else {
         throw new Error(`Unsupported connection type: ${connection.connection_type}`);
       }
@@ -164,13 +177,33 @@ serve(async (req) => {
 
     } catch (queryError) {
       console.error('Query execution error:', queryError);
+      
+      // Return more detailed error information
+      let errorMessage = 'Query execution failed';
+      let errorDetails = queryError.message;
+      
+      if (queryError.message.includes('ECONNREFUSED')) {
+        errorMessage = 'Database connection refused';
+        errorDetails = 'Could not connect to the database. Check host and port.';
+      } else if (queryError.message.includes('authentication failed')) {
+        errorMessage = 'Authentication failed';
+        errorDetails = 'Invalid username or password.';
+      } else if (queryError.message.includes('does not exist')) {
+        errorMessage = 'Database or table not found';
+        errorDetails = queryError.message;
+      } else if (queryError.message.includes('syntax error')) {
+        errorMessage = 'SQL syntax error';
+        errorDetails = queryError.message;
+      }
+      
       return new Response(
         JSON.stringify({ 
-          error: 'Query execution failed', 
-          details: queryError.message 
+          error: errorMessage, 
+          details: errorDetails,
+          success: false
         }),
         { 
-          status: 500, 
+          status: 400, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       );
