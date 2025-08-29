@@ -127,7 +127,10 @@ export function LookerDataPanel({
                       className="field-item flex items-center p-2 rounded-md text-sm select-none bg-green-100 text-green-800 cursor-grab hover:bg-green-200 transition-colors"
                       draggable
                       onDragStart={(e) => {
-                        e.dataTransfer.setData('application/json', JSON.stringify(field));
+                        e.dataTransfer.setData('application/json', JSON.stringify({
+                          type: 'field',
+                          field: field
+                        }));
                         e.dataTransfer.effectAllowed = 'copy';
                       }}
                     >
@@ -153,7 +156,10 @@ export function LookerDataPanel({
                       className="field-item flex items-center p-2 rounded-md text-sm select-none bg-blue-100 text-blue-800 cursor-grab hover:bg-blue-200 transition-colors"
                       draggable
                       onDragStart={(e) => {
-                        e.dataTransfer.setData('application/json', JSON.stringify(field));
+                        e.dataTransfer.setData('application/json', JSON.stringify({
+                          type: 'field',
+                          field: field
+                        }));
                         e.dataTransfer.effectAllowed = 'copy';
                       }}
                     >

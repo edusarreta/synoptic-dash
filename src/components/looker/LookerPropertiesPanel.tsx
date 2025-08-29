@@ -61,11 +61,11 @@ export function LookerPropertiesPanel({
           onDrop={(e) => {
             e.preventDefault();
             try {
-              const fieldData = JSON.parse(e.dataTransfer.getData('application/json'));
-              if (fieldData.type === acceptedType) {
+              const dragData = JSON.parse(e.dataTransfer.getData('application/json'));
+              if (dragData.type === 'field' && dragData.field.type === acceptedType) {
                 const propertyName = label.toLowerCase().includes('dimensão') ? 'dimension' : 
                                    label.toLowerCase().includes('métrica') ? 'metric' : 'dimension';
-                onWidgetConfigUpdate(selectedWidget.id, { [propertyName]: fieldData.id });
+                onWidgetConfigUpdate(selectedWidget.id, { [propertyName]: dragData.field.id });
               }
             } catch (error) {
               console.error('Error processing dropped field:', error);
