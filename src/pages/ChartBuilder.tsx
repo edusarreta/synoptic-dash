@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,9 @@ import { Label } from "@/components/ui/label";
 import { ChartRenderer } from "@/components/charts/ChartRenderer";
 import { useToast } from "@/hooks/use-toast";
 import { usePermissions } from "@/hooks/usePermissions";
-import { BarChart3, LineChart, PieChart, Hash, Table, Play, Save } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { BarChart3, LineChart, PieChart, Hash, Table, Play, Save, Database } from "lucide-react";
 
 const SAMPLE_DATA = [
   { month: 'Jan', sales: 4000, profit: 2400, customers: 240 },
@@ -20,23 +22,107 @@ const SAMPLE_DATA = [
   { month: 'Jun', sales: 2390, profit: 3800, customers: 250 },
 ];
 
+interface DataConnection {
+  id: string;
+  name: string;
+  connection_type: string;
+  database_name?: string;
+}
+
 export default function ChartBuilder() {
   const { permissions } = usePermissions();
+  const { user } = useAuth();
   const { toast } = useToast();
   const [chartType, setChartType] = useState<'table' | 'bar' | 'line' | 'pie' | 'kpi'>('table');
   const [chartTitle, setChartTitle] = useState('');
   const [chartDescription, setChartDescription] = useState('');
   const [sqlQuery, setSqlQuery] = useState('');
+  const [selectedConnection, setSelectedConnection] = useState('');
+  const [connections, setConnections] = useState<DataConnection[]>([]);
   const [xAxis, setXAxis] = useState('');
   const [yAxis, setYAxis] = useState<string[]>([]);
   const [data, setData] = useState(SAMPLE_DATA);
+  const [isExecuting, setIsExecuting] = useState(false);
 
-  const handleExecuteQuery = () => {
-    // In a real implementation, this would execute the SQL query
-    toast({
-      title: "Query Executed",
-      description: "Using sample data for preview",
-    });
+  useEffect(() => {
+    if (user) {
+      loadConnections();
+    }
+  }, [user]);
+
+  const loadConnections = async () => {
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('account_id')
+        .eq('id', user?.id)
+        .single();
+
+      if (profile) {
+        const { data } = await supabase
+          .from('data_connections')
+          .select('id, name, connection_type, database_name')
+          .eq('account_id', profile.account_id)
+          .eq('is_active', true)
+          .order('created_at', { ascending: false });
+
+        setConnections(data || []);
+      }
+    } catch (error) {
+      console.error('Error loading connections:', error);
+    }
+  };
+
+  const handleExecuteQuery = async () => {
+    if (!sqlQuery.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a SQL query",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!selectedConnection) {
+      toast({
+        title: "Error",
+        description: "Please select a data connection",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsExecuting(true);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('execute-sql-query', {
+        body: {
+          connectionId: selectedConnection,
+          sqlQuery
+        }
+      });
+
+      if (error) throw error;
+
+      if (data.success && data.data) {
+        setData(data.data);
+        toast({
+          title: "Query Executed",
+          description: `Retrieved ${data.rowCount} rows`,
+        });
+      } else {
+        throw new Error(data.error || 'Query execution failed');
+      }
+    } catch (error: any) {
+      console.error('Error executing query:', error);
+      toast({
+        title: "Query Error",
+        description: error.message || 'Failed to execute query',
+        variant: "destructive"
+      });
+    } finally {
+      setIsExecuting(false);
+    }
   };
 
   const handleSaveChart = () => {
@@ -227,6 +313,41 @@ export default function ChartBuilder() {
               </Card>
             )}
 
+            {/* Data Source Selection */}
+            <Card className="glass-card border-0 shadow-card">
+              <CardHeader>
+                <CardTitle>Data Source</CardTitle>
+                <CardDescription>
+                  Select the database connection to query
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div>
+                  <Label>Database Connection</Label>
+                  <Select value={selectedConnection} onValueChange={setSelectedConnection}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a data connection" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {connections.map((connection) => (
+                        <SelectItem key={connection.id} value={connection.id}>
+                          <div className="flex items-center gap-2">
+                            <Database className="w-4 h-4" />
+                            {connection.name} ({connection.connection_type})
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {connections.length === 0 && (
+                    <p className="text-sm text-muted-foreground mt-2">
+                      No active connections found. Add a data source first.
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
             {/* SQL Query */}
             <Card className="glass-card border-0 shadow-card">
               <CardHeader>
@@ -242,9 +363,13 @@ export default function ChartBuilder() {
                   placeholder="SELECT * FROM your_table WHERE condition..."
                   className="min-h-32 font-mono"
                 />
-                <Button onClick={handleExecuteQuery} className="w-full">
+                <Button 
+                  onClick={handleExecuteQuery} 
+                  className="w-full"
+                  disabled={isExecuting || !selectedConnection}
+                >
                   <Play className="w-4 h-4 mr-2" />
-                  Execute Query
+                  {isExecuting ? "Executing..." : "Execute Query"}
                 </Button>
               </CardContent>
             </Card>
