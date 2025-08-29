@@ -90,6 +90,8 @@ export default function LookerDashboardBuilder() {
   
   // Data State
   const [selectedDataSource, setSelectedDataSource] = useState<string>('');
+  const [selectedTable, setSelectedTable] = useState<string>('');
+  const [tables, setTables] = useState<any[]>([]);
   const [dataFields, setDataFields] = useState<DataField[]>([]);
   const [isLoadingFields, setIsLoadingFields] = useState(false);
   
@@ -113,65 +115,86 @@ export default function LookerDashboardBuilder() {
       console.log('🔧 Auto-selecting first connection:', connections[0]);
       const firstConnection = connections[0];
       setSelectedDataSource(firstConnection.id);
-      loadDataFields(firstConnection.id);
+      loadTables(firstConnection.id);
     }
   }, [connections]);
 
-  const loadDataFields = async (connectionId: string) => {
+  const loadTables = async (connectionId: string) => {
     if (!connectionId || connectionId === 'Vendas Globais') return;
     
     setIsLoadingFields(true);
-    setDataFields([]); // Clear previous data
+    setTables([]);
+    setSelectedTable('');
+    setDataFields([]);
     
     try {
-      console.log('📤 Loading data fields for connection:', connectionId);
+      console.log('📤 Loading tables for connection:', connectionId);
       
       const { data, error } = await supabase.functions.invoke('get-database-schema', {
         body: { connectionId }
       });
       
-      console.log('📥 Schema response:', data);
+      console.log('📥 Tables response:', data);
       
       if (error) {
-        console.error('❌ Schema error:', error);
+        console.error('❌ Tables error:', error);
         throw error;
       }
       
       if (data?.success && data?.tables && Array.isArray(data.tables)) {
-        const fields: DataField[] = [];
-        
-        data.tables.forEach((table: any) => {
-          if (table.columns && Array.isArray(table.columns)) {
-            table.columns.forEach((column: any) => {
-              // More comprehensive numeric type detection
-              const isNumeric = ['integer', 'bigint', 'decimal', 'numeric', 'real', 'double', 'money', 'float4', 'float8', 'int', 'smallint'].includes(column.dataType?.toLowerCase() || column.type?.toLowerCase() || '');
-              
-              fields.push({
-                id: `${table.name}.${column.name}`,
-                name: `${table.name}.${column.name}`,
-                type: isNumeric ? 'metric' : 'dimension',
-                dataType: column.dataType || column.type || 'unknown',
-                table: table.name
-              });
-            });
-          }
-        });
-        
-        console.log('✅ Fields loaded successfully:', {
-          totalFields: fields.length,
-          dimensions: fields.filter(f => f.type === 'dimension').length,
-          metrics: fields.filter(f => f.type === 'metric').length,
-          tables: data.tables.length
-        });
-        
-        setDataFields(fields);
+        console.log('✅ Tables loaded:', data.tables.length);
+        setTables(data.tables);
       } else {
-        console.error('❌ Invalid schema response structure:', data);
-        throw new Error(data?.error || 'Invalid response structure from database schema API');
+        console.error('❌ Invalid tables response:', data);
+        throw new Error(data?.error || 'Failed to fetch database tables');
       }
     } catch (error: any) {
-      console.error('💥 Error loading data fields:', error);
-      toast.error(`Erro ao carregar campos: ${error.message}`);
+      console.error('💥 Error loading tables:', error);
+      toast.error(`Erro ao carregar tabelas: ${error.message}`);
+      setTables([]);
+    } finally {
+      setIsLoadingFields(false);
+    }
+  };
+
+  const loadTableFields = async (tableName: string) => {
+    if (!tableName || !selectedDataSource) return;
+    
+    setIsLoadingFields(true);
+    setDataFields([]);
+    
+    try {
+      console.log('📤 Loading fields for table:', tableName);
+      
+      // Find the selected table from the tables array
+      const table = tables.find(t => t.name === tableName);
+      if (!table || !table.columns) {
+        throw new Error('Tabela não encontrada ou sem colunas');
+      }
+      
+      const fields: DataField[] = table.columns.map((column: any) => {
+        const isNumeric = ['integer', 'bigint', 'decimal', 'numeric', 'real', 'double', 'money', 'float4', 'float8', 'int', 'smallint'].includes(column.dataType?.toLowerCase() || column.type?.toLowerCase() || '');
+        
+        return {
+          id: `${table.name}.${column.name}`,
+          name: `${table.name}.${column.name}`,
+          type: isNumeric ? 'metric' : 'dimension',
+          dataType: column.dataType || column.type || 'unknown',
+          table: table.name
+        };
+      });
+      
+      console.log('✅ Table fields loaded:', {
+        table: tableName,
+        totalFields: fields.length,
+        dimensions: fields.filter(f => f.type === 'dimension').length,
+        metrics: fields.filter(f => f.type === 'metric').length
+      });
+      
+      setDataFields(fields);
+    } catch (error: any) {
+      console.error('💥 Error loading table fields:', error);
+      toast.error(`Erro ao carregar campos da tabela: ${error.message}`);
       setDataFields([]);
     } finally {
       setIsLoadingFields(false);
@@ -181,16 +204,26 @@ export default function LookerDashboardBuilder() {
   const handleDataSourceChange = (connectionId: string) => {
     console.log('🔄 Data source changed to:', connectionId);
     setSelectedDataSource(connectionId);
+    setSelectedTable('');
+    setDataFields([]);
     
     if (connectionId === 'Vendas Globais') {
+      setTables([]);
       setDataFields(MOCK_DATA['Vendas Globais'].fields);
       setIsLoadingFields(false);
     } else if (connectionId) {
-      loadDataFields(connectionId);
+      loadTables(connectionId);
     } else {
+      setTables([]);
       setDataFields([]);
       setIsLoadingFields(false);
     }
+  };
+
+  const handleTableChange = (tableName: string) => {
+    console.log('🔄 Table changed to:', tableName);
+    setSelectedTable(tableName);
+    loadTableFields(tableName);
   };
 
   const processDataForWidget = (widget: Widget) => {
@@ -389,9 +422,12 @@ export default function LookerDashboardBuilder() {
                     ...connections
                   ]}
                   selectedDataSource={selectedDataSource}
+                  selectedTable={selectedTable}
+                  tables={tables}
                   dataFields={dataFields}
                   isLoadingFields={isLoadingFields}
                   onDataSourceChange={handleDataSourceChange}
+                  onTableChange={handleTableChange}
                 />
               </div>
 
