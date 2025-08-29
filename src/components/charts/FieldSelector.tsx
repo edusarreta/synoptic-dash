@@ -1,0 +1,290 @@
+import { useState } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { 
+  Hash, 
+  Type, 
+  Calendar, 
+  ToggleLeft,
+  Filter,
+  Sigma,
+  Eye,
+  EyeOff
+} from "lucide-react";
+import { DatabaseTable } from "@/hooks/useDatabase";
+
+interface FieldSelectorProps {
+  tables: DatabaseTable[];
+  selectedTables: string[];
+  selectedFields: SelectedField[];
+  onFieldToggle: (field: SelectedField) => void;
+  onFieldRoleChange: (field: SelectedField, role: 'dimension' | 'metric') => void;
+}
+
+export interface SelectedField {
+  tableName: string;
+  columnName: string;
+  dataType: string;
+  role: 'dimension' | 'metric';
+  aggregation?: 'sum' | 'count' | 'avg' | 'min' | 'max';
+}
+
+const getColumnIcon = (dataType: string) => {
+  const type = dataType.toLowerCase();
+  if (type.includes('int') || type.includes('numeric') || type.includes('decimal') || type.includes('float')) {
+    return Hash;
+  }
+  if (type.includes('date') || type.includes('time') || type.includes('timestamp')) {
+    return Calendar;
+  }
+  if (type.includes('bool')) {
+    return ToggleLeft;
+  }
+  return Type;
+};
+
+const getDataTypeColor = (dataType: string) => {
+  const type = dataType.toLowerCase();
+  if (type.includes('int') || type.includes('numeric') || type.includes('decimal') || type.includes('float')) {
+    return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
+  }
+  if (type.includes('date') || type.includes('time') || type.includes('timestamp')) {
+    return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
+  }
+  if (type.includes('bool')) {
+    return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200';
+  }
+  return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200';
+};
+
+export function FieldSelector({
+  tables,
+  selectedTables,
+  selectedFields,
+  onFieldToggle,
+  onFieldRoleChange
+}: FieldSelectorProps) {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [showOnlySelected, setShowOnlySelected] = useState(false);
+  const [groupBy, setGroupBy] = useState<'table' | 'type'>('table');
+
+  // Get available tables and their fields
+  const availableTables = tables.filter(table => selectedTables.includes(table.name));
+  
+  // Filter fields based on search
+  const getFilteredFields = () => {
+    let allFields: Array<{table: DatabaseTable, column: any}> = [];
+    
+    availableTables.forEach(table => {
+      table.columns.forEach(column => {
+        if (column.name.toLowerCase().includes(searchTerm.toLowerCase())) {
+          allFields.push({ table, column });
+        }
+      });
+    });
+
+    if (showOnlySelected) {
+      allFields = allFields.filter(({ table, column }) =>
+        selectedFields.some(f => f.tableName === table.name && f.columnName === column.name)
+      );
+    }
+
+    return allFields;
+  };
+
+  const isFieldSelected = (tableName: string, columnName: string) => {
+    return selectedFields.some(f => f.tableName === tableName && f.columnName === columnName);
+  };
+
+  const getFieldRole = (tableName: string, columnName: string) => {
+    const field = selectedFields.find(f => f.tableName === tableName && f.columnName === columnName);
+    return field?.role || 'dimension';
+  };
+
+  const handleFieldClick = (table: DatabaseTable, column: any) => {
+    const field: SelectedField = {
+      tableName: table.name,
+      columnName: column.name,
+      dataType: column.dataType,
+      role: 'dimension'
+    };
+    onFieldToggle(field);
+  };
+
+  const filteredFields = getFilteredFields();
+
+  return (
+    <Card className="glass-card border-0 shadow-card">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Filter className="w-5 h-5" />
+          Fields
+        </CardTitle>
+        <CardDescription>
+          Select and configure fields for your visualization
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Controls */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              placeholder="Search fields..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="flex-1 px-3 py-2 text-sm border rounded-md bg-background"
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowOnlySelected(!showOnlySelected)}
+            >
+              {showOnlySelected ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+            </Button>
+          </div>
+
+          {selectedFields.length > 0 && (
+            <div className="space-y-2">
+              <Label className="text-xs">Selected Fields ({selectedFields.length}):</Label>
+              <div className="max-h-24 overflow-y-auto space-y-1">
+                {selectedFields.map((field) => (
+                  <div key={`${field.tableName}.${field.columnName}`} className="flex items-center gap-2">
+                    <Badge variant="secondary" className="text-xs">
+                      {field.tableName}.{field.columnName}
+                    </Badge>
+                    <Badge 
+                      variant={field.role === 'metric' ? 'default' : 'outline'}
+                      className="text-xs cursor-pointer"
+                      onClick={() => onFieldRoleChange(field, field.role === 'metric' ? 'dimension' : 'metric')}
+                    >
+                      {field.role === 'metric' ? <Sigma className="w-3 h-3" /> : <Filter className="w-3 h-3" />}
+                      {field.role}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Fields List */}
+        {availableTables.length > 0 ? (
+          <div className="max-h-96 overflow-y-auto space-y-4">
+            {groupBy === 'table' ? (
+              // Group by table
+              availableTables.map(table => {
+                const tableFields = filteredFields.filter(f => f.table.name === table.name);
+                if (tableFields.length === 0) return null;
+
+                return (
+                  <div key={table.name} className="space-y-2">
+                    <div className="flex items-center gap-2 pb-1 border-b">
+                      <Badge variant="outline" className="text-xs">
+                        {table.name}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        {tableFields.length} fields
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 gap-1">
+                      {tableFields.map(({ column }) => {
+                        const Icon = getColumnIcon(column.dataType);
+                        const isSelected = isFieldSelected(table.name, column.name);
+                        const fieldRole = getFieldRole(table.name, column.name);
+
+                        return (
+                          <div
+                            key={column.name}
+                            className={`flex items-center justify-between p-2 rounded cursor-pointer transition-colors ${
+                              isSelected 
+                                ? 'bg-primary/10 border border-primary/20' 
+                                : 'hover:bg-muted/50'
+                            }`}
+                            onClick={() => handleFieldClick(table, column)}
+                          >
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              <Icon className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                              <span className="font-medium truncate">{column.name}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Badge 
+                                className={`text-xs ${getDataTypeColor(column.dataType)}`}
+                                variant="secondary"
+                              >
+                                {column.dataType}
+                              </Badge>
+                              {isSelected && (
+                                <Badge 
+                                  variant={fieldRole === 'metric' ? 'default' : 'outline'}
+                                  className="text-xs"
+                                >
+                                  {fieldRole === 'metric' ? <Sigma className="w-3 h-3" /> : <Filter className="w-3 h-3" />}
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              // All fields in one list
+              <div className="grid grid-cols-1 gap-1">
+                {filteredFields.map(({ table, column }) => {
+                  const Icon = getColumnIcon(column.dataType);
+                  const isSelected = isFieldSelected(table.name, column.name);
+                  const fieldRole = getFieldRole(table.name, column.name);
+
+                  return (
+                    <div
+                      key={`${table.name}.${column.name}`}
+                      className={`flex items-center justify-between p-2 rounded cursor-pointer transition-colors ${
+                        isSelected 
+                          ? 'bg-primary/10 border border-primary/20' 
+                          : 'hover:bg-muted/50'
+                      }`}
+                      onClick={() => handleFieldClick(table, column)}
+                    >
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <Icon className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                        <span className="font-medium truncate">
+                          {table.name}.{column.name}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Badge 
+                          className={`text-xs ${getDataTypeColor(column.dataType)}`}
+                          variant="secondary"
+                        >
+                          {column.dataType}
+                        </Badge>
+                        {isSelected && (
+                          <Badge 
+                            variant={fieldRole === 'metric' ? 'default' : 'outline'}
+                            className="text-xs"
+                          >
+                            {fieldRole === 'metric' ? <Sigma className="w-3 h-3" /> : <Filter className="w-3 h-3" />}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-muted-foreground">
+            <Filter className="w-8 h-8 mx-auto mb-2 opacity-50" />
+            <p className="text-sm">Select tables to see available fields</p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
