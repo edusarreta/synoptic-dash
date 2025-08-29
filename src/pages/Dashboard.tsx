@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Plus, BarChart3, Database, Users, TrendingUp, Sparkles, Edit2, Trash2 } from "lucide-react";
 import { AIInsightsModal } from "@/components/ai/AIInsightsModal";
 import { ChartRenderer } from "@/components/charts/ChartRenderer";
-import { DashboardFilters, FilterState } from "@/components/dashboard/DashboardFilters";
+import { SmartDashboardFilters, SmartFilterState } from "@/components/dashboard/SmartDashboardFilters";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -17,11 +17,10 @@ export default function Dashboard() {
   const [savedCharts, setSavedCharts] = useState([]);
   const [filteredCharts, setFilteredCharts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filters, setFilters] = useState<FilterState>({
-    dateRange: { from: undefined, to: undefined },
-    categories: [],
-    status: [],
-    customFilters: {}
+  const [smartFilters, setSmartFilters] = useState<SmartFilterState>({
+    dateRange: { from: undefined, to: undefined, field: '' },
+    fieldFilters: {},
+    textFilters: {}
   });
   const [stats] = useState([
     {
@@ -61,8 +60,8 @@ export default function Dashboard() {
   }, [user]);
 
   useEffect(() => {
-    applyFilters();
-  }, [savedCharts, filters]);
+    applySmartFilters();
+  }, [savedCharts, smartFilters]);
 
   const loadSavedCharts = async () => {
     try {
@@ -79,10 +78,18 @@ export default function Dashboard() {
         throw profileError;
       }
 
-      // Get saved charts
+      // Get saved charts with connection info
       const { data: charts, error } = await supabase
         .from('saved_charts')
-        .select('*')
+        .select(`
+          *,
+          data_connections!inner(
+            id,
+            name,
+            database_name,
+            connection_type
+          )
+        `)
         .eq('account_id', profile.account_id)
         .order('created_at', { ascending: false });
 
@@ -90,7 +97,38 @@ export default function Dashboard() {
         throw error;
       }
 
-      setSavedCharts(charts || []);
+      // Execute queries to get actual data for each chart
+      const chartsWithData = await Promise.all(
+        (charts || []).map(async (chart) => {
+          try {
+            console.log(`Executing query for chart: ${chart.name}`);
+            console.log(`Query: ${chart.sql_query}`);
+            
+            const { data } = await supabase.functions.invoke('execute-sql-query', {
+              body: {
+                connectionId: chart.data_connection_id,
+                query: chart.sql_query
+              }
+            });
+            
+            console.log(`Chart ${chart.name} data:`, data?.data);
+            
+            return {
+              ...chart,
+              data: data?.data || []
+            };
+          } catch (error) {
+            console.error(`Error executing query for chart ${chart.id}:`, error);
+            return {
+              ...chart,
+              data: []
+            };
+          }
+        })
+      );
+
+      console.log('Charts with data loaded:', chartsWithData);
+      setSavedCharts(chartsWithData);
     } catch (error) {
       console.error('Error loading saved charts:', error);
       toast.error('Erro ao carregar gráficos salvos');
@@ -99,50 +137,50 @@ export default function Dashboard() {
     }
   };
 
-  const applyFilters = () => {
+  const applySmartFilters = () => {
     let filtered = [...savedCharts];
-
-    // Filter by date range
-    if (filters.dateRange.from || filters.dateRange.to) {
-      filtered = filtered.filter(chart => {
-        const chartDate = new Date(chart.created_at);
-        if (filters.dateRange.from && chartDate < filters.dateRange.from) return false;
-        if (filters.dateRange.to && chartDate > filters.dateRange.to) return false;
-        return true;
+    
+    filtered = filtered.map(chart => {
+      if (!chart.data || chart.data.length === 0) {
+        return { ...chart, filteredData: [] };
+      }
+      
+      let chartData = [...chart.data];
+      
+      // Apply date range filter
+      if (smartFilters.dateRange.from && smartFilters.dateRange.to && smartFilters.dateRange.field) {
+        chartData = chartData.filter(row => {
+          const rowDate = new Date(row[smartFilters.dateRange.field]);
+          return rowDate >= smartFilters.dateRange.from! && rowDate <= smartFilters.dateRange.to!;
+        });
+      }
+      
+      // Apply field filters
+      Object.entries(smartFilters.fieldFilters).forEach(([fieldName, filter]) => {
+        if (filter.values.length > 0) {
+          chartData = chartData.filter(row => {
+            return filter.values.includes(String(row[fieldName]));
+          });
+        }
       });
-    }
-
-    // Filter by categories (assuming charts have category or description field)
-    if (filters.categories.length > 0) {
-      filtered = filtered.filter(chart => {
-        const chartCategory = chart.description || chart.name || '';
-        return filters.categories.some(category => 
-          chartCategory.toLowerCase().includes(category.toLowerCase())
-        );
+      
+      // Apply text filters
+      Object.entries(smartFilters.textFilters).forEach(([fieldName, filter]) => {
+        if (filter.value) {
+          chartData = chartData.filter(row => {
+            return String(row[fieldName]).toLowerCase().includes(filter.value.toLowerCase());
+          });
+        }
       });
-    }
-
-    // Filter by status (assuming charts have some status indication)
-    if (filters.status.length > 0) {
-      filtered = filtered.filter(chart => {
-        // For this example, we'll consider all saved charts as "Ativo"
-        return filters.status.includes("Ativo");
-      });
-    }
-
-    // Apply custom filters
-    if (filters.customFilters.department) {
-      filtered = filtered.filter(chart => {
-        const chartDescription = (chart.description || '').toLowerCase();
-        return chartDescription.includes(filters.customFilters.department.toLowerCase());
-      });
-    }
-
+      
+      return { ...chart, filteredData: chartData };
+    });
+    
     setFilteredCharts(filtered);
   };
 
-  const handleFiltersChange = (newFilters: FilterState) => {
-    setFilters(newFilters);
+  const handleSmartFiltersChange = (newFilters: SmartFilterState) => {
+    setSmartFilters(newFilters);
   };
 
   const handleCreateChart = () => {
@@ -212,10 +250,11 @@ export default function Dashboard() {
           ))}
         </div>
 
-        {/* Filters Section */}
-        <DashboardFilters 
-          filters={filters}
-          onFiltersChange={handleFiltersChange}
+        {/* Smart Filters Section */}
+        <SmartDashboardFilters 
+          charts={savedCharts}
+          activeFilters={smartFilters}
+          onFiltersChange={handleSmartFiltersChange}
           className="mb-6"
         />
 
@@ -253,11 +292,10 @@ export default function Dashboard() {
                 </p>
                 <Button 
                   variant="outline" 
-                  onClick={() => setFilters({
-                    dateRange: { from: undefined, to: undefined },
-                    categories: [],
-                    status: [],
-                    customFilters: {}
+                  onClick={() => setSmartFilters({
+                    dateRange: { from: undefined, to: undefined, field: '' },
+                    fieldFilters: {},
+                    textFilters: {}
                   })}
                 >
                   Limpar Filtros
@@ -312,26 +350,25 @@ export default function Dashboard() {
                   </CardHeader>
                   <CardContent>
                     <div className="h-64 border rounded-lg p-4 bg-background/50">
-                      {chart.chart_config?.data ? (
-                        <ChartRenderer
-                          config={{
-                            type: chart.chart_type as any,
-                            title: chart.name,
-                            description: chart.description,
-                            data: chart.chart_config.data || [],
-                            ...chart.chart_config
-                          }}
-                        />
-                      ) : (
-                        <div className="h-full flex items-center justify-center text-muted-foreground">
-                          <BarChart3 className="w-8 h-8 mr-2" />
-                          <span>Carregue dados para visualizar</span>
-                        </div>
-                      )}
+                      <ChartRenderer
+                        config={{
+                          type: chart.chart_type as any,
+                          title: chart.name,
+                          description: chart.description,
+                          xAxis: chart.chart_config?.xAxis || '',
+                          yAxis: chart.chart_config?.yAxis || [],
+                          data: chart.filteredData || chart.data || []
+                        }}
+                      />
                     </div>
                     <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
                       <span>Tipo: {chart.chart_type}</span>
-                      <span>Criado em: {new Date(chart.created_at).toLocaleDateString()}</span>
+                      <span>
+                        {chart.filteredData ? chart.filteredData.length : chart.data?.length || 0} registros
+                        {chart.filteredData && chart.filteredData.length !== (chart.data?.length || 0) && 
+                          ` (${chart.data?.length || 0} total)`
+                        }
+                      </span>
                     </div>
                   </CardContent>
                 </Card>
