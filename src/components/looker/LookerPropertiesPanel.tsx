@@ -218,12 +218,14 @@ export function LookerPropertiesPanel({
   };
 
   const createTimeDimensionSelector = () => {
+    // Find both time_dimension fields and regular dimension fields with date/time types
     const timeFields = dataFields.filter(field => 
-      field.type === 'dimension' && 
-      (field.dataType.toLowerCase().includes('date') || 
-       field.dataType.toLowerCase().includes('time') ||
-       field.name.toLowerCase().includes('date') ||
-       field.name.toLowerCase().includes('time'))
+      field.type === 'time_dimension' || 
+      (field.type === 'dimension' && 
+       (field.dataType.toLowerCase().includes('date') || 
+        field.dataType.toLowerCase().includes('time') ||
+        field.name.toLowerCase().includes('date') ||
+        field.name.toLowerCase().includes('time')))
     );
     
     return (
@@ -233,28 +235,78 @@ export function LookerPropertiesPanel({
           <p className="text-sm font-semibold text-muted-foreground">Dimensão Temporal</p>
         </div>
         
-        <div className="space-y-2">
+        <div className="space-y-3">
           {timeFields.length > 0 ? (
             timeFields.map(field => (
-              <div
-                key={field.id}
-                className={`field-item flex items-center p-2 rounded-md text-sm cursor-pointer transition-colors border ${
-                  selectedWidget.config.timeDimension === field.id
-                    ? 'bg-orange-100 text-orange-800 border-orange-300'
-                    : 'bg-muted hover:bg-muted/80 border-border'
-                }`}
-                onClick={() => {
-                  onWidgetConfigUpdate(selectedWidget.id, { 
-                    timeDimension: selectedWidget.config.timeDimension === field.id ? null : field.id 
-                  });
-                }}
-              >
-                <Calendar className="w-3 h-3 mr-2" />
-                <span className="truncate">{field.name.split('.')[1] || field.name}</span>
+              <div key={field.id} className="space-y-2">
+                {/* Field Selection */}
+                <div
+                  className={`field-item flex items-center p-2 rounded-md text-sm cursor-pointer transition-colors border ${
+                    selectedWidget.config.timeDimension === field.id
+                      ? 'bg-orange-100 text-orange-800 border-orange-300'
+                      : 'bg-muted hover:bg-muted/80 border-border'
+                  }`}
+                  onClick={() => {
+                    const isCurrentlySelected = selectedWidget.config.timeDimension === field.id;
+                    onWidgetConfigUpdate(selectedWidget.id, { 
+                      timeDimension: isCurrentlySelected ? null : field.id,
+                      // Reset grouping when changing field
+                      timeGrouping: isCurrentlySelected ? null : 'day'
+                    });
+                  }}
+                >
+                  <div className="flex items-center flex-1">
+                    <Calendar className="w-3 h-3 mr-2" />
+                    <span className="truncate">{field.name.split('.')[1] || field.name}</span>
+                    {field.type === 'time_dimension' && (
+                      <Badge variant="secondary" className="ml-2 text-xs">Temporal</Badge>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Grouping Options - Only show if this field is selected */}
+                {selectedWidget.config.timeDimension === field.id && (
+                  <div className="ml-4 space-y-2">
+                    <label className="text-xs font-medium text-muted-foreground">
+                      Agrupamento Temporal
+                    </label>
+                    <select 
+                      className="w-full p-2 border border-input rounded-md text-sm bg-background"
+                      value={selectedWidget.config.timeGrouping || 'day'}
+                      onChange={(e) => {
+                        console.log('🕐 Time grouping changed:', e.target.value);
+                        onWidgetConfigUpdate(selectedWidget.id, { 
+                          timeGrouping: e.target.value 
+                        });
+                      }}
+                    >
+                      <option value="day">Dia</option>
+                      <option value="week">Semana</option>
+                      <option value="month">Mês</option>
+                      <option value="quarter">Trimestre</option>
+                      <option value="year">Ano</option>
+                    </select>
+                    
+                    {/* Helper text */}
+                    <p className="text-xs text-muted-foreground">
+                      Dados serão agrupados por {
+                        selectedWidget.config.timeGrouping === 'day' ? 'dia' :
+                        selectedWidget.config.timeGrouping === 'week' ? 'semana' :
+                        selectedWidget.config.timeGrouping === 'month' ? 'mês' :
+                        selectedWidget.config.timeGrouping === 'quarter' ? 'trimestre' :
+                        selectedWidget.config.timeGrouping === 'year' ? 'ano' : 'dia'
+                      }
+                    </p>
+                  </div>
+                )}
               </div>
             ))
           ) : (
-            <p className="text-xs text-muted-foreground">Nenhum campo temporal encontrado</p>
+            <div className="text-center text-muted-foreground text-xs p-4">
+              <Calendar className="w-6 h-6 mx-auto mb-2 opacity-50" />
+              <p>Nenhum campo temporal encontrado</p>
+              <p className="mt-1">Adicione um campo de data para habilitar agrupamento temporal</p>
+            </div>
           )}
         </div>
       </div>
