@@ -142,32 +142,59 @@ export function LookerPropertiesPanel({
                 return (
                   <div 
                     key={fieldId}
-                    className={`field-item flex items-center p-2 rounded-md text-sm select-none ${
+                    className={`field-item flex items-center justify-between p-2 rounded-md text-sm select-none ${
                       field.type === 'dimension' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
                     }`}
                   >
-                    <div className={`w-2 h-2 rounded-full mr-2 ${
-                      field.type === 'dimension' ? 'bg-green-500' : 'bg-blue-500'
-                    }`}></div>
-                    <span className="truncate flex-1">{field.name.split('.')[1] || field.name}</span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="ml-2 h-5 w-5 p-0 hover:bg-destructive hover:text-destructive-foreground"
-                      onClick={() => {
-                        let newValues;
-                        if (allowMultiple) {
-                          newValues = currentValues.filter(id => id !== fieldId);
-                        } else {
-                          newValues = [];
-                        }
-                        onWidgetConfigUpdate(selectedWidget.id, { 
-                          [configKey]: allowMultiple ? newValues : (newValues[0] || null) 
-                        });
-                      }}
-                    >
-                      <X className="w-3 h-3" />
-                    </Button>
+                    <div className="flex items-center flex-1 min-w-0">
+                      <div className={`w-2 h-2 rounded-full mr-2 flex-shrink-0 ${
+                        field.type === 'dimension' ? 'bg-green-500' : 'bg-blue-500'
+                      }`}></div>
+                      <span className="truncate">{field.name.split('.')[1] || field.name}</span>
+                    </div>
+                    
+                    {/* Field Type Editor */}
+                    <div className="flex items-center gap-2 ml-2">
+                      <select 
+                        className="text-xs bg-background border border-border rounded px-1 py-0.5"
+                        value={field.dataType}
+                        onChange={(e) => {
+                          const newDataType = e.target.value;
+                          // Update field data type in dataFields
+                          const updatedFields = dataFields.map(f => 
+                            f.id === field.id ? { ...f, dataType: newDataType } : f
+                          );
+                          // You'll need to pass this function down from parent
+                          console.log('Updating field type:', field.id, newDataType);
+                        }}
+                      >
+                        <option value="string">Texto</option>
+                        <option value="integer">Número</option>
+                        <option value="decimal">Decimal</option>
+                        <option value="date">Data</option>
+                        <option value="datetime">Data/Hora</option>
+                        <option value="boolean">Booleano</option>
+                      </select>
+                      
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-5 w-5 p-0 hover:bg-destructive hover:text-destructive-foreground"
+                        onClick={() => {
+                          let newValues;
+                          if (allowMultiple) {
+                            newValues = currentValues.filter(id => id !== fieldId);
+                          } else {
+                            newValues = [];
+                          }
+                          onWidgetConfigUpdate(selectedWidget.id, { 
+                            [configKey]: allowMultiple ? newValues : (newValues[0] || null) 
+                          });
+                        }}
+                      >
+                        <X className="w-3 h-3" />
+                      </Button>
+                    </div>
                   </div>
                 );
               })}
@@ -178,6 +205,7 @@ export function LookerPropertiesPanel({
                 <Plus className="w-4 h-4" />
               </div>
               <p>Arraste {acceptedType === 'dimension' ? 'dimensões' : 'métricas'} aqui</p>
+              <p className="text-xs mt-1">ou clique nos campos à esquerda</p>
               {allowMultiple && (
                 <p className="text-xs mt-1">Múltiplos itens permitidos</p>
               )}

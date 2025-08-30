@@ -40,8 +40,10 @@ interface DataFieldsPanelProps {
   tables: Table[];
   dataFields: DataField[];
   isLoadingFields: boolean;
+  selectedWidget: any;
   onDataSourceChange: (dataSourceId: string) => void;
   onTableChange: (tableName: string) => void;
+  onFieldClick?: (field: DataField) => void;
 }
 
 export function LookerDataPanel({
@@ -51,8 +53,10 @@ export function LookerDataPanel({
   tables,
   dataFields,
   isLoadingFields,
+  selectedWidget,
   onDataSourceChange,
-  onTableChange
+  onTableChange,
+  onFieldClick
 }: DataFieldsPanelProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [showCalculatedFieldDialog, setShowCalculatedFieldDialog] = useState(false);
@@ -154,9 +158,15 @@ export function LookerDataPanel({
                     {dimensionFields.map((field) => (
                       <div
                         key={field.id}
-                        className="field-item flex items-center p-2 rounded-md text-sm select-none bg-green-100 text-green-800 cursor-grab hover:bg-green-200 transition-colors"
-                        draggable={true}
+                        className={`field-item flex items-center p-2 rounded-md text-sm select-none cursor-pointer transition-colors ${
+                          selectedWidget 
+                            ? 'bg-green-100 text-green-800 hover:bg-green-200 cursor-grab' 
+                            : 'bg-green-50 text-green-700 hover:bg-green-100'
+                        }`}
+                        draggable={selectedWidget ? true : false}
+                        onClick={() => onFieldClick?.(field)}
                         onDragStart={(e) => {
+                          if (!selectedWidget) return;
                           console.log('🎯 Starting drag for field:', field);
                           const dragData = {
                             type: 'field',
@@ -188,9 +198,15 @@ export function LookerDataPanel({
                     {metricFields.map((field) => (
                       <div
                         key={field.id}
-                        className="field-item flex items-center p-2 rounded-md text-sm select-none bg-blue-100 text-blue-800 cursor-grab hover:bg-blue-200 transition-colors"
-                        draggable={true}
+                        className={`field-item flex items-center p-2 rounded-md text-sm select-none cursor-pointer transition-colors ${
+                          selectedWidget 
+                            ? 'bg-blue-100 text-blue-800 hover:bg-blue-200 cursor-grab' 
+                            : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                        }`}
+                        draggable={selectedWidget ? true : false}
+                        onClick={() => onFieldClick?.(field)}
                         onDragStart={(e) => {
+                          if (!selectedWidget) return;
                           console.log('🎯 Starting drag for field:', field);
                           const dragData = {
                             type: 'field',
@@ -279,21 +295,27 @@ export function LookerDataPanel({
                     Dimensões ({dimensionFields.length})
                   </h3>
                   <div className="space-y-1">
-                    {dimensionFields.map((field) => (
-                      <div
-                        key={field.id}
-                        className="field-item flex items-center p-2 rounded-md text-sm select-none bg-green-100 text-green-800 cursor-grab hover:bg-green-200 transition-colors"
-                        draggable={true}
-                        onDragStart={(e) => {
-                          console.log('🎯 Starting drag for field:', field);
-                          const dragData = {
-                            type: 'field',
-                            field: field
-                          };
-                          e.dataTransfer.setData('application/json', JSON.stringify(dragData));
-                          e.dataTransfer.effectAllowed = 'copy';
-                        }}
-                      >
+                     {dimensionFields.map((field) => (
+                       <div
+                         key={field.id}
+                         className={`field-item flex items-center p-2 rounded-md text-sm select-none cursor-pointer transition-colors ${
+                           selectedWidget 
+                             ? 'bg-green-100 text-green-800 hover:bg-green-200 cursor-grab' 
+                             : 'bg-green-50 text-green-700 hover:bg-green-100'
+                         }`}
+                         draggable={selectedWidget ? true : false}
+                         onClick={() => onFieldClick?.(field)}
+                         onDragStart={(e) => {
+                           if (!selectedWidget) return;
+                           console.log('🎯 Starting drag for field:', field);
+                           const dragData = {
+                             type: 'field',
+                             field: field
+                           };
+                           e.dataTransfer.setData('application/json', JSON.stringify(dragData));
+                           e.dataTransfer.effectAllowed = 'copy';
+                         }}
+                       >
                         <div className={`w-2 h-2 rounded-full mr-2 bg-green-500`}></div>
                         {getFieldIcon(field.dataType)}
                         <span className="truncate flex-1">{field.name.split('.')[1] || field.name}</span>
@@ -314,21 +336,27 @@ export function LookerDataPanel({
                     Métricas ({metricFields.length})
                   </h3>
                   <div className="space-y-1">
-                    {metricFields.map((field) => (
-                      <div
-                        key={field.id}
-                        className="field-item flex items-center p-2 rounded-md text-sm select-none bg-blue-100 text-blue-800 cursor-grab hover:bg-blue-200 transition-colors"
-                        draggable={true}
-                        onDragStart={(e) => {
-                          console.log('🎯 Starting drag for field:', field);
-                          const dragData = {
-                            type: 'field',
-                            field: field
-                          };
-                          e.dataTransfer.setData('application/json', JSON.stringify(dragData));
-                          e.dataTransfer.effectAllowed = 'copy';
-                        }}
-                      >
+                     {metricFields.map((field) => (
+                       <div
+                         key={field.id}
+                         className={`field-item flex items-center p-2 rounded-md text-sm select-none cursor-pointer transition-colors ${
+                           selectedWidget 
+                             ? 'bg-blue-100 text-blue-800 hover:bg-blue-200 cursor-grab' 
+                             : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                         }`}
+                         draggable={selectedWidget ? true : false}
+                         onClick={() => onFieldClick?.(field)}
+                         onDragStart={(e) => {
+                           if (!selectedWidget) return;
+                           console.log('🎯 Starting drag for field:', field);
+                           const dragData = {
+                             type: 'field',
+                             field: field
+                           };
+                           e.dataTransfer.setData('application/json', JSON.stringify(dragData));
+                           e.dataTransfer.effectAllowed = 'copy';
+                         }}
+                       >
                         <div className={`w-2 h-2 rounded-full mr-2 bg-blue-500`}></div>
                         {getFieldIcon(field.dataType)}
                         <span className="truncate flex-1">{field.name.split('.')[1] || field.name}</span>

@@ -630,6 +630,55 @@ export default function LookerDashboardBuilder() {
     setWidgets(updatedWidgets);
   };
 
+  const handleFieldClick = (field: DataField) => {
+    if (!selectedWidget) return;
+    
+    const widget = widgets.find(w => w.id === selectedWidget);
+    if (!widget) return;
+    
+    console.log('👆 Field clicked:', field, 'for widget:', widget);
+    
+    // Determine which config key to update based on field type and widget type
+    let configKey = '';
+    let allowMultiple = true;
+    
+    if (field.type === 'dimension') {
+      configKey = 'dimensions';
+      if (widget.type === 'pie' || widget.type === 'filter') {
+        allowMultiple = false;
+        configKey = 'dimension';
+      }
+    } else if (field.type === 'metric') {
+      configKey = 'metrics';
+      if (widget.type === 'scorecard' || widget.type === 'pie') {
+        allowMultiple = false;
+        configKey = 'metric';
+      }
+    }
+    
+    if (configKey) {
+      const currentValues = Array.isArray(widget.config[configKey]) 
+        ? widget.config[configKey] 
+        : widget.config[configKey] ? [widget.config[configKey]] : [];
+      
+      let newValues;
+      if (allowMultiple) {
+        // Add to array if not already present
+        newValues = currentValues.includes(field.id) 
+          ? currentValues 
+          : [...currentValues, field.id];
+      } else {
+        // Replace single value
+        newValues = [field.id];
+      }
+      
+      updateWidgetConfig(widget.id, { 
+        [configKey]: allowMultiple ? newValues : newValues[0],
+        ...(field.type === 'metric' && { aggregation: widget.config.aggregation || 'sum' })
+      });
+    }
+  };
+
   const addWidget = (type: Widget['type']) => {
     const newId = Math.max(...widgets.map(w => w.id), 0) + 1;
     const newWidget: Widget = {
