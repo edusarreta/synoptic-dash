@@ -324,42 +324,22 @@ export default function DataSources() {
     try {
       console.log('📊 Loading tables for connection:', connection.name);
       
-      if (connection.connection_type === 'postgresql') {
-        const { data, error } = await supabase.functions.invoke('execute-sql-query', {
-          body: { 
-            connectionId: connection.id,
-            sqlQuery: `SELECT table_name, table_type 
-                      FROM information_schema.tables 
-                      WHERE table_schema = 'public' 
-                      ORDER BY table_name`
-          }
+      // Use get-database-schema for all connection types
+      const { data, error } = await supabase.functions.invoke('get-database-schema', {
+        body: { connectionId: connection.id }
+      });
+
+      if (error) throw error;
+
+      if (data?.success && data?.tables) {
+        toast({
+          title: "Tables Loaded",
+          description: `Found ${data.tables.length} tables in ${connection.name}`,
         });
-
-        if (error) throw error;
-
-        if (data?.success && data?.data) {
-          toast({
-            title: "Tables Loaded",
-            description: `Found ${data.data.length} tables in ${connection.name}`,
-          });
-          console.log('📋 Tables:', data.data);
-          return data.data;
-        }
-      } else if (connection.connection_type === 'supabase') {
-        const { data, error } = await supabase.functions.invoke('get-database-schema', {
-          body: { connectionId: connection.id }
-        });
-
-        if (error) throw error;
-
-        if (data?.success && data?.tables) {
-          toast({
-            title: "Tables Loaded",
-            description: `Found ${data.tables.length} tables in ${connection.name}`,
-          });
-          console.log('📋 Tables:', data.tables);
-          return data.tables;
-        }
+        console.log('📋 Tables:', data.tables);
+        return data.tables;
+      } else {
+        throw new Error(data?.error || 'No tables found');
       }
     } catch (error: any) {
       console.error('❌ Error loading tables:', error);

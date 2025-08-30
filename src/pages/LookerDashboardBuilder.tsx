@@ -10,7 +10,6 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissions } from "@/hooks/usePermissions";
-import { useDatabase } from "@/hooks/useDatabase";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -46,6 +45,27 @@ interface DataField {
   dataType: string;
   table: string;
   configuredType?: 'text' | 'number' | 'date' | 'datetime' | 'boolean';
+}
+
+interface DatabaseTable {
+  name: string;
+  type: string;
+  columns: DatabaseColumn[];
+}
+
+interface DatabaseColumn {
+  name: string;
+  dataType: string;
+  isNullable: boolean;
+  defaultValue?: string;
+  position: number;
+}
+
+interface DataConnection {
+  id: string;
+  name: string;
+  connection_type: string;
+  database_name?: string;
 }
 
 interface WidgetConfig {
@@ -101,7 +121,7 @@ const MOCK_DATA = {
 export default function LookerDashboardBuilder() {
   const { user } = useAuth();
   const { permissions } = usePermissions();
-  const { connections, loadConnections } = useDatabase();
+  const canCreateCharts = permissions.canCreateCharts;
   
   // Dashboard State
   const [dashboardName, setDashboardName] = useState("Meu Relatório Interativo");
@@ -128,6 +148,7 @@ export default function LookerDashboardBuilder() {
   });
   
   // Data State
+  const [connections, setConnections] = useState<DataConnection[]>([]);
   const [selectedDataSource, setSelectedDataSource] = useState<string>('Vendas Globais');
   const [selectedTable, setSelectedTable] = useState<string>('');
   const [tables, setTables] = useState<any[]>([]);
@@ -192,18 +213,35 @@ export default function LookerDashboardBuilder() {
   // Initialize data sources
   const dataSources = [
     { id: 'Vendas Globais', name: 'Vendas Globais (Mock)', type: 'mock' },
-    ...connections.map(conn => ({
+    ...(connections || []).map(conn => ({
       id: conn.id,
       name: conn.name,
       type: conn.connection_type
     }))
   ];
 
+  // Load connections on mount
   useEffect(() => {
-    if (connections.length === 0) {
-      loadConnections();
+    if (user && canCreateCharts) {
+      loadDataConnections();
     }
-  }, [connections.length, loadConnections]);
+  }, [user, canCreateCharts]);
+
+  const loadDataConnections = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('data_connections')
+        .select('*')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setConnections(data || []);
+    } catch (error: any) {
+      console.error('Error loading connections:', error);
+      toast.error('Failed to load data connections');
+    }
+  };
 
   const loadTables = async (connectionId: string) => {
     if (!connectionId || connectionId === 'Vendas Globais') return;
@@ -990,7 +1028,7 @@ export default function LookerDashboardBuilder() {
         anon_key: '',
         base_url: ''
       });
-      loadConnections();
+      loadDataConnections();
     } catch (error: any) {
       console.error('❌ Error saving data source:', error);
       toast.error(`Erro ao salvar fonte de dados: ${error.message}`);
@@ -1178,7 +1216,7 @@ export default function LookerDashboardBuilder() {
 
           {/* Connections Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {connections.map((conn) => (
+            {(connections || []).map((conn) => (
               <Card key={conn.id} className="hover:shadow-md transition-shadow">
                 <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
                   <div className="flex items-center gap-3">
