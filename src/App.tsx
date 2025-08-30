@@ -8,6 +8,8 @@ import { AuthProvider } from "./hooks/useAuth";
 import { SubscriptionProvider } from "./hooks/useSubscription";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
+import Demo from "./pages/Demo";
+import { ProtectedRoute } from "./components/ProtectedRoute";
 import Dashboard from "./pages/Dashboard";
 import DataSources from "./pages/DataSources";
 import ChartBuilderWrapper from "./components/ChartBuilderWrapper";
@@ -34,25 +36,26 @@ const App = () => (
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/auth" element={<Auth />} />
+              <Route path="/demo" element={<Demo />} />
               <Route path="/onboarding" element={<Onboarding />} />
-              <Route path="/dashboards" element={<Dashboard />} />
-              <Route path="/data-sources" element={<DataSources />} />
-              <Route path="/charts/new" element={<ChartBuilderWrapper />} />
-              <Route path="/charts" element={<ChartBuilderWrapper />} />
-              <Route path="/looker-builder" element={<LookerDashboardBuilder />} />
-              <Route path="/analytics" element={<Dashboard />} />
-              <Route path="/ai-chat" element={<AIChat />} />
-            <Route path="/marketplace" element={<Marketplace />} />
-            <Route path="/ecosystem" element={<Ecosystem />} />
-            <Route path="/super-admin" element={<SuperAdmin />} />
-            <Route path="/billing" element={<Billing />} />
-              <Route path="/settings" element={<Settings />} />
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </SubscriptionProvider>
-      </AuthProvider>
+              <Route path="/dashboards" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              <Route path="/data-sources" element={<ProtectedRoute><DataSources /></ProtectedRoute>} />
+              <Route path="/charts/new" element={<ProtectedRoute><ChartBuilderWrapper /></ProtectedRoute>} />
+              <Route path="/charts" element={<ProtectedRoute><ChartBuilderWrapper /></ProtectedRoute>} />
+              <Route path="/looker-builder" element={<ProtectedRoute><LookerDashboardBuilder /></ProtectedRoute>} />
+              <Route path="/analytics" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              <Route path="/ai-chat" element={<ProtectedRoute><AIChat /></ProtectedRoute>} />
+            <Route path="/marketplace" element={<ProtectedRoute><Marketplace /></ProtectedRoute>} />
+            <Route path="/ecosystem" element={<ProtectedRoute><Ecosystem /></ProtectedRoute>} />
+            <Route path="/super-admin" element={<ProtectedRoute><SuperAdmin /></ProtectedRoute>} />
+            <Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
+              <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </SubscriptionProvider>
+    </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );

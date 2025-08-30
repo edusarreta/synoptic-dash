@@ -1,8 +1,80 @@
-import { useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { BarChart3, Database, TrendingUp, Shield, Zap, Users } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { BarChart3, Database, TrendingUp, Shield, Zap, Users, CalendarIcon, Eye, Play } from "lucide-react";
+
+// Mock chart component for landing page
+const MockChart = ({ type, title, data }: { type: string; title: string; data: any }) => {
+  const renderChart = () => {
+    switch (type) {
+      case 'bar':
+        return (
+          <div className="h-32 flex items-end justify-center gap-1 p-2">
+            {data.map((item: any, index: number) => (
+              <div key={index} className="flex flex-col items-center gap-1">
+                <div 
+                  className="bg-primary rounded-t-sm w-6"
+                  style={{ height: `${(item.value / Math.max(...data.map((d: any) => d.value))) * 80}px` }}
+                />
+                <span className="text-xs text-muted-foreground truncate">{item.label}</span>
+              </div>
+            ))}
+          </div>
+        );
+      case 'line':
+        return (
+          <div className="h-32 flex items-center justify-center p-2">
+            <div className="w-full h-full relative">
+              <svg width="100%" height="100%" className="absolute inset-0">
+                <polyline
+                  points="10,80 50,60 90,40 130,50 170,30 210,20"
+                  fill="none"
+                  stroke="hsl(var(--primary))"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                />
+                {[10, 50, 90, 130, 170, 210].map((x, i) => (
+                  <circle
+                    key={i}
+                    cx={x}
+                    cy={[80, 60, 40, 50, 30, 20][i]}
+                    r="2"
+                    fill="hsl(var(--primary))"
+                  />
+                ))}
+              </svg>
+            </div>
+          </div>
+        );
+      case 'scorecard':
+        return (
+          <div className="h-32 flex flex-col items-center justify-center">
+            <div className="text-2xl font-bold text-primary mb-1">{data.value}</div>
+            <div className="text-xs text-muted-foreground text-center">{data.label}</div>
+          </div>
+        );
+    }
+  };
+
+  return (
+    <Card className="shadow-card hover:shadow-elevated transition-all group cursor-pointer">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm flex items-center justify-between">
+          {title}
+          <Badge variant="secondary" className="text-xs opacity-0 group-hover:opacity-100 transition-opacity">
+            Demo
+          </Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="pt-0">
+        {renderChart()}
+      </CardContent>
+    </Card>
+  );
+};
 
 const Index = () => {
   const { user, loading } = useAuth();
@@ -10,9 +82,21 @@ const Index = () => {
 
   useEffect(() => {
     if (user && !loading) {
-      navigate("/dashboards");
+      navigate("/looker-builder");
     }
   }, [user, loading, navigate]);
+
+  // Mock data for demo charts
+  const mockChartData = {
+    vendas: [
+      { label: 'BR', value: 1200 },
+      { label: 'US', value: 2500 },
+      { label: 'DE', value: 1800 },
+      { label: 'FR', value: 900 }
+    ],
+    receita: { value: 'R$ 127.5k', label: 'Receita Total' },
+    clientes: { value: '2,847', label: 'Clientes Ativos' }
+  };
 
   if (loading) {
     return null; // Will redirect once loading is complete
@@ -50,19 +134,81 @@ const Index = () => {
               <Button 
                 size="lg" 
                 className="gradient-primary text-lg px-8 py-6 h-auto shadow-glow"
-                onClick={() => navigate("/auth")}
+                onClick={() => navigate("/auth?mode=signup")}
               >
-                Get Started Free
+                Começar Grátis
               </Button>
               <Button 
                 variant="outline" 
                 size="lg" 
-                className="text-lg px-8 py-6 h-auto"
-                onClick={() => navigate("/auth")}
+                className="text-lg px-8 py-6 h-auto gap-2"
+                onClick={() => navigate("/demo")}
               >
-                View Demo
+                <Eye className="w-5 h-5" />
+                Ver Demonstração
               </Button>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Dashboard Preview Section */}
+      <section className="py-16 bg-muted/20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <h3 className="text-3xl font-bold text-foreground mb-4">
+              Visualizações Poderosas em Tempo Real
+            </h3>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              Explore dashboards interativos que transformam seus dados em insights acionáveis
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+            <MockChart
+              type="bar"
+              title="Vendas por País"
+              data={mockChartData.vendas}
+            />
+            
+            <MockChart
+              type="line"
+              title="Tendência de Crescimento"
+              data={[]}
+            />
+            
+            <MockChart
+              type="scorecard"
+              title="Receita Total"
+              data={mockChartData.receita}
+            />
+
+            <MockChart
+              type="scorecard"
+              title="Clientes Ativos"
+              data={mockChartData.clientes}
+            />
+
+            <div className="md:col-span-2 flex items-center justify-center p-8 border-2 border-dashed border-muted-foreground/20 rounded-lg">
+              <div className="text-center">
+                <CalendarIcon className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <h4 className="text-lg font-semibold mb-2">Filtros Interativos</h4>
+                <p className="text-muted-foreground mb-4">
+                  Seletores de data, filtros dinâmicos e controles personalizados
+                </p>
+                <Button variant="outline" onClick={() => navigate("/demo")} className="gap-2">
+                  <Play className="w-4 h-4" />
+                  Experimentar
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className="text-center">
+            <Button onClick={() => navigate("/demo")} size="lg" variant="outline" className="gap-2">
+              <Eye className="w-5 h-5" />
+              Ver Dashboard Completo
+            </Button>
           </div>
         </div>
       </section>
@@ -140,9 +286,9 @@ const Index = () => {
           <Button 
             size="lg" 
             className="gradient-primary text-lg px-12 py-6 h-auto shadow-glow"
-            onClick={() => navigate("/auth")}
+            onClick={() => navigate("/auth?mode=signup")}
           >
-            Start Your Free Trial
+            Começar Teste Grátis
           </Button>
         </div>
       </section>
