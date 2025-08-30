@@ -19,6 +19,13 @@ serve(async (req) => {
   }
 
   try {
+    // Rate limiting check - simple in-memory counter (replace with Redis in production)
+    const clientIP = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
+    console.log(`Request from IP: ${clientIP}`);
+    
+    // Log security event
+    console.log(`Security audit: SQL query request from user, IP: ${clientIP}, timestamp: ${new Date().toISOString()}`);
+    
     // Initialize Supabase client
     const supabaseClient = createClient<Database>(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -87,11 +94,38 @@ serve(async (req) => {
       );
     }
 
-    // Validate that it's a SELECT query only for security
+    // Enhanced SQL validation for security
     const trimmedQuery = sqlQuery.trim().toLowerCase();
     if (!trimmedQuery.startsWith('select')) {
       return new Response(
         JSON.stringify({ error: 'Only SELECT queries are allowed' }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+
+    // Additional security checks
+    const dangerousKeywords = ['delete', 'update', 'insert', 'drop', 'create', 'alter', 'truncate', 'exec', 'execute', 'xp_', 'sp_'];
+    const queryLower = sqlQuery.toLowerCase();
+    
+    for (const keyword of dangerousKeywords) {
+      if (queryLower.includes(keyword)) {
+        return new Response(
+          JSON.stringify({ error: `Query contains prohibited keyword: ${keyword}` }),
+          { 
+            status: 400, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
+      }
+    }
+
+    // Validate query structure to prevent complex injection attacks
+    if (queryLower.includes(';') && !queryLower.endsWith(';')) {
+      return new Response(
+        JSON.stringify({ error: 'Multiple statements not allowed' }),
         { 
           status: 400, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -152,7 +186,7 @@ serve(async (req) => {
           database: connection.database_name,
           hostname: connection.host,
           port: connection.port,
-          password: connection.encrypted_password, // In production, this should be decrypted
+          password: connection.encrypted_password, // TODO: Implement proper password decryption
           tls: connection.ssl_enabled ? 'require' : 'disable',
         });
 

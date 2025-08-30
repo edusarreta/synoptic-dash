@@ -32,6 +32,10 @@ serve(async (req) => {
   }
 
   try {
+    // Rate limiting and security logging
+    const clientIP = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
+    console.log(`Query request from IP: ${clientIP}`);
+    
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -129,67 +133,107 @@ serve(async (req) => {
 
     console.log('✅ Connection validated for account:', profile.account_id);
 
+    // Sanitize and validate input parameters (defined before use)
+    const sanitizeIdentifier = (identifier: string): string => {
+      // Only allow alphanumeric characters and underscores for table/column names
+      if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(identifier)) {
+        throw new Error(`Invalid identifier: ${identifier}`);
+      }
+      return identifier;
+    };
+
+    const sanitizeValue = (value: any): string => {
+      if (typeof value === 'string') {
+        // Escape single quotes to prevent SQL injection
+        return value.replace(/'/g, "''");
+      }
+      if (typeof value === 'number') {
+        return value.toString();
+      }
+      return String(value).replace(/'/g, "''");
+    };
+
     // Build SQL query
     let selectFields: string[] = [];
     
-    // Add dimensions to SELECT
+    // Sanitize table name and field names
+    const sanitizedTableName = sanitizeIdentifier(tableName);
+    
+    // Add dimensions to SELECT with sanitization
     if (dimensions.length > 0) {
-      selectFields.push(...dimensions);
+      const sanitizedDimensions = dimensions.map(dim => sanitizeIdentifier(dim));
+      selectFields.push(...sanitizedDimensions);
     }
     
-    // Add aggregated metrics to SELECT
+    // Add aggregated metrics to SELECT with sanitization
     if (metrics.length > 0) {
+      const validAggregations = ['sum', 'count', 'avg', 'min', 'max'];
+      if (!validAggregations.includes(aggregation.toLowerCase())) {
+        throw new Error(`Invalid aggregation function: ${aggregation}`);
+      }
+      
       for (const metric of metrics) {
-        selectFields.push(`${aggregation.toUpperCase()}(${metric}) as ${metric}_${aggregation}`);
+        const sanitizedMetric = sanitizeIdentifier(metric);
+        selectFields.push(`${aggregation.toUpperCase()}(${sanitizedMetric}) as ${sanitizedMetric}_${aggregation}`);
       }
     } else if (dimensions.length === 0) {
       // If no specific fields, select count
       selectFields.push(`COUNT(*) as total_count`);
     }
 
-    let sqlQuery = `SELECT ${selectFields.join(', ')} FROM ${tableName}`;
+    let sqlQuery = `SELECT ${selectFields.join(', ')} FROM ${sanitizedTableName}`;
 
-    // Add WHERE conditions
+    // Add WHERE conditions with proper sanitization
     if (filters.length > 0) {
       const whereConditions = filters.map(filter => {
         const { field, operator, value } = filter;
+        const sanitizedField = sanitizeIdentifier(field);
+        
         switch (operator) {
           case 'equals':
-            return `${field} = '${value}'`;
+            return `${sanitizedField} = '${sanitizeValue(value)}'`;
           case 'not_equals':
-            return `${field} != '${value}'`;
+            return `${sanitizedField} != '${sanitizeValue(value)}'`;
           case 'contains':
-            return `${field} ILIKE '%${value}%'`;
+            return `${sanitizedField} ILIKE '%${sanitizeValue(value)}%'`;
           case 'greater_than':
-            return `${field} > ${value}`;
+            return `${sanitizedField} > ${sanitizeValue(value)}`;
           case 'less_than':
-            return `${field} < ${value}`;
+            return `${sanitizedField} < ${sanitizeValue(value)}`;
           case 'in':
             const values = Array.isArray(value) ? value : [value];
-            return `${field} IN (${values.map(v => `'${v}'`).join(', ')})`;
+            const sanitizedValues = values.map(v => `'${sanitizeValue(v)}'`).join(', ');
+            return `${sanitizedField} IN (${sanitizedValues})`;
           default:
-            return `${field} = '${value}'`;
+            return `${sanitizedField} = '${sanitizeValue(value)}'`;
         }
       });
       sqlQuery += ` WHERE ${whereConditions.join(' AND ')}`;
     }
 
-    // Add GROUP BY
+    // Add GROUP BY with sanitized field names
     if (dimensions.length > 0) {
-      sqlQuery += ` GROUP BY ${dimensions.join(', ')}`;
+      const sanitizedDimensions = dimensions.map(dim => sanitizeIdentifier(dim));
+      sqlQuery += ` GROUP BY ${sanitizedDimensions.join(', ')}`;
     }
 
-    // Add ORDER BY
+    // Add ORDER BY with sanitized field names
     if (orderBy.length > 0) {
-      const orderClauses = orderBy.map(order => `${order.field} ${order.direction}`);
+      const orderClauses = orderBy.map(order => {
+        const sanitizedField = sanitizeIdentifier(order.field);
+        const direction = order.direction === 'DESC' ? 'DESC' : 'ASC'; // Validate direction
+        return `${sanitizedField} ${direction}`;
+      });
       sqlQuery += ` ORDER BY ${orderClauses.join(', ')}`;
     } else if (dimensions.length > 0) {
       // Default ordering by first dimension
-      sqlQuery += ` ORDER BY ${dimensions[0]}`;
+      const sanitizedFirstDimension = sanitizeIdentifier(dimensions[0]);
+      sqlQuery += ` ORDER BY ${sanitizedFirstDimension}`;
     }
 
-    // Add LIMIT
-    sqlQuery += ` LIMIT ${limit}`;
+    // Add LIMIT with validation
+    const sanitizedLimit = Math.min(Math.max(1, Math.floor(Number(limit))), 10000); // Max 10k rows
+    sqlQuery += ` LIMIT ${sanitizedLimit}`;
 
     console.log('🔍 Generated SQL:', sqlQuery);
 

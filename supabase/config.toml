@@ -70,3 +70,9 @@ verify_jwt = false
 
 [functions.superadmin-account-details]
 verify_jwt = false
+
+[functions.encrypt-password]
+verify_jwt = true
+
+[functions.decrypt-password]
+verify_jwt = false
