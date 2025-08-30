@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useMemo, useCallback } from "react";
 import { 
   Chart, 
   CategoryScale, 
@@ -46,21 +46,33 @@ export function LookerCanvasGrid({
 }: LookerCanvasGridProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const [activeId, setActiveId] = useState<number | null>(null);
+  const isUpdatingLayout = useRef(false);
   
-  // Convert widgets to grid layout format
-  const layout = widgets.map(widget => ({
-    i: widget.id.toString(),
-    x: widget.layout.x,
-    y: widget.layout.y,
-    w: widget.layout.w,
-    h: widget.layout.h,
-    minW: 2,
-    minH: 2
-  }));
+  // Memoize layout to prevent unnecessary recalculations
+  const layout = useMemo(() => {
+    return widgets.map(widget => ({
+      i: widget.id.toString(),
+      x: widget.layout.x,
+      y: widget.layout.y,
+      w: widget.layout.w,
+      h: widget.layout.h,
+      minW: 2,
+      minH: 2
+    }));
+  }, [widgets]);
 
-  // Handle grid layout changes (drag and resize)
-  const handleLayoutChange = (newLayout: any[]) => {
+  // Handle grid layout changes (drag and resize) with debouncing
+  const handleLayoutChange = useCallback((newLayout: any[]) => {
+    // Prevent recursive calls
+    if (isUpdatingLayout.current) {
+      return;
+    }
+    
     console.log('📐 Grid layout changed:', newLayout);
+    
+    // Check if there are actual changes before updating
+    let hasChanges = false;
+    const updates: Array<{ id: number; layout: any }> = [];
     
     newLayout.forEach(item => {
       const widgetId = parseInt(item.i);
@@ -72,7 +84,9 @@ export function LookerCanvasGrid({
         widget.layout.w !== item.w ||
         widget.layout.h !== item.h
       )) {
-        onWidgetUpdate(widgetId, {
+        hasChanges = true;
+        updates.push({
+          id: widgetId,
           layout: {
             x: item.x,
             y: item.y,
@@ -82,7 +96,22 @@ export function LookerCanvasGrid({
         });
       }
     });
-  };
+    
+    // Only update if there are actual changes
+    if (hasChanges && updates.length > 0) {
+      isUpdatingLayout.current = true;
+      
+      // Batch all updates
+      updates.forEach(update => {
+        onWidgetUpdate(update.id, { layout: update.layout });
+      });
+      
+      // Reset flag after a short delay
+      setTimeout(() => {
+        isUpdatingLayout.current = false;
+      }, 100);
+    }
+  }, [widgets, onWidgetUpdate]);
 
   const handleDragStart = (event: any) => {
     setActiveId(event.active.id);
