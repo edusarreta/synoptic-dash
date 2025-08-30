@@ -1091,10 +1091,10 @@ export default function LookerDashboardBuilder() {
                   {dataFields.map((field) => (
                     <div
                       key={field.id}
-                      className={`flex items-center p-2 rounded-md text-sm cursor-grab hover:shadow-sm transition-shadow ${
+                      className={`flex items-center p-2 rounded-md text-sm cursor-pointer transition-all hover:shadow-md ${
                         field.type === 'dimension' 
-                          ? 'bg-green-50 border border-green-200 text-green-800' 
-                          : 'bg-blue-50 border border-blue-200 text-blue-800'
+                          ? 'bg-green-50 border border-green-200 text-green-800 hover:bg-green-100' 
+                          : 'bg-blue-50 border border-blue-200 text-blue-800 hover:bg-blue-100'
                       }`}
                       draggable
                       onDragStart={(e) => {
@@ -1103,6 +1103,38 @@ export default function LookerDashboardBuilder() {
                           type: 'field',
                           field: field
                         }));
+                        e.dataTransfer.effectAllowed = 'copy';
+                      }}
+                      onClick={() => {
+                        if (selectedWidget) {
+                          console.log('🖱️ Clicking to add field to widget:', field, selectedWidget);
+                          // Adicionar campo ao widget selecionado baseado no tipo
+                          const widget = widgets.find(w => w.id === selectedWidget);
+                          if (widget) {
+                            if (field.type === 'dimension') {
+                              const currentDimensions = Array.isArray(widget.config.dimensions) 
+                                ? widget.config.dimensions 
+                                : widget.config.dimension ? [widget.config.dimension] : [];
+                              
+                              if (!currentDimensions.includes(field.id)) {
+                                updateWidgetConfig(selectedWidget, {
+                                  dimensions: [...currentDimensions, field.id]
+                                });
+                              }
+                            } else if (field.type === 'metric') {
+                              const currentMetrics = Array.isArray(widget.config.metrics) 
+                                ? widget.config.metrics 
+                                : widget.config.metric ? [widget.config.metric] : [];
+                              
+                              if (!currentMetrics.includes(field.id)) {
+                                updateWidgetConfig(selectedWidget, {
+                                  metrics: [...currentMetrics, field.id],
+                                  aggregation: widget.config.aggregation || 'sum'
+                                });
+                              }
+                            }
+                          }
+                        }
                       }}
                     >
                       {field.type === 'dimension' ? (
@@ -1111,6 +1143,11 @@ export default function LookerDashboardBuilder() {
                         <Hash className="w-4 h-4 mr-2" />
                       )}
                       <span className="truncate">{field.name}</span>
+                      {selectedWidget && (
+                        <div className="ml-auto text-xs opacity-60">
+                          click to add
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

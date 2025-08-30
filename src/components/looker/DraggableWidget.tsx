@@ -143,6 +143,48 @@ export function DraggableWidget({
           onSelect(widget.id);
         }
       }}
+      onDrop={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        try {
+          const dragData = JSON.parse(e.dataTransfer.getData('application/json'));
+          console.log('🎯 Widget received drop:', dragData);
+          
+          if (dragData.type === 'field') {
+            const field = dragData.field;
+            const configUpdate: any = {};
+            
+            if (field.type === 'dimension') {
+              const currentDimensions = Array.isArray(widget.config.dimensions) 
+                ? widget.config.dimensions 
+                : widget.config.dimension ? [widget.config.dimension] : [];
+              configUpdate.dimensions = currentDimensions.includes(field.id) 
+                ? currentDimensions 
+                : [...currentDimensions, field.id];
+            } else if (field.type === 'metric') {
+              const currentMetrics = Array.isArray(widget.config.metrics) 
+                ? widget.config.metrics 
+                : widget.config.metric ? [widget.config.metric] : [];
+              configUpdate.metrics = currentMetrics.includes(field.id) 
+                ? currentMetrics 
+                : [...currentMetrics, field.id];
+              configUpdate.aggregation = widget.config.aggregation || 'sum';
+            }
+            
+            onUpdate(widget.id, {
+              config: { ...widget.config, ...configUpdate }
+            });
+          }
+        } catch (error) {
+          console.error('❌ Error processing drop on widget:', error);
+        }
+      }}
+      onDragOver={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = 'copy';
+      }}
     >
       {/* Drag Handle and Controls (always visible for better UX) */}
       <div className={`absolute ${isSelected ? '-top-10' : 'top-1'} right-1 flex items-center gap-2 bg-card/90 backdrop-blur border rounded px-2 py-1 shadow-sm z-20 transition-all`}>

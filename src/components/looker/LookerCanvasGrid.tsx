@@ -62,17 +62,32 @@ export function LookerCanvasGrid({
     
     if (!over) return;
 
+    console.log('🎯 Canvas drag end:', { active, over });
+
     // Handle field drop onto widget (for configuration)
     if (active.data.current?.type === 'field' && over.data.current?.type === 'widget') {
       const field = active.data.current.field;
       const widget = over.data.current.widget;
       
+      console.log('📝 Configuring widget with field:', { field, widget });
+      
       // Update widget configuration based on field type
       const configUpdate: any = {};
       if (field.type === 'dimension') {
-        configUpdate.dimension = field.name;
+        const currentDimensions = Array.isArray(widget.config.dimensions) 
+          ? widget.config.dimensions 
+          : widget.config.dimension ? [widget.config.dimension] : [];
+        configUpdate.dimensions = currentDimensions.includes(field.id) 
+          ? currentDimensions 
+          : [...currentDimensions, field.id];
       } else if (field.type === 'metric') {
-        configUpdate.metric = field.name;
+        const currentMetrics = Array.isArray(widget.config.metrics) 
+          ? widget.config.metrics 
+          : widget.config.metric ? [widget.config.metric] : [];
+        configUpdate.metrics = currentMetrics.includes(field.id) 
+          ? currentMetrics 
+          : [...currentMetrics, field.id];
+        configUpdate.aggregation = widget.config.aggregation || 'sum';
       }
       
       onWidgetUpdate(widget.id, {
@@ -81,12 +96,37 @@ export function LookerCanvasGrid({
       return;
     }
 
+    // Handle widget movement
+    if (active.data.current?.type === 'widget' && over.id === 'canvas-drop-zone') {
+      console.log('🚀 Moving widget on canvas');
+      // Widget is being moved on the canvas
+      const activeWidget = widgets.find(w => w.id === active.id);
+      if (activeWidget && canvasRef.current) {
+        const canvasRect = canvasRef.current.getBoundingClientRect();
+        const dropX = event.delta.x;
+        const dropY = event.delta.y;
+        
+        console.log('📍 New widget position:', { dropX, dropY });
+        
+        onWidgetUpdate(activeWidget.id, {
+          layout: { 
+            ...activeWidget.layout, 
+            x: Math.max(0, activeWidget.layout.x + dropX), 
+            y: Math.max(0, activeWidget.layout.y + dropY) 
+          }
+        });
+      }
+      return;
+    }
+
     // Handle widget reordering/repositioning
     if (active.data.current?.type === 'widget' && over.data.current?.type === 'widget') {
       const activeWidget = widgets.find(w => w.id === active.id);
       const overWidget = widgets.find(w => w.id === over.id);
       
-      if (activeWidget && overWidget) {
+      console.log('🔄 Swapping widget positions');
+      
+      if (activeWidget && overWidget && activeWidget.id !== overWidget.id) {
         // Swap positions
         onWidgetUpdate(activeWidget.id, {
           layout: { ...activeWidget.layout, x: overWidget.layout.x, y: overWidget.layout.y }
@@ -110,7 +150,7 @@ export function LookerCanvasGrid({
         <SortableContext items={widgetOrder}>
           <div
             ref={canvasRef}
-            id="canvas"
+            id="canvas-drop-zone"
             className="w-[1200px] h-full mx-auto bg-card shadow-lg"
             style={{
               display: 'grid',
@@ -124,6 +164,14 @@ export function LookerCanvasGrid({
             onClick={(e) => {
               e.stopPropagation();
               onWidgetSelect(null);
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              console.log('📦 Canvas drop event');
+            }}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'move';
             }}
           >
             {widgets.map(widget => (
