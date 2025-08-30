@@ -120,8 +120,8 @@ const MOCK_DATA = {
 
 export default function LookerDashboardBuilder() {
   const { user } = useAuth();
-  const { permissions } = usePermissions();
-  const canCreateCharts = permissions.canCreateCharts;
+  const { permissions, loading } = usePermissions();
+  const canCreateCharts = permissions?.canCreateCharts || false;
   
   // Dashboard State
   const [dashboardName, setDashboardName] = useState("Meu Relatório Interativo");
@@ -1034,6 +1034,21 @@ export default function LookerDashboardBuilder() {
       toast.error(`Erro ao salvar fonte de dados: ${error.message}`);
     }
   };
+
+  if (loading) {
+    return (
+      <AppLayout>
+        <div className="p-6">
+          <div className="max-w-md mx-auto text-center">
+            <h2 className="text-xl font-semibold mb-2">Carregando...</h2>
+            <p className="text-muted-foreground">
+              Verificando permissões...
+            </p>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
 
   if (!permissions?.canCreateCharts) {
     return (
