@@ -37,9 +37,10 @@ import { LookerPropertiesPanel } from "@/components/looker/LookerPropertiesPanel
 interface DataField {
   id: string;
   name: string;
-  type: 'dimension' | 'metric';
+  type: 'dimension' | 'metric' | 'time_dimension';
   dataType: string;
   table: string;
+  configuredType?: 'text' | 'number' | 'date' | 'datetime' | 'boolean';
 }
 
 interface WidgetConfig {
@@ -71,12 +72,12 @@ interface Widget {
 const MOCK_DATA = {
   'Vendas Globais': {
     fields: [
-      { id: 'pais', name: 'País', type: 'dimension' as const, dataType: 'text', table: 'vendas' },
-      { id: 'categoria', name: 'Categoria', type: 'dimension' as const, dataType: 'text', table: 'vendas' },
-      { id: 'data', name: 'Data', type: 'dimension' as const, dataType: 'date', table: 'vendas' },
-      { id: 'vendas', name: 'Vendas', type: 'metric' as const, dataType: 'numeric', table: 'vendas' },
-      { id: 'lucro', name: 'Lucro', type: 'metric' as const, dataType: 'numeric', table: 'vendas' },
-      { id: 'unidades', name: 'Unidades Vendidas', type: 'metric' as const, dataType: 'numeric', table: 'vendas' },
+      { id: 'pais', name: 'País', type: 'dimension' as const, dataType: 'text', table: 'vendas', configuredType: 'text' as const },
+      { id: 'categoria', name: 'Categoria', type: 'dimension' as const, dataType: 'text', table: 'vendas', configuredType: 'text' as const },
+      { id: 'data', name: 'Data', type: 'time_dimension' as const, dataType: 'date', table: 'vendas', configuredType: 'date' as const },
+      { id: 'vendas', name: 'Vendas', type: 'metric' as const, dataType: 'numeric', table: 'vendas', configuredType: 'number' as const },
+      { id: 'lucro', name: 'Lucro', type: 'metric' as const, dataType: 'numeric', table: 'vendas', configuredType: 'number' as const },
+      { id: 'unidades', name: 'Unidades Vendidas', type: 'metric' as const, dataType: 'numeric', table: 'vendas', configuredType: 'number' as const },
     ],
     records: [
       { pais: 'Brasil', categoria: 'Eletrônicos', vendas: 1200, lucro: 250, unidades: 50, data: '2024-01-01' },
@@ -121,7 +122,7 @@ export default function LookerDashboardBuilder() {
   const [selectedDataSource, setSelectedDataSource] = useState<string>('Vendas Globais');
   const [selectedTable, setSelectedTable] = useState<string>('');
   const [tables, setTables] = useState<any[]>([]);
-  const [dataFields, setDataFields] = useState<DataField[]>(MOCK_DATA['Vendas Globais'].fields);
+  const [dataFields, setDataFields] = useState<DataField[]>(MOCK_DATA['Vendas Globais'].fields as DataField[]);
   const [isLoadingFields, setIsLoadingFields] = useState(false);
   const [isAddingWidget, setIsAddingWidget] = useState(false);
   
@@ -293,7 +294,7 @@ export default function LookerDashboardBuilder() {
     
     if (connectionId === 'Vendas Globais') {
       setTables([]);
-      setDataFields(MOCK_DATA['Vendas Globais'].fields);
+      setDataFields(MOCK_DATA['Vendas Globais'].fields as DataField[]);
       setIsLoadingFields(false);
     } else if (connectionId) {
       loadTables(connectionId);
@@ -1117,103 +1118,28 @@ export default function LookerDashboardBuilder() {
           <div className="flex flex-1 overflow-hidden">
             {/* Data Panel */}
             <aside className="w-72 border-r border-slate-200 bg-white flex flex-col shrink-0">
-              <div className="p-4 border-b border-slate-200">
-                <h2 className="font-semibold text-base">Dados</h2>
-              </div>
-              <div className="flex-1 overflow-auto p-4">
-                <Select value={selectedDataSource} onValueChange={handleDataSourceChange}>
-                  <SelectTrigger className="w-full mb-4">
-                    <SelectValue placeholder="Selecione uma fonte de dados" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {dataSources.map((ds) => (
-                      <SelectItem key={ds.id} value={ds.id}>
-                        {ds.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                {selectedDataSource && selectedDataSource !== 'Vendas Globais' && (
-                  <Select value={selectedTable} onValueChange={handleTableChange}>
-                    <SelectTrigger className="w-full mb-4">
-                      <SelectValue placeholder="Selecione uma tabela" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {tables.map((table) => (
-                        <SelectItem key={table.name} value={table.name}>
-                          {table.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-
-                <div className="space-y-1">
-                  {dataFields.map((field) => (
-                    <div
-                      key={field.id}
-                      className={`flex items-center p-2 rounded-md text-sm cursor-pointer transition-all hover:shadow-md ${
-                        field.type === 'dimension' 
-                          ? 'bg-green-50 border border-green-200 text-green-800 hover:bg-green-100' 
-                          : 'bg-blue-50 border border-blue-200 text-blue-800 hover:bg-blue-100'
-                      }`}
-                      draggable
-                      onDragStart={(e) => {
-                        console.log('🎯 Dragging field:', field);
-                        e.dataTransfer.setData('application/json', JSON.stringify({
-                          type: 'field',
-                          field: field
-                        }));
-                        e.dataTransfer.effectAllowed = 'copy';
-                      }}
-                      onClick={() => {
-                        if (selectedWidget) {
-                          console.log('🖱️ Clicking to add field to widget:', field, selectedWidget);
-                          // Adicionar campo ao widget selecionado baseado no tipo
-                          const widget = widgets.find(w => w.id === selectedWidget);
-                          if (widget) {
-                            if (field.type === 'dimension') {
-                              const currentDimensions = Array.isArray(widget.config.dimensions) 
-                                ? widget.config.dimensions 
-                                : widget.config.dimension ? [widget.config.dimension] : [];
-                              
-                              if (!currentDimensions.includes(field.id)) {
-                                updateWidgetConfig(selectedWidget, {
-                                  dimensions: [...currentDimensions, field.id]
-                                });
-                              }
-                            } else if (field.type === 'metric') {
-                              const currentMetrics = Array.isArray(widget.config.metrics) 
-                                ? widget.config.metrics 
-                                : widget.config.metric ? [widget.config.metric] : [];
-                              
-                              if (!currentMetrics.includes(field.id)) {
-                                updateWidgetConfig(selectedWidget, {
-                                  metrics: [...currentMetrics, field.id],
-                                  aggregation: widget.config.aggregation || 'sum'
-                                });
-                              }
-                            }
-                          }
-                        }
-                      }}
-                    >
-                      {field.type === 'dimension' ? (
-                        <Type className="w-4 h-4 mr-2" />
-                      ) : (
-                        <Hash className="w-4 h-4 mr-2" />
-                      )}
-                      <span className="truncate">{field.name}</span>
-                      {selectedWidget && (
-                        <div className="ml-auto text-xs opacity-60">
-                          click to add
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <LookerDataPanel
+                dataSources={dataSources}
+                selectedDataSource={selectedDataSource}
+                selectedTable={selectedTable}
+                tables={tables}
+                dataFields={dataFields}
+                isLoadingFields={isLoadingFields}
+                selectedWidget={selectedWidget}
+                onDataSourceChange={handleDataSourceChange}
+                onTableChange={handleTableChange}
+                onFieldClick={handleFieldClick}
+                onFieldTypeChange={(fieldId, newType, configuredType) => {
+                  console.log('🔧 Field type change:', { fieldId, newType, configuredType });
+                  setDataFields(prevFields => 
+                    prevFields.map(field => 
+                      field.id === fieldId 
+                        ? { ...field, type: newType, configuredType: configuredType as 'text' | 'number' | 'date' | 'datetime' | 'boolean' }
+                        : field
+                    )
+                  );
+                }}
+              />
             </aside>
 
             {/* Properties Panel */}

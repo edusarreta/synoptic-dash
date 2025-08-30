@@ -17,9 +17,10 @@ import {
 interface DataField {
   id: string;
   name: string;
-  type: 'dimension' | 'metric';
+  type: 'dimension' | 'metric' | 'time_dimension';
   dataType: string;
   table: string;
+  configuredType?: 'text' | 'number' | 'date' | 'datetime' | 'boolean';
 }
 
 interface DataSource {
@@ -44,6 +45,7 @@ interface DataFieldsPanelProps {
   onDataSourceChange: (dataSourceId: string) => void;
   onTableChange: (tableName: string) => void;
   onFieldClick?: (field: DataField) => void;
+  onFieldTypeChange?: (fieldId: string, newType: 'dimension' | 'metric' | 'time_dimension', configuredType?: string) => void;
 }
 
 export function LookerDataPanel({
@@ -56,7 +58,8 @@ export function LookerDataPanel({
   selectedWidget,
   onDataSourceChange,
   onTableChange,
-  onFieldClick
+  onFieldClick,
+  onFieldTypeChange
 }: DataFieldsPanelProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [showCalculatedFieldDialog, setShowCalculatedFieldDialog] = useState(false);
@@ -76,9 +79,10 @@ export function LookerDataPanel({
     field.dataType.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Separate dimensions and metrics
+  // Separate dimensions, metrics and time dimensions
   const dimensionFields = filteredFields.filter(field => field.type === 'dimension');
   const metricFields = filteredFields.filter(field => field.type === 'metric');
+  const timeDimensionFields = filteredFields.filter(field => field.type === 'time_dimension');
 
   const getFieldIcon = (dataType: string) => {
     const type = dataType.toLowerCase();
@@ -147,21 +151,76 @@ export function LookerDataPanel({
             </div>
 
             <div className="space-y-4">
-              {/* Render fields directly for mock data */}
-              {dimensionFields.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
-                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                    Dimensões ({dimensionFields.length})
-                  </h3>
-                  <div className="space-y-1">
-                    {dimensionFields.map((field) => (
+              {/* Render fields directly for mock data with configuration */}
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground mb-3">
+                  Campos Disponíveis
+                </h3>
+                <div className="space-y-2">
+                  {filteredFields.map((field) => (
+                    <div key={field.id} className="border border-border rounded-md p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          {getFieldIcon(field.dataType)}
+                          <span className="font-medium text-sm">{field.name}</span>
+                          <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
+                            {field.dataType}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-2 mb-2">
+                        <div>
+                          <label className="text-xs text-muted-foreground mb-1 block">Tipo de Campo</label>
+                          <Select 
+                            value={field.configuredType || field.dataType} 
+                            onValueChange={(value) => {
+                              onFieldTypeChange?.(field.id, field.type, value);
+                            }}
+                          >
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="text">Texto</SelectItem>
+                              <SelectItem value="number">Número</SelectItem>
+                              <SelectItem value="date">Data</SelectItem>
+                              <SelectItem value="datetime">Data e Hora</SelectItem>
+                              <SelectItem value="boolean">Boolean</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        <div>
+                          <label className="text-xs text-muted-foreground mb-1 block">Usar Como</label>
+                          <Select 
+                            value={field.type} 
+                            onValueChange={(value: 'dimension' | 'metric' | 'time_dimension') => {
+                              onFieldTypeChange?.(field.id, value, field.configuredType);
+                            }}
+                          >
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="dimension">Dimensão</SelectItem>
+                              <SelectItem value="metric">Métrica</SelectItem>
+                              <SelectItem value="time_dimension">Dimensão Temporal</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      
+                      {/* Drag area */}
                       <div
-                        key={field.id}
-                        className={`field-item flex items-center p-2 rounded-md text-sm select-none cursor-pointer transition-colors ${
+                        className={`field-item flex items-center justify-center p-2 rounded-md text-xs border-2 border-dashed transition-colors ${
                           selectedWidget 
-                            ? 'bg-green-100 text-green-800 hover:bg-green-200 cursor-grab' 
-                            : 'bg-green-50 text-green-700 hover:bg-green-100'
+                            ? field.type === 'dimension'
+                              ? 'border-green-300 bg-green-50 text-green-700 hover:bg-green-100 cursor-grab'
+                              : field.type === 'metric'
+                              ? 'border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 cursor-grab'
+                              : 'border-purple-300 bg-purple-50 text-purple-700 hover:bg-purple-100 cursor-grab'
+                            : 'border-gray-300 bg-gray-50 text-gray-500'
                         }`}
                         draggable={selectedWidget ? true : false}
                         onClick={() => onFieldClick?.(field)}
@@ -176,57 +235,16 @@ export function LookerDataPanel({
                           e.dataTransfer.effectAllowed = 'copy';
                         }}
                       >
-                        <div className="w-2 h-2 rounded-full mr-2 bg-green-500"></div>
-                        {getFieldIcon(field.dataType)}
-                        <span className="truncate flex-1">{field.name.split('.')[1] || field.name}</span>
-                        <span className="text-xs text-green-600 opacity-75 ml-1">
-                          {field.dataType}
-                        </span>
+                        {selectedWidget ? (
+                          `Arraste para ${field.type === 'dimension' ? 'Dimensões' : field.type === 'metric' ? 'Métricas' : 'Dimensão Temporal'}`
+                        ) : (
+                          'Selecione um widget para usar este campo'
+                        )}
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  ))}
                 </div>
-              )}
-
-              {metricFields.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
-                    <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                    Métricas ({metricFields.length})
-                  </h3>
-                  <div className="space-y-1">
-                    {metricFields.map((field) => (
-                      <div
-                        key={field.id}
-                        className={`field-item flex items-center p-2 rounded-md text-sm select-none cursor-pointer transition-colors ${
-                          selectedWidget 
-                            ? 'bg-blue-100 text-blue-800 hover:bg-blue-200 cursor-grab' 
-                            : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
-                        }`}
-                        draggable={selectedWidget ? true : false}
-                        onClick={() => onFieldClick?.(field)}
-                        onDragStart={(e) => {
-                          if (!selectedWidget) return;
-                          console.log('🎯 Starting drag for field:', field);
-                          const dragData = {
-                            type: 'field',
-                            field: field
-                          };
-                          e.dataTransfer.setData('application/json', JSON.stringify(dragData));
-                          e.dataTransfer.effectAllowed = 'copy';
-                        }}
-                      >
-                        <div className="w-2 h-2 rounded-full mr-2 bg-blue-500"></div>
-                        {getFieldIcon(field.dataType)}
-                        <span className="truncate flex-1">{field.name.split('.')[1] || field.name}</span>
-                        <span className="text-xs text-blue-600 opacity-75 ml-1">
-                          {field.dataType}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+              </div>
             </div>
           </div>
         ) : selectedDataSource !== 'Vendas Globais' && tables.length === 0 && isLoadingFields ? (
@@ -287,87 +305,100 @@ export function LookerDataPanel({
             </div>
 
             <div id="fields-list" className="space-y-4">
-              {/* Dimensions */}
-              {dimensionFields.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
-                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                    Dimensões ({dimensionFields.length})
-                  </h3>
-                  <div className="space-y-1">
-                     {dimensionFields.map((field) => (
-                       <div
-                         key={field.id}
-                         className={`field-item flex items-center p-2 rounded-md text-sm select-none cursor-pointer transition-colors ${
-                           selectedWidget 
-                             ? 'bg-green-100 text-green-800 hover:bg-green-200 cursor-grab' 
-                             : 'bg-green-50 text-green-700 hover:bg-green-100'
-                         }`}
-                         draggable={selectedWidget ? true : false}
-                         onClick={() => onFieldClick?.(field)}
-                         onDragStart={(e) => {
-                           if (!selectedWidget) return;
-                           console.log('🎯 Starting drag for field:', field);
-                           const dragData = {
-                             type: 'field',
-                             field: field
-                           };
-                           e.dataTransfer.setData('application/json', JSON.stringify(dragData));
-                           e.dataTransfer.effectAllowed = 'copy';
-                         }}
-                       >
-                        <div className={`w-2 h-2 rounded-full mr-2 bg-green-500`}></div>
-                        {getFieldIcon(field.dataType)}
-                        <span className="truncate flex-1">{field.name.split('.')[1] || field.name}</span>
-                        <span className="text-xs text-green-600 opacity-75 ml-1">
-                          {field.dataType}
-                        </span>
+              {/* Raw Fields Configuration */}
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground mb-3">
+                  Configurar Campos
+                </h3>
+                <div className="space-y-2">
+                  {filteredFields.map((field) => (
+                    <div key={field.id} className="border border-border rounded-md p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          {getFieldIcon(field.dataType)}
+                          <span className="font-medium text-sm">{field.name.split('.')[1] || field.name}</span>
+                          <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
+                            {field.dataType}
+                          </span>
+                        </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Metrics */}
-              {metricFields.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
-                    <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                    Métricas ({metricFields.length})
-                  </h3>
-                  <div className="space-y-1">
-                     {metricFields.map((field) => (
-                       <div
-                         key={field.id}
-                         className={`field-item flex items-center p-2 rounded-md text-sm select-none cursor-pointer transition-colors ${
-                           selectedWidget 
-                             ? 'bg-blue-100 text-blue-800 hover:bg-blue-200 cursor-grab' 
-                             : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
-                         }`}
-                         draggable={selectedWidget ? true : false}
-                         onClick={() => onFieldClick?.(field)}
-                         onDragStart={(e) => {
-                           if (!selectedWidget) return;
-                           console.log('🎯 Starting drag for field:', field);
-                           const dragData = {
-                             type: 'field',
-                             field: field
-                           };
-                           e.dataTransfer.setData('application/json', JSON.stringify(dragData));
-                           e.dataTransfer.effectAllowed = 'copy';
-                         }}
-                       >
-                        <div className={`w-2 h-2 rounded-full mr-2 bg-blue-500`}></div>
-                        {getFieldIcon(field.dataType)}
-                        <span className="truncate flex-1">{field.name.split('.')[1] || field.name}</span>
-                        <span className="text-xs text-blue-600 opacity-75 ml-1">
-                          {field.dataType}
-                        </span>
+                      
+                      <div className="grid grid-cols-2 gap-2 mb-2">
+                        <div>
+                          <label className="text-xs text-muted-foreground mb-1 block">Tipo de Campo</label>
+                          <Select 
+                            value={field.configuredType || field.dataType} 
+                            onValueChange={(value) => {
+                              onFieldTypeChange?.(field.id, field.type, value);
+                            }}
+                          >
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="text">Texto</SelectItem>
+                              <SelectItem value="number">Número</SelectItem>
+                              <SelectItem value="date">Data</SelectItem>
+                              <SelectItem value="datetime">Data e Hora</SelectItem>
+                              <SelectItem value="boolean">Boolean</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        <div>
+                          <label className="text-xs text-muted-foreground mb-1 block">Usar Como</label>
+                          <Select 
+                            value={field.type} 
+                            onValueChange={(value: 'dimension' | 'metric' | 'time_dimension') => {
+                              onFieldTypeChange?.(field.id, value, field.configuredType);
+                            }}
+                          >
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="dimension">Dimensão</SelectItem>
+                              <SelectItem value="metric">Métrica</SelectItem>
+                              <SelectItem value="time_dimension">Dimensão Temporal</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
-                    ))}
-                  </div>
+                      
+                      {/* Drag area */}
+                      <div
+                        className={`field-item flex items-center justify-center p-2 rounded-md text-xs border-2 border-dashed transition-colors ${
+                          selectedWidget 
+                            ? field.type === 'dimension'
+                              ? 'border-green-300 bg-green-50 text-green-700 hover:bg-green-100 cursor-grab'
+                              : field.type === 'metric'
+                              ? 'border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 cursor-grab'
+                              : 'border-purple-300 bg-purple-50 text-purple-700 hover:bg-purple-100 cursor-grab'
+                            : 'border-gray-300 bg-gray-50 text-gray-500'
+                        }`}
+                        draggable={selectedWidget ? true : false}
+                        onClick={() => onFieldClick?.(field)}
+                        onDragStart={(e) => {
+                          if (!selectedWidget) return;
+                          console.log('🎯 Starting drag for field:', field);
+                          const dragData = {
+                            type: 'field',
+                            field: field
+                          };
+                          e.dataTransfer.setData('application/json', JSON.stringify(dragData));
+                          e.dataTransfer.effectAllowed = 'copy';
+                        }}
+                      >
+                        {selectedWidget ? (
+                          `Arraste para ${field.type === 'dimension' ? 'Dimensões' : field.type === 'metric' ? 'Métricas' : 'Dimensão Temporal'}`
+                        ) : (
+                          'Selecione um widget para usar este campo'
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              )}
+              </div>
 
               {/* Empty search results */}
               {searchTerm && filteredFields.length === 0 && (
