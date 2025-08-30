@@ -34,8 +34,12 @@ serve(async (req) => {
     // Get user from auth header
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
+      console.error('❌ No authorization header provided');
       return new Response(
-        JSON.stringify({ error: 'No authorization header provided' }),
+        JSON.stringify({ 
+          error: 'Authentication required',
+          success: false 
+        }),
         { 
           status: 401, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -44,18 +48,31 @@ serve(async (req) => {
     }
 
     const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
+    
+    // Create a separate client for auth validation
+    const authClient = createClient<Database>(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+    );
+    
+    const { data: { user }, error: authError } = await authClient.auth.getUser(token);
 
     if (authError || !user) {
-      console.error('Authentication error:', authError);
+      console.error('❌ Authentication failed:', authError?.message);
       return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
+        JSON.stringify({ 
+          error: 'Invalid authentication token',
+          success: false,
+          details: authError?.message 
+        }),
         { 
           status: 401, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       );
     }
+    
+    console.log('✅ User authenticated:', user.id);
 
     // Parse request body
     const { connectionId, sqlQuery }: ExecuteQueryRequest = await req.json();

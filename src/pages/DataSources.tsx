@@ -21,6 +21,7 @@ interface DataConnection {
   port?: number;
   database_name?: string;
   username?: string;
+  encrypted_password?: string;
   ssl_enabled: boolean;
   is_active: boolean;
   connection_config: any;
@@ -256,11 +257,18 @@ export default function DataSources() {
       console.log('🔍 Testing connection:', connection.name);
       
       if (connection.connection_type === 'postgresql') {
-        // Test PostgreSQL connection with execute-sql-query
-        const { data, error } = await supabase.functions.invoke('execute-sql-query', {
+        // Test PostgreSQL connection with test-connection edge function
+        const { data, error } = await supabase.functions.invoke('test-connection', {
           body: { 
-            connectionId: connection.id,
-            sqlQuery: 'SELECT 1 as test_connection'
+            connectionType: 'postgresql',
+            config: {
+              host: connection.host,
+              port: connection.port,
+              database: connection.database_name,
+              username: connection.username,
+              password: connection.encrypted_password,
+              ssl: connection.ssl_enabled
+            }
           }
         });
 
@@ -270,42 +278,53 @@ export default function DataSources() {
 
         if (data?.success) {
           toast({
-            title: "Connection Successful",
-            description: `Successfully connected to ${connection.name} (PostgreSQL)`,
+            title: "✅ Conexão Bem-sucedida",
+            description: `Conectado com sucesso ao ${connection.name} (PostgreSQL)`,
           });
         } else {
           throw new Error(data?.error || 'Connection test failed');
         }
       } else if (connection.connection_type === 'supabase') {
-        // Test Supabase connection
-        const { url, anon_key } = connection.connection_config || {};
-        if (!url || !anon_key) {
-          throw new Error('Missing Supabase URL or anon key');
-        }
-        
-        const testClient = createClient(url, anon_key);
-        const { error } = await testClient.from('_test_').select('*').limit(1);
-        
-        // Even if table doesn't exist, if we get a proper error response, connection is working
-        toast({
-          title: "Connection Successful",
-          description: `Successfully connected to ${connection.name} (Supabase)`,
+        // Test Supabase connection with test-connection edge function
+        const { data, error } = await supabase.functions.invoke('test-connection', {
+          body: { 
+            connectionType: 'supabase',
+            config: connection.connection_config
+          }
         });
-      } else if (connection.connection_type === 'rest_api') {
-        // Test REST API connection
-        const { base_url } = connection.connection_config || {};
-        if (!base_url) {
-          throw new Error('Missing API base URL');
+
+        if (error) {
+          throw new Error(error.message || 'Supabase connection test failed');
         }
-        
-        const response = await fetch(base_url, { method: 'HEAD' });
-        if (response.ok || response.status === 404 || response.status === 405) {
+
+        if (data?.success) {
           toast({
-            title: "Connection Successful",
-            description: `Successfully connected to ${connection.name} (REST API)`,
+            title: "✅ Conexão Bem-sucedida",
+            description: `Conectado com sucesso ao ${connection.name} (Supabase)`,
           });
         } else {
-          throw new Error(`API returned status ${response.status}`);
+          throw new Error(data?.error || 'Supabase connection test failed');
+        }
+      } else if (connection.connection_type === 'rest_api') {
+        // Test REST API connection with test-connection edge function
+        const { data, error } = await supabase.functions.invoke('test-connection', {
+          body: { 
+            connectionType: 'rest_api',
+            config: connection.connection_config
+          }
+        });
+
+        if (error) {
+          throw new Error(error.message || 'REST API connection test failed');
+        }
+
+        if (data?.success) {
+          toast({
+            title: "✅ Conexão Bem-sucedida",
+            description: `Conectado com sucesso ao ${connection.name} (REST API)`,
+          });
+        } else {
+          throw new Error(data?.error || 'REST API connection test failed');
         }
       }
     } catch (error: any) {

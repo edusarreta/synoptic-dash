@@ -10,6 +10,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useWidgetData } from "@/hooks/useWidgetData";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -120,7 +121,40 @@ const MOCK_DATA = {
 
 export default function LookerDashboardBuilder() {
   const { user } = useAuth();
-  const { permissions, loading } = usePermissions();
+  const { permissions, loading: permissionsLoading } = usePermissions();
+  const { processWidgetData, loading: dataLoading } = useWidgetData();
+  
+  // Show loading while permissions are being fetched
+  if (permissionsLoading) {
+    return (
+      <AppLayout>
+        <div className="p-6">
+          <div className="max-w-md mx-auto text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <h2 className="text-xl font-semibold mb-2">Carregando...</h2>
+            <p className="text-muted-foreground">Verificando permissões...</p>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  // Show access denied if user doesn't have permissions
+  if (!permissions?.canCreateCharts) {
+    return (
+      <AppLayout>
+        <div className="p-6">
+          <div className="max-w-md mx-auto text-center">
+            <h2 className="text-xl font-semibold mb-2">Acesso Negado</h2>
+            <p className="text-muted-foreground">
+              Você não tem permissão para criar dashboards.
+            </p>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
+  
   const canCreateCharts = permissions?.canCreateCharts || false;
   
   // Dashboard State
@@ -257,7 +291,12 @@ export default function LookerDashboardBuilder() {
       if (error) throw error;
       
       console.log('📊 Tables loaded:', data);
-      setTables(data.tables || []);
+      
+      if (data?.success && data?.tables) {
+        setTables(data.tables || []);
+      } else {
+        throw new Error(data?.error || 'Failed to load tables');
+      }
     } catch (error: any) {
       console.error('❌ Error loading tables:', error);
       toast.error(`Erro ao carregar tabelas: ${error.message}`);
@@ -433,16 +472,31 @@ export default function LookerDashboardBuilder() {
   }, [startDate, endDate]);
 
   const processDataForWidget = useCallback(async (widget: Widget): Promise<any> => {
-    console.log('🔄 Processing data for widget:', widget.type, widget.config);
-    console.log('📅 Date range:', { startDate, endDate });
+    return await processWidgetData(
+      widget, 
+      selectedDataSource, 
+      selectedTable, 
+      dataFields, 
+      startDate, 
+      endDate
+    );
+  }, [processWidgetData, selectedDataSource, selectedTable, dataFields, startDate, endDate]);
 
-    // Always use the selected data source to determine which data to use
-    const isUsingMockData = selectedDataSource === 'Vendas Globais';
-
-    if (!selectedDataSource || (!isUsingMockData && !selectedTable)) {
-      console.log('⚠️ No data source or table selected, using mock data');
-      return generateMockData(widget.type);
+  // Generate mock data for demonstrations
+  const generateMockData = (widgetType: string): any => {
+    switch (widgetType) {
+      case 'scorecard':
+        return { value: Math.floor(Math.random() * 10000) + 1000, label: 'Mock Metric' };
+      case 'bar':
+      case 'line':
+        return {
+          labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May'],
+          datasets: [{ label: 'Mock Data', data: Array.from({ length: 5 }, () => Math.floor(Math.random() * 1000) + 100), backgroundColor: 'hsl(var(--primary))' }]
+        };
+      default:
+        return {};
     }
+  };
 
     if (widget.type === 'scorecard') {
       const metrics = Array.isArray(widget.config.metrics) ? widget.config.metrics : 
@@ -874,7 +928,7 @@ export default function LookerDashboardBuilder() {
     }
     
     return { labels: [], values: [] };
-  }, [dataFields, selectedDataSource, selectedTable, supabase]);
+  };
 
   const updateWidgetConfig = (widgetId: number, configUpdates: Partial<WidgetConfig>) => {
     console.log('🔧 updateWidgetConfig called:', { widgetId, configUpdates });
@@ -1035,7 +1089,7 @@ export default function LookerDashboardBuilder() {
     }
   };
 
-  if (loading) {
+  if (permissionsLoading) {
     return (
       <AppLayout>
         <div className="p-6">
