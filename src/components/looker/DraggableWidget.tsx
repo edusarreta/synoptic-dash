@@ -17,6 +17,8 @@ import {
 // Register Chart.js components
 Chart.register(CategoryScale, LinearScale, BarElement, BarController, Title, Tooltip, Legend);
 
+import { useDraggable } from '@dnd-kit/core';
+
 interface Widget {
   id: number;
   type: 'scorecard' | 'bar' | 'line' | 'pie' | 'filter' | 'table';

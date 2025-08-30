@@ -291,6 +291,9 @@ export default function LookerDashboardBuilder() {
   const processDataForWidget = (widget: Widget) => {
     console.log('🔄 Processing data for widget:', widget.type, widget.config);
     
+    // Always use the selected data source to determine which data to use
+    const isUsingMockData = selectedDataSource === 'Vendas Globais';
+    
     if (widget.type === 'scorecard') {
       const metrics = Array.isArray(widget.config.metrics) ? widget.config.metrics : 
                       widget.config.metric ? [widget.config.metric] : [];
@@ -298,11 +301,11 @@ export default function LookerDashboardBuilder() {
       if (metrics.length === 0) return { value: 0, label: 'Selecione uma métrica' };
       
       const metric = metrics[0];
-      const field = dataFields.find(f => f.id === metric);
-      const metricName = field?.name?.split('.')[1] || metric.split('.')[1] || metric;
       const aggregation = widget.config.aggregation || 'sum';
       
-      if (selectedDataSource === 'Vendas Globais') {
+      if (isUsingMockData) {
+        const field = dataFields.find(f => f.id === metric);
+        const metricName = field?.name?.split('.')[1] || metric.split('.')[1] || metric;
         const source = MOCK_DATA[selectedDataSource];
         let result = 0;
         
@@ -332,7 +335,10 @@ export default function LookerDashboardBuilder() {
           value: Math.round(result * 100) / 100 
         };
       } else {
-        // Generate realistic mock data based on aggregation type
+        // Generate realistic mock data for real database fields
+        const field = dataFields.find(f => f.id === metric);
+        const metricName = field?.name?.split('.')[1] || metric.split('.')[1] || metric;
+        
         let mockValue;
         switch (aggregation) {
           case 'count':
@@ -353,6 +359,7 @@ export default function LookerDashboardBuilder() {
       }
     }
     
+    
     if (widget.type === 'bar') {
       const dimensions = Array.isArray(widget.config.dimensions) ? widget.config.dimensions : 
                         widget.config.dimension ? [widget.config.dimension] : [];
@@ -367,7 +374,7 @@ export default function LookerDashboardBuilder() {
       const dimensionField = dataFields.find(f => f.id === dimension);
       const dimensionName = dimensionField?.name?.split('.')[1] || dimension.split('.')[1] || dimension;
       
-      if (selectedDataSource === 'Vendas Globais') {
+      if (isUsingMockData) {
         const source = MOCK_DATA[selectedDataSource];
         const metric = metrics[0];
         
@@ -385,10 +392,10 @@ export default function LookerDashboardBuilder() {
           metricLabel: metricField?.name || 'Métrica'
         };
       } else {
-        // Generate realistic data based on field types
+        // Generate appropriate data for real database fields
         let labels = [];
         
-        // Generate appropriate labels based on dimension type
+        // Generate appropriate labels based on dimension name
         if (dimensionName.toLowerCase().includes('month') || dimensionName.toLowerCase().includes('mes')) {
           labels = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun'];
         } else if (dimensionName.toLowerCase().includes('country') || dimensionName.toLowerCase().includes('pais')) {
@@ -398,7 +405,8 @@ export default function LookerDashboardBuilder() {
         } else if (dimensionName.toLowerCase().includes('category') || dimensionName.toLowerCase().includes('categoria')) {
           labels = ['Categoria A', 'Categoria B', 'Categoria C', 'Categoria D'];
         } else {
-          labels = ['Item 1', 'Item 2', 'Item 3', 'Item 4', 'Item 5'];
+          // Use generic labels for any field
+          labels = [`${dimensionName} 1`, `${dimensionName} 2`, `${dimensionName} 3`, `${dimensionName} 4`];
         }
         
         if (metrics.length === 1) {
