@@ -500,92 +500,15 @@ export default function LookerDashboardBuilder() {
 
   const updateWidgetConfig = (widgetId: number, configUpdates: Partial<WidgetConfig>) => {
     console.log('🔧 updateWidgetConfig called:', { widgetId, configUpdates });
-      
-      if (isUsingMockData) {
-        const source = MOCK_DATA[selectedDataSource];
-        if (!source || !source.records) {
-          console.warn('No mock data found for:', selectedDataSource);
-          return { value: 0, label: 'Dados não encontrados' };
-        }
-        
-        // Filter data by date range if specified
-        let filteredRecords = source.records;
-        if (startDate || endDate) {
-          filteredRecords = source.records.filter((record: any) => {
-            if (!record.data) return true; // Keep records without date
-            const recordDate = new Date(record.data);
-            if (startDate && recordDate < startDate) return false;
-            if (endDate && recordDate > endDate) return false;
-            return true;
-          });
-        }
-        
-        const field = dataFields.find(f => f.id === metric);
-        const metricName = field?.name || metric;
-        let result = 0;
-        
-        switch (aggregation) {
-          case 'sum':
-            result = filteredRecords.reduce((sum: number, record: any) => sum + (record[metric] || 0), 0);
-            break;
-          case 'count':
-            result = filteredRecords.length;
-            break;
-          case 'count_distinct':
-            result = new Set(filteredRecords.map(record => record[metric])).size;
-            break;
-          case 'avg':
-            result = filteredRecords.reduce((sum: number, record: any) => sum + (record[metric] || 0), 0) / filteredRecords.length;
-            break;
-          case 'min':
-            result = Math.min(...filteredRecords.map(record => record[metric] || 0));
-            break;
-          case 'max':
-            result = Math.max(...filteredRecords.map(record => record[metric] || 0));
-            break;
-        }
-        
-        console.log('✅ Scorecard result:', { result, metricName, aggregation });
-        return { 
-          label: `${metricName} (${aggregation})`, 
-          value: Math.round(result * 100) / 100 
-        };
-      } else {
-        // For real database connections
-        try {
-          console.log('🔄 Querying real scorecard data...');
-          const { data, error } = await supabase.functions.invoke('query-database', {
-            body: {
-              connectionId: selectedDataSource,
-              tableName: selectedTable,
-              metrics: [metric],
-              aggregation,
-              limit: 1
-            }
-          });
-
-          if (error) throw error;
-
-          if (data?.success && data.data?.length > 0) {
-            const value = data.data[0][`${metric}_${aggregation}`] || 0;
-            const field = dataFields.find(f => f.id === metric);
-            const metricName = field?.name || metric;
-            
-            console.log('✅ Real scorecard data:', value);
-            return {
-              value: typeof value === 'number' ? Math.round(value) : parseFloat(value) || 0,
-              label: `${metricName} (${aggregation})`,
-              aggregation: aggregation.toUpperCase()
-            };
-          } else {
-            throw new Error('No data returned from query');
-          }
-        } catch (error: any) {
-          console.warn('⚠️ Query error, using mock data:', error);
-          return generateMockData(widget.type);
-        }
-      }
-    }
+    
+    setWidgets(prevWidgets => 
+      prevWidgets.map(widget => 
+        widget.id === widgetId 
+          ? { ...widget, config: { ...widget.config, ...configUpdates } }
+          : widget
+      )
+    );
+  };
     
     
     if (widget.type === 'bar') {
@@ -919,27 +842,6 @@ export default function LookerDashboardBuilder() {
     }
     
     return { labels: [], values: [] };
-  };
-
-  const updateWidgetConfig = (widgetId: number, configUpdates: Partial<WidgetConfig>) => {
-    console.log('🔧 updateWidgetConfig called:', { widgetId, configUpdates });
-    
-    const updatedWidgets = widgets.map(widget => {
-      if (widget.id === widgetId) {
-        const newConfig = { ...widget.config, ...configUpdates };
-        console.log('📝 Widget config update:', {
-          widgetId,
-          oldConfig: widget.config,
-          updates: configUpdates,
-          newConfig
-        });
-        return { ...widget, config: newConfig };
-      }
-      return widget;
-    });
-    
-    console.log('🔄 Setting new widgets state:', updatedWidgets);
-    setWidgets(updatedWidgets);
   };
 
   const handleFieldClick = (field: DataField) => {
