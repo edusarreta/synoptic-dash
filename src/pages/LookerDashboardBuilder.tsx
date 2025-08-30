@@ -2,22 +2,32 @@ import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useDatabase } from "@/hooks/useDatabase";
 import { supabase } from "@/integrations/supabase/client";
 import { 
   Save, 
-  Play, 
   Plus, 
   BarChart3, 
   Filter, 
   Share2,
-  Eye
+  Eye,
+  Database,
+  LayoutGrid,
+  Hash,
+  Type,
+  TrendingUp,
+  PieChart,
+  LineChart,
+  Table
 } from "lucide-react";
 import { toast } from "sonner";
-import { useToast } from "@/hooks/use-toast";
-import { DndContext, DragEndEvent, DragOverEvent } from '@dnd-kit/core';
+import { DndContext, DragEndEvent } from '@dnd-kit/core';
 
 // Import adapted components
 import { LookerCanvasGrid } from "@/components/looker/LookerCanvasGrid";
@@ -90,6 +100,22 @@ export default function LookerDashboardBuilder() {
   // Dashboard State
   const [dashboardName, setDashboardName] = useState("Meu Relatório Interativo");
   const [isSaving, setIsSaving] = useState(false);
+  const [currentView, setCurrentView] = useState<'data-sources' | 'builder'>('builder');
+  
+  // Data Source Modal State
+  const [showDataSourceModal, setShowDataSourceModal] = useState(false);
+  const [connectionType, setConnectionType] = useState('postgresql');
+  const [formData, setFormData] = useState({
+    name: '',
+    host: '',
+    port: '5432',
+    database_name: '',
+    username: '',
+    password: '',
+    supabase_url: '',
+    anon_key: '',
+    base_url: ''
+  });
   
   // Data State
   const [selectedDataSource, setSelectedDataSource] = useState<string>('Vendas Globais');
@@ -99,28 +125,8 @@ export default function LookerDashboardBuilder() {
   const [isLoadingFields, setIsLoadingFields] = useState(false);
   const [isAddingWidget, setIsAddingWidget] = useState(false);
   
-  // Widget State with example data
-  const [widgets, setWidgets] = useState<Widget[]>([
-    {
-      id: 1,
-      type: 'scorecard',
-      config: { 
-        metrics: ['vendas'],
-        aggregation: 'sum'
-      },
-      layout: { x: 1, y: 1, w: 3, h: 2 }
-    },
-    {
-      id: 2,
-      type: 'bar',
-      config: { 
-        dimensions: ['pais'],
-        metrics: ['vendas'],
-        aggregation: 'sum'
-      },
-      layout: { x: 5, y: 1, w: 6, h: 4 }
-    }
-  ]);
+  // Widget State
+  const [widgets, setWidgets] = useState<Widget[]>([]);
   const [selectedWidget, setSelectedWidget] = useState<number | null>(null);
   
   // Add proper handleDragEnd function
@@ -611,6 +617,12 @@ export default function LookerDashboardBuilder() {
     }
   };
 
+  const handleWidgetUpdate = (widgetId: number, updates: Partial<Widget>) => {
+    setWidgets(widgets.map(widget => 
+      widget.id === widgetId ? { ...widget, ...updates } : widget
+    ));
+  };
+
   const handleSaveDashboard = async () => {
     if (!permissions?.canCreateCharts) {
       toast.error("Você não tem permissão para salvar dashboards");
@@ -650,6 +662,30 @@ export default function LookerDashboardBuilder() {
     }
   };
 
+  // Data source modal handlers
+  const handleSaveDataSource = async () => {
+    try {
+      console.log('💾 Saving data source:', formData);
+      toast.success('Fonte de dados adicionada com sucesso!');
+      setShowDataSourceModal(false);
+      setFormData({
+        name: '',
+        host: '',
+        port: '5432',
+        database_name: '',
+        username: '',
+        password: '',
+        supabase_url: '',
+        anon_key: '',
+        base_url: ''
+      });
+      loadConnections();
+    } catch (error: any) {
+      console.error('❌ Error saving data source:', error);
+      toast.error(`Erro ao salvar fonte de dados: ${error.message}`);
+    }
+  };
+
   if (!permissions?.canCreateCharts) {
     return (
       <AppLayout>
@@ -665,178 +701,429 @@ export default function LookerDashboardBuilder() {
     );
   }
 
+  // Render Data Sources View
+  if (currentView === 'data-sources') {
+    return (
+      <div className="flex h-screen bg-slate-50">
+        {/* Sidebar */}
+        <aside className="w-64 bg-white border-r border-slate-200 flex flex-col shrink-0">
+          <div className="flex items-center justify-center h-16 border-b border-slate-200">
+            <BarChart3 className="w-8 h-8 text-primary mr-2" />
+            <h1 className="text-xl font-bold">SynopticBI</h1>
+          </div>
+          <nav className="flex-1 p-4 space-y-2">
+            <Button
+              variant={currentView === 'data-sources' ? 'default' : 'ghost'}
+              className="w-full justify-start"
+              onClick={() => setCurrentView('data-sources')}
+            >
+              <Database className="w-5 h-5 mr-3" />
+              Fontes de Dados
+            </Button>
+            <Button
+              variant={currentView === 'builder' ? 'default' : 'ghost'}
+              className="w-full justify-start"
+              onClick={() => setCurrentView('builder')}
+            >
+              <LayoutGrid className="w-5 h-5 mr-3" />
+              Construtor
+            </Button>
+          </nav>
+        </aside>
+
+        {/* Data Sources Content */}
+        <main className="flex-1 p-6 overflow-y-auto">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-3xl font-bold">Fontes de Dados</h1>
+              <p className="text-muted-foreground mt-1">Conecte e gerencie as suas ligações de bases de dados</p>
+            </div>
+            <Dialog open={showDataSourceModal} onOpenChange={setShowDataSourceModal}>
+              <DialogTrigger asChild>
+                <Button className="flex items-center gap-2">
+                  <Plus className="w-4 h-4" />
+                  Adicionar Fonte de Dados
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>Adicionar Fonte de Dados</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium">Tipo de Ligação</label>
+                    <Select value={connectionType} onValueChange={setConnectionType}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="postgresql">PostgreSQL</SelectItem>
+                        <SelectItem value="supabase">Supabase</SelectItem>
+                        <SelectItem value="rest_api">API REST</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Nome da Ligação</label>
+                    <Input
+                      value={formData.name}
+                      onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                      placeholder="A minha Base de Dados de Produção"
+                    />
+                  </div>
+                  {connectionType === 'postgresql' && (
+                    <>
+                      <div className="grid grid-cols-3 gap-4">
+                        <div className="col-span-2">
+                          <label className="text-sm font-medium">Host</label>
+                          <Input
+                            value={formData.host}
+                            onChange={(e) => setFormData(prev => ({ ...prev, host: e.target.value }))}
+                            placeholder="localhost"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium">Porta</label>
+                          <Input
+                            value={formData.port}
+                            onChange={(e) => setFormData(prev => ({ ...prev, port: e.target.value }))}
+                            placeholder="5432"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium">Nome da Base de Dados</label>
+                        <Input
+                          value={formData.database_name}
+                          onChange={(e) => setFormData(prev => ({ ...prev, database_name: e.target.value }))}
+                          placeholder="producao_app"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium">Utilizador</label>
+                        <Input
+                          value={formData.username}
+                          onChange={(e) => setFormData(prev => ({ ...prev, username: e.target.value }))}
+                          placeholder="postgres"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium">Palavra-passe</label>
+                        <Input
+                          type="password"
+                          value={formData.password}
+                          onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
+                          placeholder="••••••••"
+                        />
+                      </div>
+                    </>
+                  )}
+                  {connectionType === 'supabase' && (
+                    <>
+                      <div>
+                        <label className="text-sm font-medium">URL do Projeto</label>
+                        <Input
+                          value={formData.supabase_url}
+                          onChange={(e) => setFormData(prev => ({ ...prev, supabase_url: e.target.value }))}
+                          placeholder="https://xyz.supabase.co"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium">Chave Anon (Pública)</label>
+                        <Input
+                          type="password"
+                          value={formData.anon_key}
+                          onChange={(e) => setFormData(prev => ({ ...prev, anon_key: e.target.value }))}
+                          placeholder="••••••••"
+                        />
+                      </div>
+                    </>
+                  )}
+                  {connectionType === 'rest_api' && (
+                    <div>
+                      <label className="text-sm font-medium">URL Base</label>
+                      <Input
+                        value={formData.base_url}
+                        onChange={(e) => setFormData(prev => ({ ...prev, base_url: e.target.value }))}
+                        placeholder="https://api.example.com/v1"
+                      />
+                    </div>
+                  )}
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowDataSourceModal(false)}>
+                    Cancelar
+                  </Button>
+                  <Button onClick={handleSaveDataSource}>
+                    Guardar
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          {/* Connections Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {connections.map((conn) => (
+              <Card key={conn.id} className="hover:shadow-md transition-shadow">
+                <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                      <Database className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg">{conn.name}</CardTitle>
+                      <Badge variant="secondary" className="text-xs">
+                        {conn.connection_type}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="w-4 h-4 rounded-full bg-green-500"></div>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground font-mono truncate mb-3">
+                    {conn.name}
+                  </p>
+                  <div className="flex gap-2">
+                    <Button variant="ghost" size="sm" className="text-primary">
+                      Testar
+                    </Button>
+                    <Button variant="ghost" size="sm">
+                      Editar
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // Render Builder View
   return (
-    <AppLayout>
-      <DndContext onDragEnd={handleDragEnd}>
-        <div className="h-screen flex flex-col bg-background">
+    <div className="flex h-screen bg-slate-50">
+      {/* Sidebar */}
+      <aside className="w-64 bg-white border-r border-slate-200 flex flex-col shrink-0">
+        <div className="flex items-center justify-center h-16 border-b border-slate-200">
+          <BarChart3 className="w-8 h-8 text-primary mr-2" />
+          <h1 className="text-xl font-bold">SynopticBI</h1>
+        </div>
+        <nav className="flex-1 p-4 space-y-2">
+          <Button
+            variant={currentView === 'data-sources' ? 'default' : 'ghost'}
+            className="w-full justify-start"
+            onClick={() => setCurrentView('data-sources')}
+          >
+            <Database className="w-5 h-5 mr-3" />
+            Fontes de Dados
+          </Button>
+          <Button
+            variant={currentView === 'builder' ? 'default' : 'ghost'}
+            className="w-full justify-start"
+            onClick={() => setCurrentView('builder')}
+          >
+            <LayoutGrid className="w-5 h-5 mr-3" />
+            Construtor
+          </Button>
+        </nav>
+      </aside>
+
+      {/* Main Content */}
+      <main className="flex-1 flex flex-col overflow-hidden">
+        <DndContext onDragEnd={handleDragEnd}>
           {/* Header */}
-          <header className="bg-card border-b border-border px-4 py-2 flex items-center justify-between shadow-sm shrink-0">
+          <header className="bg-white border-b px-4 py-2 flex items-center justify-between shadow-sm shrink-0">
             <Input
               value={dashboardName}
               onChange={(e) => setDashboardName(e.target.value)}
               className="text-lg font-bold bg-transparent border-none shadow-none focus-visible:ring-0 px-0 max-w-md"
-              placeholder="Nome do relatório"
             />
-            
             <div className="flex items-center space-x-2">
+              <Button variant="outline" size="sm">
+                <Share2 className="w-4 h-4 mr-2" />
+                Partilhar
+              </Button>
               <Button 
                 variant="outline" 
-                size="sm" 
-                className="gap-2"
-                onClick={() => {
-                  setSelectedDataSource('Vendas Globais');
-                  setSelectedTable('');
-                  setDataFields(MOCK_DATA['Vendas Globais'].fields);
-                }}
+                size="sm"
+                onClick={() => setIsAddingWidget(!isAddingWidget)}
               >
-                📊 Dados de Exemplo
+                <Plus className="w-4 h-4 mr-2" />
+                Adicionar Gráfico
               </Button>
-              
-              <Button variant="outline" size="sm" className="gap-2">
-                <Share2 className="w-4 h-4" />
-                Compartilhar
-              </Button>
-              
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="gap-2"
-                onClick={() => setIsAddingWidget(true)}
-              >
-                <Plus className="w-4 h-4" />
-                Adicionar Widget
-              </Button>
-              
               <Button 
                 size="sm" 
                 onClick={handleSaveDashboard}
                 disabled={isSaving}
-                className="gap-2"
               >
-                <Save className="w-4 h-4" />
+                <Save className="w-4 h-4 mr-2" />
                 {isSaving ? 'Salvando...' : 'Salvar'}
               </Button>
             </div>
           </header>
-          
+
           {/* Widget Type Selector */}
           {isAddingWidget && (
-            <div className="bg-card border-b border-border p-4">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-sm font-medium">Selecione o tipo de widget:</p>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setIsAddingWidget(false)}
-                >
-                  ✕
-                </Button>
-              </div>
-               <div className="flex gap-2">
-                <Button
-                  variant="outline"
+            <div className="bg-muted/50 border-b p-4">
+              <div className="flex items-center gap-2 justify-center">
+                <Button 
+                  variant="outline" 
                   size="sm"
                   onClick={() => addWidget('scorecard')}
-                  className="gap-2"
+                  className="flex items-center gap-2"
                 >
-                  📊 Scorecard
+                  <TrendingUp className="w-4 h-4" />
+                  Scorecard
                 </Button>
-                <Button
-                  variant="outline"
+                <Button 
+                  variant="outline" 
                   size="sm"
                   onClick={() => addWidget('bar')}
-                  className="gap-2"
+                  className="flex items-center gap-2"
                 >
                   <BarChart3 className="w-4 h-4" />
-                  Barras
+                  Gráfico de Barras
                 </Button>
-                <Button
-                  variant="outline"
+                <Button 
+                  variant="outline" 
                   size="sm"
                   onClick={() => addWidget('line')}
-                  className="gap-2"
+                  className="flex items-center gap-2"
                 >
-                  📈 Linha
+                  <LineChart className="w-4 h-4" />
+                  Gráfico de Linha
                 </Button>
-                <Button
-                  variant="outline"
+                <Button 
+                  variant="outline" 
                   size="sm"
                   onClick={() => addWidget('pie')}
-                  className="gap-2"
+                  className="flex items-center gap-2"
                 >
-                  🥧 Pizza
+                  <PieChart className="w-4 h-4" />
+                  Gráfico de Pizza
                 </Button>
-                <Button
-                  variant="outline"
+                <Button 
+                  variant="outline" 
                   size="sm"
                   onClick={() => addWidget('table')}
-                  className="gap-2"
+                  className="flex items-center gap-2"
                 >
-                  📋 Tabela
+                  <Table className="w-4 h-4" />
+                  Tabela
                 </Button>
-                <Button
-                  variant="outline"
+                <Button 
+                  variant="outline" 
                   size="sm"
                   onClick={() => addWidget('filter')}
-                  className="gap-2"
+                  className="flex items-center gap-2"
                 >
                   <Filter className="w-4 h-4" />
                   Filtro
                 </Button>
-               </div>
+              </div>
             </div>
           )}
 
           <div className="flex flex-1 overflow-hidden">
-            {/* Left Sidebar - Data and Properties Panels */}
-            <div className="w-80 border-r border-border bg-card flex flex-col shrink-0">
-              <div className="p-4 border-b border-border">
+            {/* Data Panel */}
+            <aside className="w-72 border-r border-slate-200 bg-white flex flex-col shrink-0">
+              <div className="p-4 border-b border-slate-200">
                 <h2 className="font-semibold text-base">Dados</h2>
               </div>
-              <div className="flex-1 overflow-auto">
-                <LookerDataPanel
-                  dataSources={dataSources}
-                  selectedDataSource={selectedDataSource}
-                  selectedTable={selectedTable}
-                  tables={tables}
-                  dataFields={dataFields}
-                  isLoadingFields={isLoadingFields}
-                  onDataSourceChange={handleDataSourceChange}
-                  onTableChange={handleTableChange}
-                />
+              <div className="flex-1 overflow-auto p-4">
+                <Select value={selectedDataSource} onValueChange={handleDataSourceChange}>
+                  <SelectTrigger className="w-full mb-4">
+                    <SelectValue placeholder="Selecione uma fonte de dados" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {dataSources.map((ds) => (
+                      <SelectItem key={ds.id} value={ds.id}>
+                        {ds.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {selectedDataSource && selectedDataSource !== 'Vendas Globais' && (
+                  <Select value={selectedTable} onValueChange={handleTableChange}>
+                    <SelectTrigger className="w-full mb-4">
+                      <SelectValue placeholder="Selecione uma tabela" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tables.map((table) => (
+                        <SelectItem key={table.name} value={table.name}>
+                          {table.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+
+                <div className="space-y-1">
+                  {dataFields.map((field) => (
+                    <div
+                      key={field.id}
+                      className={`flex items-center p-2 rounded-md text-sm cursor-grab hover:shadow-sm transition-shadow ${
+                        field.type === 'dimension' 
+                          ? 'bg-green-50 border border-green-200 text-green-800' 
+                          : 'bg-blue-50 border border-blue-200 text-blue-800'
+                      }`}
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData('application/json', JSON.stringify({
+                          type: 'field',
+                          field: field
+                        }));
+                      }}
+                    >
+                      {field.type === 'dimension' ? (
+                        <Type className="w-4 h-4 mr-2" />
+                      ) : (
+                        <Hash className="w-4 h-4 mr-2" />
+                      )}
+                      <span className="truncate">{field.name}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            </aside>
 
             {/* Properties Panel */}
-            <div className="w-80 border-r border-border bg-card shrink-0">
-              <LookerPropertiesPanel
-                selectedWidget={selectedWidget ? widgets.find(w => w.id === selectedWidget) || null : null}
-                dataFields={dataFields}
-                onWidgetConfigUpdate={updateWidgetConfig}
-                onDeselectWidget={() => setSelectedWidget(null)}
-              />
-            </div>
+            <aside className="w-80 border-r border-slate-200 bg-white shrink-0">
+              <div className="p-4 border-b border-slate-200">
+                <h2 className="font-semibold text-base">Propriedades</h2>
+              </div>
+              {selectedWidget ? (
+                <div className="p-4">
+                  <p className="text-sm text-muted-foreground">
+                    Widget {selectedWidget} selecionado - {widgets.find(w => w.id === selectedWidget)?.type}
+                  </p>
+                </div>
+              ) : (
+                <div className="p-4 text-center text-muted-foreground">
+                  Selecione um widget para ver as propriedades
+                </div>
+              )}
+            </aside>
 
-            {/* Main Canvas */}
-            <div className="flex-1 flex flex-col overflow-hidden">
-              <div className="flex-1 p-4 bg-muted/20 overflow-auto">
+            {/* Canvas */}
+            <div className="flex-1 p-4 bg-slate-200 overflow-auto">
+              <div className="relative w-full min-h-[1500px] bg-white shadow-lg">
                 <LookerCanvasGrid
                   widgets={widgets}
                   selectedWidgetId={selectedWidget}
                   onWidgetSelect={setSelectedWidget}
-                  onWidgetUpdate={(id, updates) => {
-                    setWidgets(widgets.map(widget => 
-                      widget.id === id ? { ...widget, ...updates } : widget
-                    ));
-                  }}
+                  onWidgetUpdate={handleWidgetUpdate}
                   onWidgetRemove={removeWidget}
                   processDataForWidget={processDataForWidget}
                 />
               </div>
             </div>
           </div>
-        </div>
-      </DndContext>
-    </AppLayout>
+        </DndContext>
+      </main>
+    </div>
   );
 }
