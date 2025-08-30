@@ -6,10 +6,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useDatabase } from "@/hooks/useDatabase";
 import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
 import { 
   Save, 
   Plus, 
@@ -24,7 +28,8 @@ import {
   TrendingUp,
   PieChart,
   LineChart,
-  Table
+  Table,
+  CalendarIcon
 } from "lucide-react";
 import { toast } from "sonner";
 import { DndContext, DragEndEvent } from '@dnd-kit/core';
@@ -102,6 +107,10 @@ export default function LookerDashboardBuilder() {
   const [dashboardName, setDashboardName] = useState("Meu Relatório Interativo");
   const [isSaving, setIsSaving] = useState(false);
   const [currentView, setCurrentView] = useState('builder' as 'data-sources' | 'builder');
+  
+  // Date Range State
+  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
+  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   
   // Data Source Modal State
   const [showDataSourceModal, setShowDataSourceModal] = useState(false);
@@ -315,8 +324,39 @@ export default function LookerDashboardBuilder() {
     }
   };
 
+  const handleFieldTypeChange = (fieldId: string, newType: 'dimension' | 'metric' | 'time_dimension', configuredType?: string) => {
+    console.log('Updating field type:', fieldId, newType, configuredType);
+    setDataFields(prev => prev.map(field => 
+      field.id === fieldId 
+        ? { 
+            ...field, 
+            type: newType, 
+            configuredType: configuredType as 'text' | 'number' | 'date' | 'datetime' | 'boolean' || field.configuredType 
+          }
+        : field
+    ));
+  };
+
+  const handleQuickDateRange = (days: number) => {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(start.getDate() - days);
+    setStartDate(start);
+    setEndDate(end);
+  };
+
+  // Effect to refresh widgets when date range changes
+  useEffect(() => {
+    if (startDate || endDate) {
+      console.log('📅 Date range changed, refreshing widgets:', { startDate, endDate });
+      // Trigger widget refresh by updating a refresh key or re-processing data
+      setWidgets(prev => [...prev]); // This will trigger re-renders
+    }
+  }, [startDate, endDate]);
+
   const processDataForWidget = useCallback(async (widget: Widget): Promise<any> => {
     console.log('🔄 Processing data for widget:', widget.type, widget.config);
+    console.log('📅 Date range:', { startDate, endDate });
     
     // Always use the selected data source to determine which data to use
     const isUsingMockData = selectedDataSource === 'Vendas Globais';
@@ -340,28 +380,40 @@ export default function LookerDashboardBuilder() {
           return { value: 0, label: 'Dados não encontrados' };
         }
         
+        // Filter data by date range if specified
+        let filteredRecords = source.records;
+        if (startDate || endDate) {
+          filteredRecords = source.records.filter((record: any) => {
+            if (!record.data) return true; // Keep records without date
+            const recordDate = new Date(record.data);
+            if (startDate && recordDate < startDate) return false;
+            if (endDate && recordDate > endDate) return false;
+            return true;
+          });
+        }
+        
         const field = dataFields.find(f => f.id === metric);
         const metricName = field?.name || metric;
         let result = 0;
         
         switch (aggregation) {
           case 'sum':
-            result = source.records.reduce((sum: number, record: any) => sum + (record[metric] || 0), 0);
+            result = filteredRecords.reduce((sum: number, record: any) => sum + (record[metric] || 0), 0);
             break;
           case 'count':
-            result = source.records.length;
+            result = filteredRecords.length;
             break;
           case 'count_distinct':
-            result = new Set(source.records.map(record => record[metric])).size;
+            result = new Set(filteredRecords.map(record => record[metric])).size;
             break;
           case 'avg':
-            result = source.records.reduce((sum: number, record: any) => sum + (record[metric] || 0), 0) / source.records.length;
+            result = filteredRecords.reduce((sum: number, record: any) => sum + (record[metric] || 0), 0) / filteredRecords.length;
             break;
           case 'min':
-            result = Math.min(...source.records.map(record => record[metric] || 0));
+            result = Math.min(...filteredRecords.map(record => record[metric] || 0));
             break;
           case 'max':
-            result = Math.max(...source.records.map(record => record[metric] || 0));
+            result = Math.max(...filteredRecords.map(record => record[metric] || 0));
             break;
         }
         
@@ -393,13 +445,15 @@ export default function LookerDashboardBuilder() {
           try {
             console.log('🔄 Querying real scorecard data...');
             const { data, error } = await supabase.functions.invoke('query-database', {
-              body: {
-                connectionId: selectedDataSource,
-                tableName: selectedTable,
-                metrics: [metric],
-                aggregation
-              }
-            });
+                body: {
+                  connectionId: selectedDataSource,
+                  tableName: selectedTable,
+                  metrics: [metric],
+                  aggregation,
+                  startDate: startDate?.toISOString(),
+                  endDate: endDate?.toISOString()
+                }
+              });
 
             if (error) {
               console.warn('⚠️ Query error, using mock data:', error);
@@ -452,8 +506,20 @@ export default function LookerDashboardBuilder() {
           return { labels: [], values: [], datasets: [] };
         }
         
+        // Filter data by date range if specified
+        let filteredRecords = source.records;
+        if (startDate || endDate) {
+          filteredRecords = source.records.filter((record: any) => {
+            if (!record.data) return true;
+            const recordDate = new Date(record.data);
+            if (startDate && recordDate < startDate) return false;
+            if (endDate && recordDate > endDate) return false;
+            return true;
+          });
+        }
+        
         // Group data by dimension and sum metric values
-        const grouped = source.records.reduce((acc: any, record: any) => {
+        const grouped = filteredRecords.reduce((acc: any, record: any) => {
           const key = record[dimension];
           if (!acc[key]) acc[key] = 0;
           acc[key] += record[metric] || 0;

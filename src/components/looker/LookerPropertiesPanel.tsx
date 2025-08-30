@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { X, Settings, Palette, Plus, Trash2, Calendar, Clock } from "lucide-react";
 
 interface DataField {
@@ -156,26 +157,24 @@ export function LookerPropertiesPanel({
                     
                     {/* Field Type Editor */}
                     <div className="flex items-center gap-2 ml-2">
-                      <select 
-                        className="text-xs bg-background border border-border rounded px-1 py-0.5"
-                        value={field.dataType}
-                        onChange={(e) => {
-                          const newDataType = e.target.value;
-                          // Update field data type in dataFields
-                          const updatedFields = dataFields.map(f => 
-                            f.id === field.id ? { ...f, dataType: newDataType } : f
-                          );
-                          // You'll need to pass this function down from parent
-                          console.log('Updating field type:', field.id, newDataType);
+                      <Select 
+                        value={field.configuredType || field.dataType}
+                        onValueChange={(value) => {
+                          console.log('Updating field type:', field.id, value);
+                          // This would need to call a prop function to update the field type
                         }}
                       >
-                        <option value="string">Texto</option>
-                        <option value="integer">Número</option>
-                        <option value="decimal">Decimal</option>
-                        <option value="date">Data</option>
-                        <option value="datetime">Data/Hora</option>
-                        <option value="boolean">Booleano</option>
-                      </select>
+                        <SelectTrigger className="h-6 text-xs bg-background">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-popover border border-border shadow-lg z-50">
+                          <SelectItem value="text">Texto</SelectItem>
+                          <SelectItem value="number">Número</SelectItem>
+                          <SelectItem value="date">Data</SelectItem>
+                          <SelectItem value="datetime">Data/Hora</SelectItem>
+                          <SelectItem value="boolean">Boolean</SelectItem>
+                        </SelectContent>
+                      </Select>
                       
                       <Button
                         variant="ghost"

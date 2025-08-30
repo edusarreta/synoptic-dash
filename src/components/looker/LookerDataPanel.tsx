@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   Database, 
@@ -158,56 +159,71 @@ export function LookerDataPanel({
                 </h3>
                 <div className="space-y-2">
                   {filteredFields.map((field) => (
-                    <div key={field.id} className="border border-border rounded-md p-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          {getFieldIcon(field.dataType)}
-                          <span className="font-medium text-sm">{field.name}</span>
-                          <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
-                            {field.dataType}
-                          </span>
+                    <div key={field.id} className="border border-border rounded-md p-3 hover:bg-accent/10 transition-colors">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-2 h-2 rounded-full ${
+                            field.type === 'dimension' ? 'bg-green-500' :
+                            field.type === 'metric' ? 'bg-blue-500' :
+                            'bg-purple-500'
+                          }`} />
+                          <div className="flex items-center gap-2">
+                            {getFieldIcon(field.dataType)}
+                            <span className="font-medium text-sm">{field.name}</span>
+                          </div>
+                          <Badge variant="secondary" className="text-xs">
+                            {field.type === 'dimension' ? 'Dimensão' :
+                             field.type === 'metric' ? 'Métrica' :
+                             'Temporal'}
+                          </Badge>
                         </div>
                       </div>
                       
-                      <div className="grid grid-cols-2 gap-2 mb-2">
-                        <div>
-                          <label className="text-xs text-muted-foreground mb-1 block">Tipo de Campo</label>
-                          <Select 
-                            value={field.configuredType || field.dataType} 
-                            onValueChange={(value) => {
-                              onFieldTypeChange?.(field.id, field.type, value);
-                            }}
-                          >
-                            <SelectTrigger className="h-8 text-xs">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="text">Texto</SelectItem>
-                              <SelectItem value="number">Número</SelectItem>
-                              <SelectItem value="date">Data</SelectItem>
-                              <SelectItem value="datetime">Data e Hora</SelectItem>
-                              <SelectItem value="boolean">Boolean</SelectItem>
-                            </SelectContent>
-                          </Select>
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-xs font-medium text-muted-foreground mb-1 block">Tipo de Campo</label>
+                            <Select 
+                              value={field.configuredType || field.dataType} 
+                              onValueChange={(value) => {
+                                onFieldTypeChange?.(field.id, field.type, value);
+                              }}
+                            >
+                              <SelectTrigger className="h-8 text-xs bg-background">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent className="bg-popover border border-border shadow-lg z-50">
+                                <SelectItem value="text">Texto</SelectItem>
+                                <SelectItem value="number">Número</SelectItem>
+                                <SelectItem value="date">Data</SelectItem>
+                                <SelectItem value="datetime">Data e Hora</SelectItem>
+                                <SelectItem value="boolean">Boolean</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          
+                          <div>
+                            <label className="text-xs font-medium text-muted-foreground mb-1 block">Usar Como</label>
+                            <Select 
+                              value={field.type} 
+                              onValueChange={(value: 'dimension' | 'metric' | 'time_dimension') => {
+                                onFieldTypeChange?.(field.id, value, field.configuredType);
+                              }}
+                            >
+                              <SelectTrigger className="h-8 text-xs bg-background">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent className="bg-popover border border-border shadow-lg z-50">
+                                <SelectItem value="dimension">Dimensão</SelectItem>
+                                <SelectItem value="metric">Métrica</SelectItem>
+                                <SelectItem value="time_dimension">Dimensão Temporal</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
                         
-                        <div>
-                          <label className="text-xs text-muted-foreground mb-1 block">Usar Como</label>
-                          <Select 
-                            value={field.type} 
-                            onValueChange={(value: 'dimension' | 'metric' | 'time_dimension') => {
-                              onFieldTypeChange?.(field.id, value, field.configuredType);
-                            }}
-                          >
-                            <SelectTrigger className="h-8 text-xs">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="dimension">Dimensão</SelectItem>
-                              <SelectItem value="metric">Métrica</SelectItem>
-                              <SelectItem value="time_dimension">Dimensão Temporal</SelectItem>
-                            </SelectContent>
-                          </Select>
+                        <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+                          <strong>Tipo original:</strong> {field.dataType} | <strong>Tabela:</strong> {field.table}
                         </div>
                       </div>
                       
@@ -312,56 +328,71 @@ export function LookerDataPanel({
                 </h3>
                 <div className="space-y-2">
                   {filteredFields.map((field) => (
-                    <div key={field.id} className="border border-border rounded-md p-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          {getFieldIcon(field.dataType)}
-                          <span className="font-medium text-sm">{field.name.split('.')[1] || field.name}</span>
-                          <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
-                            {field.dataType}
-                          </span>
+                    <div key={field.id} className="border border-border rounded-md p-3 hover:bg-accent/10 transition-colors">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-2 h-2 rounded-full ${
+                            field.type === 'dimension' ? 'bg-green-500' :
+                            field.type === 'metric' ? 'bg-blue-500' :
+                            'bg-purple-500'
+                          }`} />
+                          <div className="flex items-center gap-2">
+                            {getFieldIcon(field.dataType)}
+                            <span className="font-medium text-sm">{field.name.split('.')[1] || field.name}</span>
+                          </div>
+                          <Badge variant="secondary" className="text-xs">
+                            {field.type === 'dimension' ? 'Dimensão' :
+                             field.type === 'metric' ? 'Métrica' :
+                             'Temporal'}
+                          </Badge>
                         </div>
                       </div>
                       
-                      <div className="grid grid-cols-2 gap-2 mb-2">
-                        <div>
-                          <label className="text-xs text-muted-foreground mb-1 block">Tipo de Campo</label>
-                          <Select 
-                            value={field.configuredType || field.dataType} 
-                            onValueChange={(value) => {
-                              onFieldTypeChange?.(field.id, field.type, value);
-                            }}
-                          >
-                            <SelectTrigger className="h-8 text-xs">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="text">Texto</SelectItem>
-                              <SelectItem value="number">Número</SelectItem>
-                              <SelectItem value="date">Data</SelectItem>
-                              <SelectItem value="datetime">Data e Hora</SelectItem>
-                              <SelectItem value="boolean">Boolean</SelectItem>
-                            </SelectContent>
-                          </Select>
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-xs font-medium text-muted-foreground mb-1 block">Tipo de Campo</label>
+                            <Select 
+                              value={field.configuredType || field.dataType} 
+                              onValueChange={(value) => {
+                                onFieldTypeChange?.(field.id, field.type, value);
+                              }}
+                            >
+                              <SelectTrigger className="h-8 text-xs bg-background">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent className="bg-popover border border-border shadow-lg z-50">
+                                <SelectItem value="text">Texto</SelectItem>
+                                <SelectItem value="number">Número</SelectItem>
+                                <SelectItem value="date">Data</SelectItem>
+                                <SelectItem value="datetime">Data e Hora</SelectItem>
+                                <SelectItem value="boolean">Boolean</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          
+                          <div>
+                            <label className="text-xs font-medium text-muted-foreground mb-1 block">Usar Como</label>
+                            <Select 
+                              value={field.type} 
+                              onValueChange={(value: 'dimension' | 'metric' | 'time_dimension') => {
+                                onFieldTypeChange?.(field.id, value, field.configuredType);
+                              }}
+                            >
+                              <SelectTrigger className="h-8 text-xs bg-background">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent className="bg-popover border border-border shadow-lg z-50">
+                                <SelectItem value="dimension">Dimensão</SelectItem>
+                                <SelectItem value="metric">Métrica</SelectItem>
+                                <SelectItem value="time_dimension">Dimensão Temporal</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
                         
-                        <div>
-                          <label className="text-xs text-muted-foreground mb-1 block">Usar Como</label>
-                          <Select 
-                            value={field.type} 
-                            onValueChange={(value: 'dimension' | 'metric' | 'time_dimension') => {
-                              onFieldTypeChange?.(field.id, value, field.configuredType);
-                            }}
-                          >
-                            <SelectTrigger className="h-8 text-xs">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="dimension">Dimensão</SelectItem>
-                              <SelectItem value="metric">Métrica</SelectItem>
-                              <SelectItem value="time_dimension">Dimensão Temporal</SelectItem>
-                            </SelectContent>
-                          </Select>
+                        <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+                          <strong>Tipo original:</strong> {field.dataType} | <strong>Tabela:</strong> {field.table}
                         </div>
                       </div>
                       
