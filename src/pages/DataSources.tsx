@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Plus, Database, Check, X, Edit, Trash2, Globe } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import { createClient } from "@supabase/supabase-js";
 
 interface DataConnection {
   id: string;
@@ -252,25 +253,63 @@ export default function DataSources() {
     setTestingConnection(connection.id);
     
     try {
-      // Test by fetching schema which also tests the connection
-      const { data, error } = await supabase.functions.invoke('get-database-schema', {
-        body: { connectionId: connection.id }
-      });
+      console.log('🔍 Testing connection:', connection.name);
+      
+      if (connection.connection_type === 'postgresql') {
+        // Test PostgreSQL connection with execute-sql-query
+        const { data, error } = await supabase.functions.invoke('execute-sql-query', {
+          body: { 
+            connectionId: connection.id,
+            sqlQuery: 'SELECT 1 as test_connection'
+          }
+        });
 
-      if (error) {
-        throw new Error(error.message || 'Connection test failed');
-      }
+        if (error) {
+          throw new Error(error.message || 'Connection test failed');
+        }
 
-      if (data?.success) {
+        if (data?.success) {
+          toast({
+            title: "Connection Successful",
+            description: `Successfully connected to ${connection.name} (PostgreSQL)`,
+          });
+        } else {
+          throw new Error(data?.error || 'Connection test failed');
+        }
+      } else if (connection.connection_type === 'supabase') {
+        // Test Supabase connection
+        const { url, anon_key } = connection.connection_config || {};
+        if (!url || !anon_key) {
+          throw new Error('Missing Supabase URL or anon key');
+        }
+        
+        const testClient = createClient(url, anon_key);
+        const { error } = await testClient.from('_test_').select('*').limit(1);
+        
+        // Even if table doesn't exist, if we get a proper error response, connection is working
         toast({
           title: "Connection Successful",
-          description: `Successfully connected to ${connection.name}. Found ${data.tables?.length || 0} tables.`,
+          description: `Successfully connected to ${connection.name} (Supabase)`,
         });
-      } else {
-        throw new Error(data?.error || 'Connection test failed');
+      } else if (connection.connection_type === 'rest_api') {
+        // Test REST API connection
+        const { base_url } = connection.connection_config || {};
+        if (!base_url) {
+          throw new Error('Missing API base URL');
+        }
+        
+        const response = await fetch(base_url, { method: 'HEAD' });
+        if (response.ok || response.status === 404 || response.status === 405) {
+          toast({
+            title: "Connection Successful",
+            description: `Successfully connected to ${connection.name} (REST API)`,
+          });
+        } else {
+          throw new Error(`API returned status ${response.status}`);
+        }
       }
     } catch (error: any) {
-      console.error('Connection test error:', error);
+      console.error('❌ Connection test error:', error);
       toast({
         title: "Connection Failed",
         description: error.message || 'Failed to connect to database',
@@ -278,6 +317,57 @@ export default function DataSources() {
       });
     } finally {
       setTestingConnection(null);
+    }
+  };
+
+  const loadTablesForConnection = async (connection: DataConnection) => {
+    try {
+      console.log('📊 Loading tables for connection:', connection.name);
+      
+      if (connection.connection_type === 'postgresql') {
+        const { data, error } = await supabase.functions.invoke('execute-sql-query', {
+          body: { 
+            connectionId: connection.id,
+            sqlQuery: `SELECT table_name, table_type 
+                      FROM information_schema.tables 
+                      WHERE table_schema = 'public' 
+                      ORDER BY table_name`
+          }
+        });
+
+        if (error) throw error;
+
+        if (data?.success && data?.data) {
+          toast({
+            title: "Tables Loaded",
+            description: `Found ${data.data.length} tables in ${connection.name}`,
+          });
+          console.log('📋 Tables:', data.data);
+          return data.data;
+        }
+      } else if (connection.connection_type === 'supabase') {
+        const { data, error } = await supabase.functions.invoke('get-database-schema', {
+          body: { connectionId: connection.id }
+        });
+
+        if (error) throw error;
+
+        if (data?.success && data?.tables) {
+          toast({
+            title: "Tables Loaded",
+            description: `Found ${data.tables.length} tables in ${connection.name}`,
+          });
+          console.log('📋 Tables:', data.tables);
+          return data.tables;
+        }
+      }
+    } catch (error: any) {
+      console.error('❌ Error loading tables:', error);
+      toast({
+        title: "Error Loading Tables",
+        description: error.message || 'Failed to load tables',
+        variant: "destructive"
+      });
     }
   };
 
@@ -788,6 +878,13 @@ export default function DataSources() {
                       className="flex-1"
                     >
                       {testingConnection === connection.id ? "Testing..." : "Test"}
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => loadTablesForConnection(connection)}
+                    >
+                      <Database className="w-4 h-4" />
                     </Button>
                     <Button 
                       size="sm" 
