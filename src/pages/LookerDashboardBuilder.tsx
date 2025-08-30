@@ -499,15 +499,7 @@ export default function LookerDashboardBuilder() {
   };
 
   const updateWidgetConfig = (widgetId: number, configUpdates: Partial<WidgetConfig>) => {
-                      typeof widget.config.metrics === 'string' ? [widget.config.metrics] :
-                      widget.config.metric ? [widget.config.metric] : [];
-      
-      if (metrics.length === 0) return { value: 0, label: 'Selecione uma métrica' };
-      
-      const metric = metrics[0];
-      const aggregation = widget.config.aggregation || 'sum';
-      
-      console.log('🔄 Scorecard processing:', { metric, aggregation, isUsingMockData, selectedDataSource });
+    console.log('🔧 updateWidgetConfig called:', { widgetId, configUpdates });
       
       if (isUsingMockData) {
         const source = MOCK_DATA[selectedDataSource];
