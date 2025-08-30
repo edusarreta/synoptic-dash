@@ -8,14 +8,32 @@ import {
   CategoryScale, 
   LinearScale, 
   BarElement, 
+  LineElement,
+  ArcElement,
+  PointElement,
   BarController,
+  LineController,
+  PieController,
   Title, 
   Tooltip, 
   Legend 
 } from 'chart.js';
 
-// Register Chart.js components
-Chart.register(CategoryScale, LinearScale, BarElement, BarController, Title, Tooltip, Legend);
+// Register ALL Chart.js components needed
+Chart.register(
+  CategoryScale, 
+  LinearScale, 
+  BarElement, 
+  LineElement,
+  ArcElement,
+  PointElement,
+  BarController,
+  LineController, 
+  PieController,
+  Title, 
+  Tooltip, 
+  Legend
+);
 
 import { useDraggable } from '@dnd-kit/core';
 

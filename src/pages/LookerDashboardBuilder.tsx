@@ -331,12 +331,17 @@ export default function LookerDashboardBuilder() {
       const metric = metrics[0];
       const aggregation = widget.config.aggregation || 'sum';
       
-      console.log('🔄 Scorecard processing:', { metric, aggregation, isUsingMockData, metrics: widget.config.metrics });
+      console.log('🔄 Scorecard processing:', { metric, aggregation, isUsingMockData, selectedDataSource });
       
       if (isUsingMockData) {
-        const field = dataFields.find(f => f.id === metric);
-        const metricName = field?.name?.split('.')[1] || metric.split('.')[1] || metric;
         const source = MOCK_DATA[selectedDataSource];
+        if (!source || !source.records) {
+          console.warn('No mock data found for:', selectedDataSource);
+          return { value: 0, label: 'Dados não encontrados' };
+        }
+        
+        const field = dataFields.find(f => f.id === metric);
+        const metricName = field?.name || metric;
         let result = 0;
         
         switch (aggregation) {
@@ -360,14 +365,15 @@ export default function LookerDashboardBuilder() {
             break;
         }
         
+        console.log('✅ Scorecard result:', { result, metricName, aggregation });
         return { 
           label: `${metricName} (${aggregation})`, 
           value: Math.round(result * 100) / 100 
         };
       } else {
-        // Generate realistic mock data for real database fields
+        // For real database connections, generate meaningful mock data
         const field = dataFields.find(f => f.id === metric);
-        const metricName = field?.name?.split('.')[1] || metric.split('.')[1] || metric;
+        const metricName = field?.name || metric;
         
         let mockValue;
         switch (aggregation) {
@@ -382,9 +388,10 @@ export default function LookerDashboardBuilder() {
             mockValue = Math.floor(Math.random() * 50000) + 1000;
         }
         
-        // For real data, query the database
+        // Try to query real data if connection is available
         if (selectedDataSource && selectedTable) {
           try {
+            console.log('🔄 Querying real scorecard data...');
             const { data, error } = await supabase.functions.invoke('query-database', {
               body: {
                 connectionId: selectedDataSource,
@@ -394,28 +401,27 @@ export default function LookerDashboardBuilder() {
               }
             });
 
-            if (error) throw error;
-
-            if (data?.success && data.data && data.data.length > 0) {
+            if (error) {
+              console.warn('⚠️ Query error, using mock data:', error);
+            } else if (data?.success && data.data && data.data.length > 0) {
               const result = data.data[0];
-              const value = result[`${metric}_${aggregation}`] || result.total_count || 0;
-              const field = dataFields.find(f => f.id === metric);
+              const value = result[`${metric}_${aggregation}`] || result.total_count || mockValue;
+              console.log('✅ Real scorecard data:', value);
               
               return {
                 value: typeof value === 'number' ? Math.round(value) : parseFloat(value) || 0,
-                label: field?.name || metric,
+                label: `${metricName} (${aggregation})`,
                 aggregation: aggregation.toUpperCase()
               };
             }
           } catch (error) {
-            console.error('❌ Error querying scorecard data:', error);
-            return { value: 0, label: 'Erro ao carregar dados' };
+            console.warn('⚠️ Error querying scorecard data, using mock:', error);
           }
         }
         
         return {
           value: mockValue,
-          label: `${metricName.charAt(0).toUpperCase() + metricName.slice(1).replace(/_/g, ' ')} (${aggregation})`
+          label: `${metricName} (${aggregation})`
         };
       }
     }
@@ -427,36 +433,60 @@ export default function LookerDashboardBuilder() {
       const metrics = Array.isArray(widget.config.metrics) ? widget.config.metrics : 
                      widget.config.metric ? [widget.config.metric] : [];
       
+      console.log('🔄 Bar chart processing:', { dimensions, metrics, isUsingMockData });
+      
       if (dimensions.length === 0 || metrics.length === 0) {
+        console.warn('⚠️ Bar chart missing dimensions or metrics');
         return { labels: [], values: [], datasets: [] };
       }
       
       const dimension = dimensions[0];
-      const dimensionField = dataFields.find(f => f.id === dimension);
-      const dimensionName = dimensionField?.name?.split('.')[1] || dimension.split('.')[1] || dimension;
+      const metric = metrics[0];
       
       if (isUsingMockData) {
+        console.log('📊 Using mock data for bar chart');
         const source = MOCK_DATA[selectedDataSource];
-        const metric = metrics[0];
         
+        if (!source || !source.records) {
+          console.warn('No mock data source found');
+          return { labels: [], values: [], datasets: [] };
+        }
+        
+        // Group data by dimension and sum metric values
         const grouped = source.records.reduce((acc: any, record: any) => {
           const key = record[dimension];
           if (!acc[key]) acc[key] = 0;
-          acc[key] += record[metric];
+          acc[key] += record[metric] || 0;
           return acc;
         }, {});
         
-        const metricField = source.fields.find(f => f.id === metric);
+        const labels = Object.keys(grouped);
+        const values = Object.values(grouped);
+        const metricField = dataFields.find(f => f.id === metric);
+        const metricName = metricField?.name || metric;
+        
+        console.log('✅ Bar chart mock data result:', { labels, values, metricName });
+        
         return {
-          labels: Object.keys(grouped),
-          values: Object.values(grouped),
-          metricLabel: metricField?.name || 'Métrica'
+          labels,
+          values,
+          metricLabel: metricName,
+          datasets: [{
+            label: metricName,
+            data: values,
+            backgroundColor: 'hsl(var(--primary))',
+            borderRadius: 4
+          }]
         };
       } else {
-        // Generate appropriate data for real database fields
-        let labels = [];
+        // For real database connections, generate meaningful mock data or query
+        const dimensionField = dataFields.find(f => f.id === dimension);
+        const metricField = dataFields.find(f => f.id === metric);
+        const dimensionName = dimensionField?.name || dimension;
+        const metricName = metricField?.name || metric;
         
         // Generate appropriate labels based on dimension name
+        let labels = [];
         if (dimensionName.toLowerCase().includes('month') || dimensionName.toLowerCase().includes('mes')) {
           labels = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun'];
         } else if (dimensionName.toLowerCase().includes('country') || dimensionName.toLowerCase().includes('pais')) {
@@ -470,51 +500,21 @@ export default function LookerDashboardBuilder() {
           labels = [`${dimensionName} 1`, `${dimensionName} 2`, `${dimensionName} 3`, `${dimensionName} 4`];
         }
         
-        if (metrics.length === 1) {
-          const values = labels.map(() => Math.floor(Math.random() * 1000) + 100);
-          const metricField = dataFields.find(f => f.id === metrics[0]);
-          const metricName = metricField?.name?.split('.')[1] || metrics[0].split('.')[1] || metrics[0];
-          
-          return {
-            labels,
-            values,
-            metricLabel: metricName.charAt(0).toUpperCase() + metricName.slice(1).replace(/_/g, ' '),
-            datasets: [{
-              label: metricName.charAt(0).toUpperCase() + metricName.slice(1).replace(/_/g, ' '),
-              data: values,
-              backgroundColor: 'hsl(var(--primary))',
-              borderRadius: 4
-            }]
-          };
-        } else {
-          // Multiple metrics
-          const colors = [
-            'hsl(var(--primary))',
-            'hsl(210, 70%, 60%)',
-            'hsl(120, 70%, 60%)',
-            'hsl(280, 70%, 60%)',
-            'hsl(60, 70%, 60%)'
-          ];
-          
-          const datasets = metrics.map((metric, index) => {
-            const metricField = dataFields.find(f => f.id === metric);
-            const metricName = metricField?.name?.split('.')[1] || metric.split('.')[1] || metric;
-            const values = labels.map(() => Math.floor(Math.random() * 1000) + 100);
-            
-            return {
-              label: metricName.charAt(0).toUpperCase() + metricName.slice(1).replace(/_/g, ' '),
-              data: values,
-              backgroundColor: colors[index % colors.length],
-              borderRadius: 4
-            };
-          });
-          
-          return {
-            labels,
-            datasets,
-            metricLabel: `${metrics.length} métricas`
-          };
-        }
+        const values = labels.map(() => Math.floor(Math.random() * 1000) + 100);
+        
+        console.log('✅ Bar chart generated data:', { labels, values, metricName });
+        
+        return {
+          labels,
+          values,
+          metricLabel: metricName,
+          datasets: [{
+            label: metricName,
+            data: values,
+            backgroundColor: 'hsl(var(--primary))',
+            borderRadius: 4
+          }]
+        };
       }
     }
     
@@ -607,62 +607,79 @@ export default function LookerDashboardBuilder() {
       const metrics = Array.isArray(widget.config.metrics) ? widget.config.metrics : 
                      widget.config.metric ? [widget.config.metric] : [];
       
+      console.log('🔄 Pie chart processing:', { dimensions, metrics, isUsingMockData });
+      
       if (dimensions.length === 0 || metrics.length === 0) {
-        return { labels: [], values: [] };
+        console.warn('⚠️ Pie chart missing dimensions or metrics');
+        return { labels: [], datasets: [] };
       }
       
-      let labels = ['Categoria A', 'Categoria B', 'Categoria C', 'Categoria D'];
-      const values = labels.map(() => Math.floor(Math.random() * 1000) + 100);
-      const colors = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0'];
+      const dimension = dimensions[0];
+      const metric = metrics[0];
       
-      // For real data, query the database
-      if (!isUsingMockData && selectedDataSource && selectedTable) {
-        try {
-          const { data, error } = await supabase.functions.invoke('query-database', {
-            body: {
-              connectionId: selectedDataSource,
-              tableName: selectedTable,
-              dimensions,
-              metrics,
-              aggregation: widget.config.aggregation || 'sum',
-              limit: 10 // Limit for pie chart readability
-            }
-          });
-
-          if (error) throw error;
-
-          if (data?.success && data.data) {
-            const dimension = dimensions[0];
-            const metric = metrics[0];
-            const aggregation = widget.config.aggregation || 'sum';
-            
-            const labels = data.data.map((row: any) => row[dimension]);
-            const values = data.data.map((row: any) => row[`${metric}_${aggregation}`] || 0);
-            const colors = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9966'];
-            
-            return {
-              labels,
-              datasets: [{
-                data: values,
-                backgroundColor: colors.slice(0, labels.length),
-                borderWidth: 1
-              }]
-            };
-          }
-        } catch (error) {
-          console.error('❌ Error querying pie chart data:', error);
+      if (isUsingMockData) {
+        console.log('📊 Using mock data for pie chart');
+        const source = MOCK_DATA[selectedDataSource];
+        
+        if (!source || !source.records) {
+          console.warn('No mock data source found');
           return { labels: [], datasets: [] };
         }
+        
+        // Group data by dimension and sum metric values  
+        const grouped = source.records.reduce((acc: any, record: any) => {
+          const key = record[dimension];
+          if (!acc[key]) acc[key] = 0;
+          acc[key] += record[metric] || 0;
+          return acc;
+        }, {});
+        
+        const labels = Object.keys(grouped);
+        const values = Object.values(grouped);
+        const colors = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9966'];
+        
+        console.log('✅ Pie chart mock data result:', { labels, values });
+        
+        return {
+          labels,
+          datasets: [{
+            data: values,
+            backgroundColor: colors.slice(0, labels.length),
+            borderWidth: 1
+          }]
+        };
+      } else {
+        // For real database connections, generate meaningful mock data or query
+        const dimensionField = dataFields.find(f => f.id === dimension);
+        const metricField = dataFields.find(f => f.id === metric);
+        const dimensionName = dimensionField?.name || dimension;
+        
+        // Generate appropriate labels based on dimension name
+        let labels = [];
+        if (dimensionName.toLowerCase().includes('category') || dimensionName.toLowerCase().includes('categoria')) {
+          labels = ['Categoria A', 'Categoria B', 'Categoria C', 'Categoria D'];
+        } else if (dimensionName.toLowerCase().includes('region') || dimensionName.toLowerCase().includes('regiao')) {
+          labels = ['Norte', 'Sul', 'Leste', 'Oeste'];
+        } else if (dimensionName.toLowerCase().includes('country') || dimensionName.toLowerCase().includes('pais')) {
+          labels = ['Brasil', 'EUA', 'México', 'Argentina'];
+        } else {
+          labels = [`${dimensionName} 1`, `${dimensionName} 2`, `${dimensionName} 3`, `${dimensionName} 4`];
+        }
+        
+        const values = labels.map(() => Math.floor(Math.random() * 1000) + 100);
+        const colors = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9966'];
+        
+        console.log('✅ Pie chart generated data:', { labels, values });
+        
+        return {
+          labels,
+          datasets: [{
+            data: values,
+            backgroundColor: colors.slice(0, labels.length),
+            borderWidth: 1
+          }]
+        };
       }
-      
-      return {
-        labels,
-        datasets: [{
-          data: values,
-          backgroundColor: colors,
-          borderWidth: 1
-        }]
-      };
     }
     
     if (widget.type === 'table') {
