@@ -133,22 +133,24 @@ export function DraggableWidget({
       ref={setNodeRef}
       style={style}
       className={`
-        relative bg-card border rounded-lg shadow-sm overflow-hidden transition-all
+        relative bg-card border rounded-lg shadow-sm overflow-hidden transition-all cursor-pointer
         ${isSelected ? 'border-primary shadow-lg ring-2 ring-primary/20' : 'border-border hover:border-muted-foreground/50'}
         ${isDragging ? 'z-50' : ''}
       `}
       onClick={(e) => {
         e.stopPropagation();
-        onSelect(widget.id);
+        if (!isDragging && !isResizing) {
+          onSelect(widget.id);
+        }
       }}
     >
-      {/* Drag Handle and Controls (visible when selected) */}
-      {isSelected && (
-        <div className="absolute -top-10 left-0 flex items-center gap-2 bg-card border rounded px-2 py-1 shadow-sm z-10">
+      {/* Drag Handle and Controls (always visible for better UX) */}
+      <div className={`absolute ${isSelected ? '-top-10' : 'top-1'} right-1 flex items-center gap-2 bg-card/90 backdrop-blur border rounded px-2 py-1 shadow-sm z-20 transition-all`}>
+        {isSelected && (
           <div
             {...attributes}
             {...listeners}
-            className="cursor-grab active:cursor-grabbing flex items-center gap-1 px-1"
+            className="cursor-grab active:cursor-grabbing flex items-center gap-1 px-1 hover:bg-muted/50 rounded"
           >
             <GripVertical className="w-3 h-3 text-muted-foreground" />
             {widget.type === 'scorecard' && <TrendingUp className="w-3 h-3" />}
@@ -159,19 +161,21 @@ export function DraggableWidget({
             {widget.type === 'filter' && <FilterIcon className="w-3 h-3" />}
             <span className="text-xs font-medium capitalize">{widget.type}</span>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 w-6 p-0 hover:bg-destructive hover:text-destructive-foreground"
-            onClick={(e) => {
-              e.stopPropagation();
-              onRemove(widget.id);
-            }}
-          >
-            <Trash2 className="w-3 h-3" />
-          </Button>
-        </div>
-      )}
+        )}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 w-6 p-0 hover:bg-destructive hover:text-destructive-foreground opacity-80 hover:opacity-100"
+          onClick={(e) => {
+            e.stopPropagation();
+            console.log('🗑️ Removing widget:', widget.id);
+            onRemove(widget.id);
+          }}
+          title="Excluir widget"
+        >
+          <Trash2 className="w-3 h-3" />
+        </Button>
+      </div>
 
       {/* Resize Handle (visible when selected) */}
       {isSelected && (

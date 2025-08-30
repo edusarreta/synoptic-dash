@@ -121,7 +121,10 @@ export function LookerCanvasGrid({
               minHeight: '100%',
               alignContent: 'start'
             }}
-            onClick={() => onWidgetSelect(null)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onWidgetSelect(null);
+            }}
           >
             {widgets.map(widget => (
               <DraggableWidget
