@@ -498,8 +498,7 @@ export default function LookerDashboardBuilder() {
     }
   };
 
-    if (widget.type === 'scorecard') {
-      const metrics = Array.isArray(widget.config.metrics) ? widget.config.metrics : 
+  const updateWidgetConfig = (widgetId: number, configUpdates: Partial<WidgetConfig>) => {
                       typeof widget.config.metrics === 'string' ? [widget.config.metrics] :
                       widget.config.metric ? [widget.config.metric] : [];
       
