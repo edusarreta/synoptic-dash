@@ -75,9 +75,12 @@ export function LookerPropertiesPanel({
           }`}
           onDrop={(e) => {
             e.preventDefault();
+            e.stopPropagation();
             try {
               const dragData = JSON.parse(e.dataTransfer.getData('application/json'));
-              console.log('📥 Drop data received:', dragData);
+              console.log('📥 Drop data received in properties panel:', dragData);
+              console.log('🎯 Expected type:', acceptedType, 'Received type:', dragData.field?.type);
+              console.log('🔧 Config key:', configKey, 'Allow multiple:', allowMultiple);
               
               if (dragData.type === 'field' && dragData.field.type === acceptedType) {
                 const fieldId = dragData.field.id;
@@ -93,8 +96,25 @@ export function LookerPropertiesPanel({
                   newValues = [fieldId];
                 }
                 
-                console.log('✅ Updating widget config:', configKey, newValues);
-                onWidgetConfigUpdate(selectedWidget.id, { [configKey]: allowMultiple ? newValues : newValues[0] });
+                console.log('✅ Updating widget config:', {
+                  widgetId: selectedWidget.id,
+                  configKey,
+                  newValues,
+                  finalValue: allowMultiple ? newValues : newValues[0]
+                });
+                
+                // Call the update function
+                onWidgetConfigUpdate(selectedWidget.id, { 
+                  [configKey]: allowMultiple ? newValues : newValues[0],
+                  // Ensure aggregation is set for metrics
+                  ...(acceptedType === 'metric' && { aggregation: selectedWidget.config.aggregation || 'sum' })
+                });
+              } else {
+                console.warn('❌ Field type mismatch or invalid drop:', {
+                  expectedType: acceptedType,
+                  receivedType: dragData.field?.type,
+                  dragData
+                });
               }
             } catch (error) {
               console.error('❌ Error processing dropped field:', error);

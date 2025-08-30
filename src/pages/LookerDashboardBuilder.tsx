@@ -610,11 +610,24 @@ export default function LookerDashboardBuilder() {
   };
 
   const updateWidgetConfig = (widgetId: number, configUpdates: Partial<WidgetConfig>) => {
-    setWidgets(widgets.map(widget => 
-      widget.id === widgetId 
-        ? { ...widget, config: { ...widget.config, ...configUpdates } }
-        : widget
-    ));
+    console.log('🔧 updateWidgetConfig called:', { widgetId, configUpdates });
+    
+    const updatedWidgets = widgets.map(widget => {
+      if (widget.id === widgetId) {
+        const newConfig = { ...widget.config, ...configUpdates };
+        console.log('📝 Widget config update:', {
+          widgetId,
+          oldConfig: widget.config,
+          updates: configUpdates,
+          newConfig
+        });
+        return { ...widget, config: newConfig };
+      }
+      return widget;
+    });
+    
+    console.log('🔄 Setting new widgets state:', updatedWidgets);
+    setWidgets(updatedWidgets);
   };
 
   const addWidget = (type: Widget['type']) => {
