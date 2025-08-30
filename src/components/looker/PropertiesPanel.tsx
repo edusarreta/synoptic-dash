@@ -24,7 +24,7 @@ import {
 
 interface DataField {
   name: string;
-  type: 'dimension' | 'metric';
+  type: 'dimension' | 'metric' | 'time_dimension';
   dataType: string;
   table: string;
 }

@@ -7,9 +7,10 @@ import { X, Settings, Palette, Plus, Trash2, Calendar, Clock } from "lucide-reac
 interface DataField {
   id: string;
   name: string;
-  type: 'dimension' | 'metric';
+  type: 'dimension' | 'metric' | 'time_dimension';
   dataType: string;
   table: string;
+  configuredType?: 'text' | 'number' | 'date' | 'datetime' | 'boolean';
 }
 
 interface Widget {
