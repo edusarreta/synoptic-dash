@@ -125,8 +125,28 @@ export default function LookerDashboardBuilder() {
   const [isLoadingFields, setIsLoadingFields] = useState(false);
   const [isAddingWidget, setIsAddingWidget] = useState(false);
   
-  // Widget State
-  const [widgets, setWidgets] = useState<Widget[]>([]);
+  // Widget State - inicializar com alguns widgets de exemplo
+  const [widgets, setWidgets] = useState<Widget[]>([
+    {
+      id: 1,
+      type: 'scorecard',
+      config: { 
+        metrics: ['vendas'],
+        aggregation: 'sum'
+      },
+      layout: { x: 1, y: 1, w: 3, h: 2 }
+    },
+    {
+      id: 2,
+      type: 'bar',
+      config: { 
+        dimensions: ['pais'],
+        metrics: ['vendas'],
+        aggregation: 'sum'
+      },
+      layout: { x: 5, y: 1, w: 6, h: 4 }
+    }
+  ]);
   const [selectedWidget, setSelectedWidget] = useState<number | null>(null);
   
   // Add proper handleDragEnd function
@@ -246,8 +266,8 @@ export default function LookerDashboardBuilder() {
           fieldName.includes('valor');
         
         return {
-          id: `${tableName}.${field.name}`,
-          name: `${tableName}.${field.name}`,
+          id: field.name,
+          name: field.name,
           type: isMetric ? 'metric' as const : 'dimension' as const,
           dataType: field.dataType || 'unknown',
           table: tableName
@@ -1078,6 +1098,7 @@ export default function LookerDashboardBuilder() {
                       }`}
                       draggable
                       onDragStart={(e) => {
+                        console.log('🎯 Dragging field:', field);
                         e.dataTransfer.setData('application/json', JSON.stringify({
                           type: 'field',
                           field: field
@@ -1098,20 +1119,12 @@ export default function LookerDashboardBuilder() {
 
             {/* Properties Panel */}
             <aside className="w-80 border-r border-slate-200 bg-white shrink-0">
-              <div className="p-4 border-b border-slate-200">
-                <h2 className="font-semibold text-base">Propriedades</h2>
-              </div>
-              {selectedWidget ? (
-                <div className="p-4">
-                  <p className="text-sm text-muted-foreground">
-                    Widget {selectedWidget} selecionado - {widgets.find(w => w.id === selectedWidget)?.type}
-                  </p>
-                </div>
-              ) : (
-                <div className="p-4 text-center text-muted-foreground">
-                  Selecione um widget para ver as propriedades
-                </div>
-              )}
+              <LookerPropertiesPanel
+                selectedWidget={widgets.find(w => w.id === selectedWidget) || null}
+                dataFields={dataFields}
+                onWidgetConfigUpdate={updateWidgetConfig}
+                onDeselectWidget={() => setSelectedWidget(null)}
+              />
             </aside>
 
             {/* Canvas */}
