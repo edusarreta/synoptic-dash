@@ -33,7 +33,7 @@ interface DraggableWidgetProps {
   onSelect: (id: number | null) => void;
   onUpdate: (id: number, updates: Partial<Widget>) => void;
   onRemove: (id: number) => void;
-  processData: (widget: Widget) => any;
+  processData: (widget: Widget) => Promise<any>;
 }
 
 export function DraggableWidget({
@@ -71,7 +71,22 @@ export function DraggableWidget({
     opacity: isDragging ? 0.5 : 1,
   };
 
-  const data = processData(widget);
+  const [data, setData] = useState<any>({});
+  
+  // Load data when widget config changes
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const result = await processData(widget);
+        setData(result);
+      } catch (error) {
+        console.error('Error loading widget data:', error);
+        setData({});
+      }
+    };
+    
+    loadData();
+  }, [widget, processData]);
 
   // Handle resize
   const handleResizeStart = (e: React.MouseEvent) => {

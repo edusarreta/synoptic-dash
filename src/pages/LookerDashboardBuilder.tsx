@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -315,7 +315,7 @@ export default function LookerDashboardBuilder() {
     }
   };
 
-  const processDataForWidget = (widget: Widget) => {
+  const processDataForWidget = useCallback(async (widget: Widget): Promise<any> => {
     console.log('🔄 Processing data for widget:', widget.type, widget.config);
     
     // Always use the selected data source to determine which data to use
@@ -380,6 +380,37 @@ export default function LookerDashboardBuilder() {
             break;
           default:
             mockValue = Math.floor(Math.random() * 50000) + 1000;
+        }
+        
+        // For real data, query the database
+        if (selectedDataSource && selectedTable) {
+          try {
+            const { data, error } = await supabase.functions.invoke('query-database', {
+              body: {
+                connectionId: selectedDataSource,
+                tableName: selectedTable,
+                metrics: [metric],
+                aggregation
+              }
+            });
+
+            if (error) throw error;
+
+            if (data?.success && data.data && data.data.length > 0) {
+              const result = data.data[0];
+              const value = result[`${metric}_${aggregation}`] || result.total_count || 0;
+              const field = dataFields.find(f => f.id === metric);
+              
+              return {
+                value: typeof value === 'number' ? Math.round(value) : parseFloat(value) || 0,
+                label: field?.name || metric,
+                aggregation: aggregation.toUpperCase()
+              };
+            }
+          } catch (error) {
+            console.error('❌ Error querying scorecard data:', error);
+            return { value: 0, label: 'Erro ao carregar dados' };
+          }
         }
         
         return {
@@ -520,6 +551,53 @@ export default function LookerDashboardBuilder() {
         };
       });
       
+      // For real data, query the database
+      if (!isUsingMockData && selectedDataSource && selectedTable) {
+        try {
+          const { data, error } = await supabase.functions.invoke('query-database', {
+            body: {
+              connectionId: selectedDataSource,
+              tableName: selectedTable,
+              dimensions,
+              metrics,
+              aggregation: widget.config.aggregation || 'sum',
+              limit: 50
+            }
+          });
+
+          if (error) throw error;
+
+          if (data?.success && data.data) {
+            const dimension = dimensions[0];
+            const metric = metrics[0];
+            const aggregation = widget.config.aggregation || 'sum';
+            
+            const labels = data.data.map((row: any) => row[dimension]);
+            const values = data.data.map((row: any) => row[`${metric}_${aggregation}`] || 0);
+            const colors = ['hsl(var(--primary))', 'hsl(210, 70%, 60%)', 'hsl(120, 70%, 60%)'];
+            
+            const datasets = metrics.map((metricField, index) => {
+              const metricFieldData = dataFields.find(f => f.id === metricField);
+              const metricName = metricFieldData?.name?.split('.')[1] || metricField.split('.')[1] || metricField;
+              const values = labels.map(() => Math.floor(Math.random() * 1000) + 100);
+              
+              return {
+                label: metricName.charAt(0).toUpperCase() + metricName.slice(1).replace(/_/g, ' '),
+                data: values,
+                borderColor: colors[index % colors.length],
+                backgroundColor: colors[index % colors.length] + '20',
+                tension: 0.3
+              };
+            });
+            
+            return { labels, datasets };
+          }
+        } catch (error) {
+          console.error('❌ Error querying line chart data:', error);
+          return { labels: [], datasets: [] };
+        }
+      }
+      
       return { labels, datasets };
     }
     
@@ -536,6 +614,46 @@ export default function LookerDashboardBuilder() {
       let labels = ['Categoria A', 'Categoria B', 'Categoria C', 'Categoria D'];
       const values = labels.map(() => Math.floor(Math.random() * 1000) + 100);
       const colors = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0'];
+      
+      // For real data, query the database
+      if (!isUsingMockData && selectedDataSource && selectedTable) {
+        try {
+          const { data, error } = await supabase.functions.invoke('query-database', {
+            body: {
+              connectionId: selectedDataSource,
+              tableName: selectedTable,
+              dimensions,
+              metrics,
+              aggregation: widget.config.aggregation || 'sum',
+              limit: 10 // Limit for pie chart readability
+            }
+          });
+
+          if (error) throw error;
+
+          if (data?.success && data.data) {
+            const dimension = dimensions[0];
+            const metric = metrics[0];
+            const aggregation = widget.config.aggregation || 'sum';
+            
+            const labels = data.data.map((row: any) => row[dimension]);
+            const values = data.data.map((row: any) => row[`${metric}_${aggregation}`] || 0);
+            const colors = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9966'];
+            
+            return {
+              labels,
+              datasets: [{
+                data: values,
+                backgroundColor: colors.slice(0, labels.length),
+                borderWidth: 1
+              }]
+            };
+          }
+        } catch (error) {
+          console.error('❌ Error querying pie chart data:', error);
+          return { labels: [], datasets: [] };
+        }
+      }
       
       return {
         labels,
@@ -611,7 +729,7 @@ export default function LookerDashboardBuilder() {
     }
     
     return { labels: [], values: [] };
-  };
+  }, [dataFields, selectedDataSource, selectedTable, supabase]);
 
   const updateWidgetConfig = (widgetId: number, configUpdates: Partial<WidgetConfig>) => {
     console.log('🔧 updateWidgetConfig called:', { widgetId, configUpdates });
