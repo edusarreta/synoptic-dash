@@ -151,6 +151,9 @@ export function DraggableWidget({
             <GripVertical className="w-3 h-3 text-muted-foreground" />
             {widget.type === 'scorecard' && <TrendingUp className="w-3 h-3" />}
             {widget.type === 'bar' && <BarChart3 className="w-3 h-3" />}
+            {widget.type === 'line' && <span className="text-xs">📈</span>}
+            {widget.type === 'pie' && <span className="text-xs">🥧</span>}
+            {widget.type === 'table' && <span className="text-xs">📋</span>}
             {widget.type === 'filter' && <FilterIcon className="w-3 h-3" />}
             <span className="text-xs font-medium capitalize">{widget.type}</span>
           </div>
@@ -272,6 +275,159 @@ export function DraggableWidget({
           </div>
         )}
 
+        {widget.type === 'line' && (
+          <div className="flex flex-col h-full">
+            <h3 className="text-sm font-medium mb-2">Gráfico de Linha</h3>
+            <div className="flex-1 relative">
+              {data.labels && data.datasets ? (
+                <canvas
+                  ref={(canvas) => {
+                    if (canvas && data.labels && data.datasets) {
+                      if (chartRef.current) {
+                        chartRef.current.destroy();
+                        chartRef.current = null;
+                      }
+
+                      const ctx = canvas.getContext('2d');
+                      if (ctx) {
+                        try {
+                          chartRef.current = new Chart(ctx, {
+                            type: 'line',
+                            data: {
+                              labels: data.labels,
+                              datasets: data.datasets
+                            },
+                            options: {
+                              responsive: true,
+                              maintainAspectRatio: false,
+                              plugins: {
+                                legend: { 
+                                  display: true,
+                                  position: 'top' 
+                                }
+                              },
+                              scales: {
+                                y: {
+                                  beginAtZero: true
+                                }
+                              }
+                            }
+                          });
+                        } catch (error) {
+                          console.error('Line chart creation error:', error);
+                        }
+                      }
+                    }
+                  }}
+                  className="w-full h-full"
+                />
+              ) : (
+                <div className="flex items-center justify-center h-full text-center">
+                  <div>
+                    <span className="text-2xl mb-2 block">📈</span>
+                    <p className="text-xs text-muted-foreground">Configure dimensões e métricas</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {widget.type === 'pie' && (
+          <div className="flex flex-col h-full">
+            <h3 className="text-sm font-medium mb-2">Gráfico de Pizza</h3>
+            <div className="flex-1 relative">
+              {data.labels && data.datasets ? (
+                <canvas
+                  ref={(canvas) => {
+                    if (canvas && data.labels && data.datasets) {
+                      if (chartRef.current) {
+                        chartRef.current.destroy();
+                        chartRef.current = null;
+                      }
+
+                      const ctx = canvas.getContext('2d');
+                      if (ctx) {
+                        try {
+                          chartRef.current = new Chart(ctx, {
+                            type: 'pie',
+                            data: {
+                              labels: data.labels,
+                              datasets: data.datasets
+                            },
+                            options: {
+                              responsive: true,
+                              maintainAspectRatio: false,
+                              plugins: {
+                                legend: { 
+                                  display: true,
+                                  position: 'right' 
+                                }
+                              }
+                            }
+                          });
+                        } catch (error) {
+                          console.error('Pie chart creation error:', error);
+                        }
+                      }
+                    }
+                  }}
+                  className="w-full h-full"
+                />
+              ) : (
+                <div className="flex items-center justify-center h-full text-center">
+                  <div>
+                    <span className="text-2xl mb-2 block">🥧</span>
+                    <p className="text-xs text-muted-foreground">Configure dimensões e métricas</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {widget.type === 'table' && (
+          <div className="flex flex-col h-full">
+            <h3 className="text-sm font-medium mb-2">Tabela</h3>
+            <div className="flex-1 overflow-auto">
+              {data.columns && data.rows ? (
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b">
+                      {data.columns.map((col: any, index: number) => (
+                        <th key={index} className="text-left p-1 font-medium">
+                          {col.name}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.rows.map((row: any, rowIndex: number) => (
+                      <tr key={rowIndex} className="border-b border-muted">
+                        {data.columns.map((col: any, colIndex: number) => (
+                          <td key={colIndex} className="p-1">
+                            {typeof row[col.key] === 'number' 
+                              ? row[col.key].toLocaleString('pt-BR')
+                              : row[col.key]
+                            }
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="flex items-center justify-center h-full text-center">
+                  <div>
+                    <span className="text-2xl mb-2 block">📋</span>
+                    <p className="text-xs text-muted-foreground">Configure campos para a tabela</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {widget.type === 'filter' && (
           <div className="flex flex-col h-full">
             <label className="text-sm font-medium mb-2 text-muted-foreground">
@@ -303,6 +459,9 @@ export function DraggableWidget({
                   <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center mb-3 mx-auto">
                     {widget.type === 'scorecard' && <TrendingUp className="w-6 h-6 text-muted-foreground" />}
                     {widget.type === 'bar' && <BarChart3 className="w-6 h-6 text-muted-foreground" />}
+                    {widget.type === 'line' && <span className="text-2xl">📈</span>}
+                    {widget.type === 'pie' && <span className="text-2xl">🥧</span>}
+                    {widget.type === 'table' && <span className="text-2xl">📋</span>}
                   </div>
                   <h3 className="font-medium text-sm mb-1">Configurar {widget.type}</h3>
                   <p className="text-xs text-muted-foreground">

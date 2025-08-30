@@ -126,7 +126,31 @@ export default function LookerDashboardBuilder() {
   // Add proper handleDragEnd function
   const handleDragEnd = (event: DragEndEvent) => {
     console.log('🎯 Drag ended:', event);
-    // Handle widget reordering or other drag end logic here
+    const { active, over } = event;
+    
+    if (!over) return;
+
+    // Handle field drop onto widget properties panel
+    if (active.data.current?.type === 'field' && over.data.current?.type === 'widget-config') {
+      const field = active.data.current.field;
+      const widgetId = over.data.current.widgetId;
+      const configType = over.data.current.configType; // 'dimensions', 'metrics', etc.
+      
+      console.log('📊 Dropping field onto widget config:', { field, widgetId, configType });
+      
+      const configUpdate: any = {};
+      
+      if (configType === 'dimensions' && field.type === 'dimension') {
+        configUpdate.dimensions = [field.id];
+      } else if (configType === 'metrics' && field.type === 'metric') {
+        configUpdate.metrics = [field.id];
+        configUpdate.aggregation = configUpdate.aggregation || 'sum';
+      }
+      
+      if (Object.keys(configUpdate).length > 0) {
+        updateWidgetConfig(widgetId, configUpdate);
+      }
+    }
   };
 
   // Initialize data sources
@@ -425,6 +449,99 @@ export default function LookerDashboardBuilder() {
       }
     }
     
+    
+    if (widget.type === 'line') {
+      const dimensions = Array.isArray(widget.config.dimensions) ? widget.config.dimensions : 
+                        widget.config.dimension ? [widget.config.dimension] : [];
+      const metrics = Array.isArray(widget.config.metrics) ? widget.config.metrics : 
+                     widget.config.metric ? [widget.config.metric] : [];
+      
+      if (dimensions.length === 0 || metrics.length === 0) {
+        return { labels: [], datasets: [] };
+      }
+      
+      // Similar to bar chart but for line chart
+      const dimension = dimensions[0];
+      const dimensionField = dataFields.find(f => f.id === dimension);
+      const dimensionName = dimensionField?.name?.split('.')[1] || dimension.split('.')[1] || dimension;
+      
+      let labels = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun'];
+      const colors = ['hsl(var(--primary))', 'hsl(210, 70%, 60%)', 'hsl(120, 70%, 60%)'];
+      
+      const datasets = metrics.map((metric, index) => {
+        const metricField = dataFields.find(f => f.id === metric);
+        const metricName = metricField?.name?.split('.')[1] || metric.split('.')[1] || metric;
+        const values = labels.map(() => Math.floor(Math.random() * 1000) + 100);
+        
+        return {
+          label: metricName.charAt(0).toUpperCase() + metricName.slice(1).replace(/_/g, ' '),
+          data: values,
+          borderColor: colors[index % colors.length],
+          backgroundColor: colors[index % colors.length] + '20',
+          tension: 0.3
+        };
+      });
+      
+      return { labels, datasets };
+    }
+    
+    if (widget.type === 'pie') {
+      const dimensions = Array.isArray(widget.config.dimensions) ? widget.config.dimensions : 
+                        widget.config.dimension ? [widget.config.dimension] : [];
+      const metrics = Array.isArray(widget.config.metrics) ? widget.config.metrics : 
+                     widget.config.metric ? [widget.config.metric] : [];
+      
+      if (dimensions.length === 0 || metrics.length === 0) {
+        return { labels: [], values: [] };
+      }
+      
+      let labels = ['Categoria A', 'Categoria B', 'Categoria C', 'Categoria D'];
+      const values = labels.map(() => Math.floor(Math.random() * 1000) + 100);
+      const colors = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0'];
+      
+      return {
+        labels,
+        datasets: [{
+          data: values,
+          backgroundColor: colors,
+          borderWidth: 1
+        }]
+      };
+    }
+    
+    if (widget.type === 'table') {
+      const dimensions = Array.isArray(widget.config.dimensions) ? widget.config.dimensions : [];
+      const metrics = Array.isArray(widget.config.metrics) ? widget.config.metrics : [];
+      
+      if (dimensions.length === 0 && metrics.length === 0) {
+        return { columns: [], rows: [] };
+      }
+      
+      const columns = [...dimensions, ...metrics].map(fieldId => {
+        const field = dataFields.find(f => f.id === fieldId);
+        return {
+          key: fieldId,
+          name: field?.name?.split('.')[1] || fieldId.split('.')[1] || fieldId,
+          type: field?.type || 'dimension'
+        };
+      });
+      
+      // Generate sample rows
+      const rows = Array.from({ length: 5 }, (_, i) => {
+        const row: any = {};
+        columns.forEach(col => {
+          if (col.type === 'metric') {
+            row[col.key] = Math.floor(Math.random() * 1000) + 100;
+          } else {
+            row[col.key] = `Item ${i + 1}`;
+          }
+        });
+        return row;
+      });
+      
+      return { columns, rows };
+    }
+    
     if (widget.type === 'filter') {
       const dimensions = Array.isArray(widget.config.dimensions) ? widget.config.dimensions : 
                         widget.config.dimension ? [widget.config.dimension] : [];
@@ -607,7 +724,7 @@ export default function LookerDashboardBuilder() {
                   ✕
                 </Button>
               </div>
-              <div className="flex gap-2">
+               <div className="flex gap-2">
                 <Button
                   variant="outline"
                   size="sm"
@@ -623,7 +740,31 @@ export default function LookerDashboardBuilder() {
                   className="gap-2"
                 >
                   <BarChart3 className="w-4 h-4" />
-                  Gráfico de Barras
+                  Barras
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => addWidget('line')}
+                  className="gap-2"
+                >
+                  📈 Linha
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => addWidget('pie')}
+                  className="gap-2"
+                >
+                  🥧 Pizza
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => addWidget('table')}
+                  className="gap-2"
+                >
+                  📋 Tabela
                 </Button>
                 <Button
                   variant="outline"
@@ -634,7 +775,7 @@ export default function LookerDashboardBuilder() {
                   <Filter className="w-4 h-4" />
                   Filtro
                 </Button>
-              </div>
+               </div>
             </div>
           )}
 

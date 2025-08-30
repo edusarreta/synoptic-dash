@@ -271,6 +271,40 @@ export function LookerPropertiesPanel({
           </div>
         </div>
       );
+    } else if (selectedWidget.type === 'line') {
+      return (
+        <div>
+          {createMultiDropZone('Dimensões', 'dimension', 'dimensions', 
+            Array.isArray(selectedWidget.config.dimensions) ? selectedWidget.config.dimensions : 
+            selectedWidget.config.dimension ? [selectedWidget.config.dimension] : [], true)}
+          {createMultiDropZone('Métricas', 'metric', 'metrics', 
+            Array.isArray(selectedWidget.config.metrics) ? selectedWidget.config.metrics : 
+            selectedWidget.config.metric ? [selectedWidget.config.metric] : [], true)}
+          {createTimeDimensionSelector()}
+        </div>
+      );
+    } else if (selectedWidget.type === 'pie') {
+      return (
+        <div>
+          {createMultiDropZone('Dimensões', 'dimension', 'dimensions', 
+            Array.isArray(selectedWidget.config.dimensions) ? selectedWidget.config.dimensions : 
+            selectedWidget.config.dimension ? [selectedWidget.config.dimension] : [], false)}
+          {createMultiDropZone('Métricas', 'metric', 'metrics', 
+            Array.isArray(selectedWidget.config.metrics) ? selectedWidget.config.metrics : 
+            selectedWidget.config.metric ? [selectedWidget.config.metric] : [], false)}
+        </div>
+      );
+    } else if (selectedWidget.type === 'table') {
+      return (
+        <div>
+          {createMultiDropZone('Dimensões', 'dimension', 'dimensions', 
+            Array.isArray(selectedWidget.config.dimensions) ? selectedWidget.config.dimensions : 
+            selectedWidget.config.dimension ? [selectedWidget.config.dimension] : [], true)}
+          {createMultiDropZone('Métricas', 'metric', 'metrics', 
+            Array.isArray(selectedWidget.config.metrics) ? selectedWidget.config.metrics : 
+            selectedWidget.config.metric ? [selectedWidget.config.metric] : [], true)}
+        </div>
+      );
     } else if (selectedWidget.type === 'filter') {
       return createMultiDropZone('Campo de Controle', 'dimension', 'dimensions', 
         Array.isArray(selectedWidget.config.dimensions) ? selectedWidget.config.dimensions : 
