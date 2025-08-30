@@ -323,12 +323,15 @@ export default function LookerDashboardBuilder() {
     
     if (widget.type === 'scorecard') {
       const metrics = Array.isArray(widget.config.metrics) ? widget.config.metrics : 
+                      typeof widget.config.metrics === 'string' ? [widget.config.metrics] :
                       widget.config.metric ? [widget.config.metric] : [];
       
       if (metrics.length === 0) return { value: 0, label: 'Selecione uma métrica' };
       
       const metric = metrics[0];
       const aggregation = widget.config.aggregation || 'sum';
+      
+      console.log('🔄 Scorecard processing:', { metric, aggregation, isUsingMockData, metrics: widget.config.metrics });
       
       if (isUsingMockData) {
         const field = dataFields.find(f => f.id === metric);
