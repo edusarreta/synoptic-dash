@@ -100,7 +100,7 @@ export default function LookerDashboardBuilder() {
   // Dashboard State
   const [dashboardName, setDashboardName] = useState("Meu Relatório Interativo");
   const [isSaving, setIsSaving] = useState(false);
-  const [currentView, setCurrentView] = useState<'data-sources' | 'builder'>('builder');
+  const [currentView, setCurrentView] = useState('builder' as 'data-sources' | 'builder');
   
   // Data Source Modal State
   const [showDataSourceModal, setShowDataSourceModal] = useState(false);
@@ -703,6 +703,9 @@ export default function LookerDashboardBuilder() {
 
   // Render Data Sources View
   if (currentView === 'data-sources') {
+    const isDataSourcesActive = true;
+    const isBuilderActive = false;
+    
     return (
       <div className="flex h-screen bg-slate-50">
         {/* Sidebar */}
@@ -713,7 +716,7 @@ export default function LookerDashboardBuilder() {
           </div>
           <nav className="flex-1 p-4 space-y-2">
             <Button
-              variant={currentView === 'data-sources' ? 'default' : 'ghost'}
+              variant={isDataSourcesActive ? 'default' : 'ghost'}
               className="w-full justify-start"
               onClick={() => setCurrentView('data-sources')}
             >
@@ -721,7 +724,7 @@ export default function LookerDashboardBuilder() {
               Fontes de Dados
             </Button>
             <Button
-              variant={currentView === 'builder' ? 'default' : 'ghost'}
+              variant={isBuilderActive ? 'default' : 'ghost'}
               className="w-full justify-start"
               onClick={() => setCurrentView('builder')}
             >
@@ -902,6 +905,9 @@ export default function LookerDashboardBuilder() {
   }
 
   // Render Builder View
+  const isDataSourcesActive = false;
+  const isBuilderActive = true;
+  
   return (
     <div className="flex h-screen bg-slate-50">
       {/* Sidebar */}
@@ -912,7 +918,7 @@ export default function LookerDashboardBuilder() {
         </div>
         <nav className="flex-1 p-4 space-y-2">
           <Button
-            variant={currentView === 'data-sources' ? 'default' : 'ghost'}
+            variant={isDataSourcesActive ? 'default' : 'ghost'}
             className="w-full justify-start"
             onClick={() => setCurrentView('data-sources')}
           >
@@ -920,7 +926,7 @@ export default function LookerDashboardBuilder() {
             Fontes de Dados
           </Button>
           <Button
-            variant={currentView === 'builder' ? 'default' : 'ghost'}
+            variant={isBuilderActive ? 'default' : 'ghost'}
             className="w-full justify-start"
             onClick={() => setCurrentView('builder')}
           >
