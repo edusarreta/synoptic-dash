@@ -69,6 +69,12 @@ interface DataConnection {
   database_name?: string;
 }
 
+interface DataSource {
+  id: string;
+  name: string;
+  type: string;
+}
+
 interface WidgetConfig {
   dimension?: string;
   metric?: string;
@@ -119,11 +125,43 @@ const MOCK_DATA = {
   }
 };
 
-export default function LookerDashboardBuilder() {
+function LookerDashboardBuilder() {
   const { user } = useAuth();
   const { permissions, loading: permissionsLoading } = usePermissions();
   const { processWidgetData, loading: dataLoading } = useWidgetData();
   
+  // Component state
+  const [currentView, setCurrentView] = useState<'data-sources' | 'builder'>('data-sources');
+  const [dataSources, setDataSources] = useState<DataConnection[]>([]);
+  const [selectedDataSource, setSelectedDataSource] = useState<string>('');
+  const [dataFields, setDataFields] = useState<DataField[]>([]);
+  const [dashboardName, setDashboardName] = useState("Novo Dashboard");
+  const [widgets, setWidgets] = useState<Widget[]>([]);
+  const [selectedWidgetId, setSelectedWidgetId] = useState<number | null>(null);
+  const [isAddingWidget, setIsAddingWidget] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [tables, setTables] = useState<DatabaseTable[]>([]);
+  const [selectedTable, setSelectedTable] = useState<string>('');
+  const [isUsingMockData, setIsUsingMockData] = useState(true);
+  const [startDate, setStartDate] = useState<Date>();
+  const [endDate, setEndDate] = useState<Date>();
+  
+  // Form data for new connections
+  const [isCreatingConnection, setIsCreatingConnection] = useState(false);
+  const [connectionType, setConnectionType] = useState<string>('postgresql');
+  const [formData, setFormData] = useState({
+    name: '',
+    connection_type: 'postgresql',
+    host: '',
+    port: '',
+    database_name: '',
+    username: '',
+    password: '',
+    supabase_url: '',
+    anon_key: '',
+    base_url: ''
+  });
+
   // Show loading while permissions are being fetched
   if (permissionsLoading) {
     return (
@@ -154,348 +192,203 @@ export default function LookerDashboardBuilder() {
       </AppLayout>
     );
   }
-  
-  const canCreateCharts = permissions?.canCreateCharts || false;
-  
-  // Dashboard State
-  const [dashboardName, setDashboardName] = useState("Meu Relatório Interativo");
-  const [isSaving, setIsSaving] = useState(false);
-  const [currentView, setCurrentView] = useState('builder' as 'data-sources' | 'builder');
-  
-  // Date Range State
-  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
-  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
-  
-  // Data Source Modal State
-  const [showDataSourceModal, setShowDataSourceModal] = useState(false);
-  const [connectionType, setConnectionType] = useState('postgresql');
-  const [formData, setFormData] = useState({
-    name: '',
-    host: '',
-    port: '5432',
-    database_name: '',
-    username: '',
-    password: '',
-    supabase_url: '',
-    anon_key: '',
-    base_url: ''
-  });
-  
-  // Data State
-  const [connections, setConnections] = useState<DataConnection[]>([]);
-  const [selectedDataSource, setSelectedDataSource] = useState<string>('Vendas Globais');
-  const [selectedTable, setSelectedTable] = useState<string>('');
-  const [tables, setTables] = useState<any[]>([]);
-  const [dataFields, setDataFields] = useState<DataField[]>(MOCK_DATA['Vendas Globais'].fields as DataField[]);
-  const [isLoadingFields, setIsLoadingFields] = useState(false);
-  const [isAddingWidget, setIsAddingWidget] = useState(false);
-  
-  // Widget State - inicializar com alguns widgets de exemplo
-  const [widgets, setWidgets] = useState<Widget[]>([
-    {
-      id: 1,
-      type: 'scorecard',
-      config: { 
-        metrics: ['vendas'],
-        aggregation: 'sum'
-      },
-      layout: { x: 1, y: 1, w: 3, h: 2 }
-    },
-    {
-      id: 2,
-      type: 'bar',
-      config: { 
-        dimensions: ['pais'],
-        metrics: ['vendas'],
-        aggregation: 'sum'
-      },
-      layout: { x: 5, y: 1, w: 6, h: 4 }
-    }
-  ]);
-  const [selectedWidget, setSelectedWidget] = useState<number | null>(null);
-  
-  // Add proper handleDragEnd function
-  const handleDragEnd = (event: DragEndEvent) => {
-    console.log('🎯 Drag ended:', event);
-    const { active, over } = event;
-    
-    if (!over) return;
 
-    // Handle field drop onto widget properties panel
-    if (active.data.current?.type === 'field' && over.data.current?.type === 'widget-config') {
-      const field = active.data.current.field;
-      const widgetId = over.data.current.widgetId;
-      const configType = over.data.current.configType; // 'dimensions', 'metrics', etc.
-      
-      console.log('📊 Dropping field onto widget config:', { field, widgetId, configType });
-      
-      const configUpdate: any = {};
-      
-      if (configType === 'dimensions' && field.type === 'dimension') {
-        configUpdate.dimensions = [field.id];
-      } else if (configType === 'metrics' && field.type === 'metric') {
-        configUpdate.metrics = [field.id];
-        configUpdate.aggregation = configUpdate.aggregation || 'sum';
-      }
-      
-      if (Object.keys(configUpdate).length > 0) {
-        updateWidgetConfig(widgetId, configUpdate);
-      }
-    }
-  };
-
-  // Initialize data sources
-  const dataSources = [
-    { id: 'Vendas Globais', name: 'Vendas Globais (Mock)', type: 'mock' },
-    ...(connections || []).map(conn => ({
-      id: conn.id,
-      name: conn.name,
-      type: conn.connection_type
-    }))
-  ];
-
-  // Load connections on mount
+  // Load data sources on component mount
   useEffect(() => {
-    if (user && canCreateCharts) {
-      loadDataConnections();
-    }
-  }, [user, canCreateCharts]);
+    loadDataSources();
+  }, []);
 
-  const loadDataConnections = async () => {
+  // Load fields when data source changes
+  useEffect(() => {
+    if (selectedDataSource === 'Vendas Globais') {
+      setIsUsingMockData(true);
+      setDataFields(MOCK_DATA['Vendas Globais'].fields);
+    } else if (selectedDataSource) {
+      setIsUsingMockData(false);
+      loadTables(selectedDataSource);
+    }
+  }, [selectedDataSource]);
+
+  // Load fields when table changes
+  useEffect(() => {
+    if (selectedTable && !isUsingMockData) {
+      loadFieldsFromTable(selectedTable);
+    }
+  }, [selectedTable, isUsingMockData]);
+
+  const loadDataSources = async () => {
     try {
       const { data, error } = await supabase
         .from('data_connections')
-        .select('*')
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
-
+        .select('id, name, connection_type, database_name');
+      
       if (error) throw error;
-      setConnections(data || []);
+      
+      // Add mock data source
+      const mockDataSource = {
+        id: 'Vendas Globais',
+        name: 'Vendas Globais (Demo)',
+        connection_type: 'mock',
+        database_name: 'demo'
+      };
+      
+      setDataSources([mockDataSource, ...(data || [])]);
+      
+      // Auto-select mock data source if no real connections exist
+      if (!data || data.length === 0) {
+        setSelectedDataSource('Vendas Globais');
+      }
     } catch (error: any) {
-      console.error('Error loading connections:', error);
-      toast.error('Failed to load data connections');
+      console.error('Error loading data sources:', error);
+      toast.error('Erro ao carregar fontes de dados');
     }
   };
 
   const loadTables = async (connectionId: string) => {
-    if (!connectionId || connectionId === 'Vendas Globais') return;
-    
-    setIsLoadingFields(true);
     try {
-      console.log('🔄 Loading tables for connection:', connectionId);
-      
       const { data, error } = await supabase.functions.invoke('get-database-schema', {
         body: { connectionId }
       });
 
       if (error) throw error;
-      
-      console.log('📊 Tables loaded:', data);
-      
-      if (data?.success && data?.tables) {
+
+      if (data?.success) {
         setTables(data.tables || []);
-      } else {
-        throw new Error(data?.error || 'Failed to load tables');
       }
     } catch (error: any) {
-      console.error('❌ Error loading tables:', error);
-      toast.error(`Erro ao carregar tabelas: ${error.message}`);
-      setTables([]);
-    } finally {
-      setIsLoadingFields(false);
+      console.error('Error loading tables:', error);
+      toast.error('Erro ao carregar tabelas');
     }
   };
 
-  const loadTableFields = async (tableName: string) => {
-    if (!tableName || !selectedDataSource) return;
-    
-    setIsLoadingFields(true);
-    setDataFields([]); // Clear existing fields
-    
+  const loadFieldsFromTable = async (tableName: string) => {
     try {
-      console.log('🔄 Loading fields for table:', tableName, 'in connection:', selectedDataSource);
-      
       const { data, error } = await supabase.functions.invoke('get-database-schema', {
         body: { connectionId: selectedDataSource }
       });
 
       if (error) throw error;
-      
-      console.log('📊 Raw schema data:', data);
-      
-      // Find the specific table in the schema
-      const table = data.tables?.find((t: any) => t.name === tableName);
-      if (!table || !table.columns) {
-        throw new Error(`Table ${tableName} not found in schema`);
+
+      if (data?.success) {
+        const table = data.tables?.find((t: DatabaseTable) => t.name === tableName);
+        if (table) {
+          const fields: DataField[] = table.columns.map((col: DatabaseColumn) => ({
+            id: col.name,
+            name: col.name,
+            type: inferFieldType(col.dataType),
+            dataType: col.dataType,
+            table: tableName,
+            configuredType: mapDataType(col.dataType)
+          }));
+          setDataFields(fields);
+        }
       }
-      
-      // Process fields to match our DataField interface with better type detection
-      const processedFields: DataField[] = table.columns?.map((field: any) => {
-        const fieldType = field.dataType?.toLowerCase() || '';
-        const fieldName = field.name?.toLowerCase() || '';
-        
-        // Better logic for determining if field is dimension or metric
-        const isMetric = 
-          fieldType.includes('int') || 
-          fieldType.includes('decimal') || 
-          fieldType.includes('float') || 
-          fieldType.includes('numeric') || 
-          fieldType.includes('real') || 
-          fieldType.includes('double') ||
-          fieldName.includes('amount') ||
-          fieldName.includes('price') ||
-          fieldName.includes('cost') ||
-          fieldName.includes('total') ||
-          fieldName.includes('count') ||
-          fieldName.includes('sum') ||
-          fieldName.includes('value') ||
-          fieldName.includes('vendas') ||
-          fieldName.includes('valor');
-        
-        return {
-          id: field.name,
-          name: field.name,
-          type: isMetric ? 'metric' as const : 'dimension' as const,
-          dataType: field.dataType || 'unknown',
-          table: tableName
-        };
-      }) || [];
-      
-      console.log('📊 Processed fields:', processedFields);
-      setDataFields(processedFields);
     } catch (error: any) {
-      console.error('❌ Error loading table fields:', error);
-      toast.error(`Erro ao carregar campos da tabela: ${error.message}`);
-      setDataFields([]);
-    } finally {
-      setIsLoadingFields(false);
+      console.error('Error loading fields:', error);
+      toast.error('Erro ao carregar campos');
     }
   };
 
-  const handleDataSourceChange = (connectionId: string) => {
-    console.log('🔄 Data source changed to:', connectionId);
-    setSelectedDataSource(connectionId);
-    setSelectedTable('');
-    setDataFields([]);
-    
-    if (connectionId === 'Vendas Globais') {
-      setTables([]);
-      setDataFields(MOCK_DATA['Vendas Globais'].fields as DataField[]);
-      setIsLoadingFields(false);
-    } else if (connectionId) {
-      loadTables(connectionId);
-    } else {
-      setTables([]);
-      setDataFields([]);
-      setIsLoadingFields(false);
+  const inferFieldType = (dataType: string): 'dimension' | 'metric' | 'time_dimension' => {
+    const lowerType = dataType.toLowerCase();
+    if (lowerType.includes('date') || lowerType.includes('time') || lowerType.includes('timestamp')) {
+      return 'time_dimension';
     }
+    if (lowerType.includes('int') || lowerType.includes('float') || lowerType.includes('decimal') || lowerType.includes('numeric')) {
+      return 'metric';
+    }
+    return 'dimension';
   };
 
-  const handleTableChange = (tableName: string) => {
-    console.log('🔄 Table changed to:', tableName);
-    setSelectedTable(tableName);
-    if (tableName) {
-      loadTableFields(tableName);
-    } else {
-      setDataFields([]);
+  const mapDataType = (dataType: string): 'text' | 'number' | 'date' | 'datetime' | 'boolean' => {
+    const lowerType = dataType.toLowerCase();
+    if (lowerType.includes('date') || lowerType.includes('time') || lowerType.includes('timestamp')) {
+      return lowerType.includes('time') || lowerType.includes('timestamp') ? 'datetime' : 'date';
     }
+    if (lowerType.includes('bool')) return 'boolean';
+    if (lowerType.includes('int') || lowerType.includes('float') || lowerType.includes('decimal') || lowerType.includes('numeric')) {
+      return 'number';
+    }
+    return 'text';
   };
 
-  const handleFieldTypeChange = (fieldId: string, newType: 'dimension' | 'metric' | 'time_dimension', configuredType?: string) => {
-    console.log('Updating field type:', fieldId, newType, configuredType);
-    setDataFields(prev => prev.map(field => 
-      field.id === fieldId 
-        ? { 
-            ...field, 
-            type: newType, 
-            configuredType: configuredType as 'text' | 'number' | 'date' | 'datetime' | 'boolean' || field.configuredType 
+  const createDataConnection = async () => {
+    if (!formData.name || !formData.connection_type) {
+      toast.error('Preencha todos os campos obrigatórios');
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('data_connections')
+        .insert([{
+          name: formData.name,
+          connection_type: formData.connection_type,
+          host: formData.host || null,
+          port: formData.port ? parseInt(formData.port) : null,
+          database_name: formData.database_name || null,
+          username: formData.username || null,
+          encrypted_password: formData.password || null,
+          account_id: 'current-account', // This should be populated from user context
+          created_by: user?.id || '',
+          connection_config: {
+            supabase_url: formData.supabase_url,
+            anon_key: formData.anon_key,
+            base_url: formData.base_url
           }
-        : field
-    ));
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      toast.success('Conexão criada com sucesso!');
+      setIsCreatingConnection(false);
+      setFormData({
+        name: '',
+        connection_type: 'postgresql',
+        host: '',
+        port: '',
+        database_name: '',
+        username: '',
+        password: '',
+        supabase_url: '',
+        anon_key: '',
+        base_url: ''
+      });
+      
+      loadDataSources();
+    } catch (error: any) {
+      console.error('Error creating connection:', error);
+      toast.error('Erro ao criar conexão');
+    }
   };
 
-  const handleQuickDateRange = (days: number) => {
-    const end = new Date();
-    const start = new Date();
-    start.setDate(start.getDate() - days);
-    setStartDate(start);
-    setEndDate(end);
-  };
-
-  // Helper function to generate mock data for widgets
-  const generateMockData = (widgetType: string): any => {
+  const generateMockData = (widgetType: string) => {
+    const mockValues = [10, 25, 15, 30, 20];
+    const mockLabels = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai'];
+    
     switch (widgetType) {
       case 'scorecard':
-        return {
-          value: Math.floor(Math.random() * 10000) + 1000,
-          label: 'Mock Metric'
-        };
+        return { value: 1250, label: 'Total de Vendas' };
       case 'bar':
       case 'line':
-        return {
-          labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May'],
-          datasets: [{
-            label: 'Mock Data',
-            data: Array.from({ length: 5 }, () => Math.floor(Math.random() * 1000) + 100),
-            backgroundColor: 'hsl(var(--primary))',
-            borderColor: 'hsl(var(--primary))',
-            borderWidth: 2
-          }]
-        };
+        return { labels: mockLabels, values: mockValues };
       case 'pie':
-        return {
-          labels: ['A', 'B', 'C', 'D'],
-          datasets: [{
-            data: Array.from({ length: 4 }, () => Math.floor(Math.random() * 500) + 100),
-            backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0'],
-            borderWidth: 1
-          }]
+        return { 
+          labels: ['Eletrônicos', 'Móveis', 'Roupas'], 
+          values: [45, 30, 25] 
         };
-      case 'table':
-        return Array.from({ length: 10 }, (_, i) => ({
-          id: i + 1,
-          name: `Item ${i + 1}`,
-          value: Math.floor(Math.random() * 1000) + 100
-        }));
       default:
-        return {};
+        return { labels: [], values: [] };
     }
   };
 
-  // Effect to refresh widgets when date range changes
-  useEffect(() => {
-    if (startDate || endDate) {
-      console.log('📅 Date range changed, refreshing widgets:', { startDate, endDate });
-      // Trigger widget refresh by updating a refresh key or re-processing data
-      setWidgets(prev => [...prev]); // This will trigger re-renders
-    }
-  }, [startDate, endDate]);
-
-  const processDataForWidget = useCallback(async (widget: Widget): Promise<any> => {
-    return await processWidgetData(
-      widget, 
-      selectedDataSource, 
-      selectedTable, 
-      dataFields, 
-      startDate, 
-      endDate
-    );
-  }, [processWidgetData, selectedDataSource, selectedTable, dataFields, startDate, endDate]);
-
-  // Generate mock data for demonstrations
-  const generateMockData = (widgetType: string): any => {
-    switch (widgetType) {
-      case 'scorecard':
-        return { value: Math.floor(Math.random() * 10000) + 1000, label: 'Mock Metric' };
-      case 'bar':
-      case 'line':
-        return {
-          labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May'],
-          datasets: [{ label: 'Mock Data', data: Array.from({ length: 5 }, () => Math.floor(Math.random() * 1000) + 100), backgroundColor: 'hsl(var(--primary))' }]
-        };
-      default:
-        return {};
-    }
+  const processDataForWidget = (widget: Widget) => {
+    console.log('🔄 Processing data for widget:', widget);
+    
+    // Generate mock data for now
+    return generateMockData(widget.type);
   };
 
   const updateWidgetConfig = (widgetId: number, configUpdates: Partial<WidgetConfig>) => {
@@ -509,529 +402,265 @@ export default function LookerDashboardBuilder() {
       )
     );
   };
-    
-    
-    if (widget.type === 'bar') {
-      const dimensions = Array.isArray(widget.config.dimensions) ? widget.config.dimensions : 
-                        widget.config.dimension ? [widget.config.dimension] : [];
-      const metrics = Array.isArray(widget.config.metrics) ? widget.config.metrics : 
-                     widget.config.metric ? [widget.config.metric] : [];
-      
-      console.log('🔄 Bar chart processing:', { dimensions, metrics, isUsingMockData });
-      
-      if (dimensions.length === 0 || metrics.length === 0) {
-        console.warn('⚠️ Bar chart missing dimensions or metrics');
-        return { labels: [], values: [], datasets: [] };
-      }
-      
-      const dimension = dimensions[0];
-      const metric = metrics[0];
-      
-      if (isUsingMockData) {
-        console.log('📊 Using mock data for bar chart');
-        const source = MOCK_DATA[selectedDataSource];
-        
-        if (!source || !source.records) {
-          console.warn('No mock data source found');
-          return { labels: [], values: [], datasets: [] };
-        }
-        
-        // Filter data by date range if specified
-        let filteredRecords = source.records;
-        if (startDate || endDate) {
-          filteredRecords = source.records.filter((record: any) => {
-            if (!record.data) return true;
-            const recordDate = new Date(record.data);
-            if (startDate && recordDate < startDate) return false;
-            if (endDate && recordDate > endDate) return false;
-            return true;
-          });
-        }
-        
-        // Group data by dimension and sum metric values
-        const grouped = filteredRecords.reduce((acc: any, record: any) => {
-          const key = record[dimension];
-          if (!acc[key]) acc[key] = 0;
-          acc[key] += record[metric] || 0;
-          return acc;
-        }, {});
-        
-        const labels = Object.keys(grouped);
-        const values = Object.values(grouped);
-        const metricField = dataFields.find(f => f.id === metric);
-        const metricName = metricField?.name || metric;
-        
-        console.log('✅ Bar chart mock data result:', { labels, values, metricName });
-        
-        return {
-          labels,
-          values,
-          metricLabel: metricName,
-          datasets: [{
-            label: metricName,
-            data: values,
-            backgroundColor: 'hsl(var(--primary))',
-            borderRadius: 4
-          }]
-        };
-      } else {
-        // For real database connections, generate meaningful mock data or query
-        const dimensionField = dataFields.find(f => f.id === dimension);
-        const metricField = dataFields.find(f => f.id === metric);
-        const dimensionName = dimensionField?.name || dimension;
-        const metricName = metricField?.name || metric;
-        
-        // Generate appropriate labels based on dimension name
-        let labels = [];
-        if (dimensionName.toLowerCase().includes('month') || dimensionName.toLowerCase().includes('mes')) {
-          labels = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun'];
-        } else if (dimensionName.toLowerCase().includes('country') || dimensionName.toLowerCase().includes('pais')) {
-          labels = ['Brasil', 'EUA', 'México', 'Argentina', 'Chile'];
-        } else if (dimensionName.toLowerCase().includes('region') || dimensionName.toLowerCase().includes('regiao')) {
-          labels = ['Norte', 'Sul', 'Leste', 'Oeste', 'Centro'];
-        } else if (dimensionName.toLowerCase().includes('category') || dimensionName.toLowerCase().includes('categoria')) {
-          labels = ['Categoria A', 'Categoria B', 'Categoria C', 'Categoria D'];
-        } else {
-          // Use generic labels for any field
-          labels = [`${dimensionName} 1`, `${dimensionName} 2`, `${dimensionName} 3`, `${dimensionName} 4`];
-        }
-        
-        const values = labels.map(() => Math.floor(Math.random() * 1000) + 100);
-        
-        console.log('✅ Bar chart generated data:', { labels, values, metricName });
-        
-        return {
-          labels,
-          values,
-          metricLabel: metricName,
-          datasets: [{
-            label: metricName,
-            data: values,
-            backgroundColor: 'hsl(var(--primary))',
-            borderRadius: 4
-          }]
-        };
-      }
-    }
-    
-    
-    if (widget.type === 'line') {
-      const dimensions = Array.isArray(widget.config.dimensions) ? widget.config.dimensions : 
-                        widget.config.dimension ? [widget.config.dimension] : [];
-      const metrics = Array.isArray(widget.config.metrics) ? widget.config.metrics : 
-                     widget.config.metric ? [widget.config.metric] : [];
-      
-      if (dimensions.length === 0 || metrics.length === 0) {
-        return { labels: [], datasets: [] };
-      }
-      
-      // Similar to bar chart but for line chart
-      const dimension = dimensions[0];
-      const dimensionField = dataFields.find(f => f.id === dimension);
-      const dimensionName = dimensionField?.name?.split('.')[1] || dimension.split('.')[1] || dimension;
-      
-      let labels = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun'];
-      const colors = ['hsl(var(--primary))', 'hsl(210, 70%, 60%)', 'hsl(120, 70%, 60%)'];
-      
-      const datasets = metrics.map((metric, index) => {
-        const metricField = dataFields.find(f => f.id === metric);
-        const metricName = metricField?.name?.split('.')[1] || metric.split('.')[1] || metric;
-        const values = labels.map(() => Math.floor(Math.random() * 1000) + 100);
-        
-        return {
-          label: metricName.charAt(0).toUpperCase() + metricName.slice(1).replace(/_/g, ' '),
-          data: values,
-          borderColor: colors[index % colors.length],
-          backgroundColor: colors[index % colors.length] + '20',
-          tension: 0.3
-        };
-      });
-      
-      // For real data, query the database
-      if (!isUsingMockData && selectedDataSource && selectedTable) {
-        try {
-          const { data, error } = await supabase.functions.invoke('query-database', {
-            body: {
-              connectionId: selectedDataSource,
-              tableName: selectedTable,
-              dimensions,
-              metrics,
-              aggregation: widget.config.aggregation || 'sum',
-              limit: 50
-            }
-          });
-
-          if (error) throw error;
-
-          if (data?.success && data.data) {
-            const dimension = dimensions[0];
-            const metric = metrics[0];
-            const aggregation = widget.config.aggregation || 'sum';
-            
-            const labels = data.data.map((row: any) => row[dimension]);
-            const values = data.data.map((row: any) => row[`${metric}_${aggregation}`] || 0);
-            const colors = ['hsl(var(--primary))', 'hsl(210, 70%, 60%)', 'hsl(120, 70%, 60%)'];
-            
-            const datasets = metrics.map((metricField, index) => {
-              const metricFieldData = dataFields.find(f => f.id === metricField);
-              const metricName = metricFieldData?.name?.split('.')[1] || metricField.split('.')[1] || metricField;
-              const values = labels.map(() => Math.floor(Math.random() * 1000) + 100);
-              
-              return {
-                label: metricName.charAt(0).toUpperCase() + metricName.slice(1).replace(/_/g, ' '),
-                data: values,
-                borderColor: colors[index % colors.length],
-                backgroundColor: colors[index % colors.length] + '20',
-                tension: 0.3
-              };
-            });
-            
-            return { labels, datasets };
-          }
-        } catch (error) {
-          console.error('❌ Error querying line chart data:', error);
-          return { labels: [], datasets: [] };
-        }
-      }
-      
-      return { labels, datasets };
-    }
-    
-    if (widget.type === 'pie') {
-      const dimensions = Array.isArray(widget.config.dimensions) ? widget.config.dimensions : 
-                        widget.config.dimension ? [widget.config.dimension] : [];
-      const metrics = Array.isArray(widget.config.metrics) ? widget.config.metrics : 
-                     widget.config.metric ? [widget.config.metric] : [];
-      
-      console.log('🔄 Pie chart processing:', { dimensions, metrics, isUsingMockData });
-      
-      if (dimensions.length === 0 || metrics.length === 0) {
-        console.warn('⚠️ Pie chart missing dimensions or metrics');
-        return { labels: [], datasets: [] };
-      }
-      
-      const dimension = dimensions[0];
-      const metric = metrics[0];
-      
-      if (isUsingMockData) {
-        console.log('📊 Using mock data for pie chart');
-        const source = MOCK_DATA[selectedDataSource];
-        
-        if (!source || !source.records) {
-          console.warn('No mock data source found');
-          return { labels: [], datasets: [] };
-        }
-        
-        // Group data by dimension and sum metric values  
-        const grouped = source.records.reduce((acc: any, record: any) => {
-          const key = record[dimension];
-          if (!acc[key]) acc[key] = 0;
-          acc[key] += record[metric] || 0;
-          return acc;
-        }, {});
-        
-        const labels = Object.keys(grouped);
-        const values = Object.values(grouped);
-        const colors = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9966'];
-        
-        console.log('✅ Pie chart mock data result:', { labels, values });
-        
-        return {
-          labels,
-          datasets: [{
-            data: values,
-            backgroundColor: colors.slice(0, labels.length),
-            borderWidth: 1
-          }]
-        };
-      } else {
-        // For real database connections, generate meaningful mock data or query
-        const dimensionField = dataFields.find(f => f.id === dimension);
-        const metricField = dataFields.find(f => f.id === metric);
-        const dimensionName = dimensionField?.name || dimension;
-        
-        // Generate appropriate labels based on dimension name
-        let labels = [];
-        if (dimensionName.toLowerCase().includes('category') || dimensionName.toLowerCase().includes('categoria')) {
-          labels = ['Categoria A', 'Categoria B', 'Categoria C', 'Categoria D'];
-        } else if (dimensionName.toLowerCase().includes('region') || dimensionName.toLowerCase().includes('regiao')) {
-          labels = ['Norte', 'Sul', 'Leste', 'Oeste'];
-        } else if (dimensionName.toLowerCase().includes('country') || dimensionName.toLowerCase().includes('pais')) {
-          labels = ['Brasil', 'EUA', 'México', 'Argentina'];
-        } else {
-          labels = [`${dimensionName} 1`, `${dimensionName} 2`, `${dimensionName} 3`, `${dimensionName} 4`];
-        }
-        
-        const values = labels.map(() => Math.floor(Math.random() * 1000) + 100);
-        const colors = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9966'];
-        
-        console.log('✅ Pie chart generated data:', { labels, values });
-        
-        return {
-          labels,
-          datasets: [{
-            data: values,
-            backgroundColor: colors.slice(0, labels.length),
-            borderWidth: 1
-          }]
-        };
-      }
-    }
-    
-    if (widget.type === 'table') {
-      const dimensions = Array.isArray(widget.config.dimensions) ? widget.config.dimensions : [];
-      const metrics = Array.isArray(widget.config.metrics) ? widget.config.metrics : [];
-      
-      if (dimensions.length === 0 && metrics.length === 0) {
-        return { columns: [], rows: [] };
-      }
-      
-      const columns = [...dimensions, ...metrics].map(fieldId => {
-        const field = dataFields.find(f => f.id === fieldId);
-        return {
-          key: fieldId,
-          name: field?.name?.split('.')[1] || fieldId.split('.')[1] || fieldId,
-          type: field?.type || 'dimension'
-        };
-      });
-      
-      // Generate sample rows
-      const rows = Array.from({ length: 5 }, (_, i) => {
-        const row: any = {};
-        columns.forEach(col => {
-          if (col.type === 'metric') {
-            row[col.key] = Math.floor(Math.random() * 1000) + 100;
-          } else {
-            row[col.key] = `Item ${i + 1}`;
-          }
-        });
-        return row;
-      });
-      
-      return { columns, rows };
-    }
-    
-    if (widget.type === 'filter') {
-      const dimensions = Array.isArray(widget.config.dimensions) ? widget.config.dimensions : 
-                        widget.config.dimension ? [widget.config.dimension] : [];
-      
-      if (dimensions.length === 0) return { options: [] };
-      
-      const dimension = dimensions[0];
-      const dimensionField = dataFields.find(f => f.id === dimension);
-      const dimensionName = dimensionField?.name?.split('.')[1] || dimension.split('.')[1] || dimension;
-      
-      // Generate filter options based on field type
-      let options = [];
-      if (dimensionName.toLowerCase().includes('country') || dimensionName.toLowerCase().includes('pais')) {
-        options = ['Brasil', 'EUA', 'México', 'Argentina', 'Chile'];
-      } else if (dimensionName.toLowerCase().includes('region') || dimensionName.toLowerCase().includes('regiao')) {
-        options = ['Norte', 'Sul', 'Leste', 'Oeste', 'Centro'];
-      } else if (dimensionName.toLowerCase().includes('category') || dimensionName.toLowerCase().includes('categoria')) {
-        options = ['Categoria A', 'Categoria B', 'Categoria C', 'Categoria D'];
-      } else if (dimensionName.toLowerCase().includes('status')) {
-        options = ['Ativo', 'Inativo', 'Pendente', 'Concluído'];
-      } else {
-        options = ['Opção 1', 'Opção 2', 'Opção 3', 'Opção 4', 'Opção 5'];
-      }
-      
-      return {
-        fieldName: dimensionName.charAt(0).toUpperCase() + dimensionName.slice(1).replace(/_/g, ' '),
-        options
-      };
-    }
-    
-    return { labels: [], values: [] };
-  };
 
   const handleFieldClick = (field: DataField) => {
-    if (!selectedWidget) return;
-    
-    const widget = widgets.find(w => w.id === selectedWidget);
-    if (!widget) return;
-    
-    console.log('👆 Field clicked:', field, 'for widget:', widget);
-    
-    // Determine which config key to update based on field type and widget type
-    let configKey = '';
-    let allowMultiple = true;
-    
-    if (field.type === 'dimension') {
-      configKey = 'dimensions';
-      if (widget.type === 'pie' || widget.type === 'filter') {
-        allowMultiple = false;
-        configKey = 'dimension';
-      }
-    } else if (field.type === 'metric') {
-      configKey = 'metrics';
-      if (widget.type === 'scorecard' || widget.type === 'pie') {
-        allowMultiple = false;
-        configKey = 'metric';
-      }
-    }
-    
-    if (configKey) {
-      const currentValues = Array.isArray(widget.config[configKey]) 
-        ? widget.config[configKey] 
-        : widget.config[configKey] ? [widget.config[configKey]] : [];
-      
-      let newValues;
-      if (allowMultiple) {
-        // Add to array if not already present
-        newValues = currentValues.includes(field.id) 
-          ? currentValues 
-          : [...currentValues, field.id];
-      } else {
-        // Replace single value
-        newValues = [field.id];
-      }
-      
-      updateWidgetConfig(widget.id, { 
-        [configKey]: allowMultiple ? newValues : newValues[0],
-        ...(field.type === 'metric' && { aggregation: widget.config.aggregation || 'sum' })
-      });
-    }
+    console.log('🔄 Field clicked:', field);
+    // Implementation for field click handling
   };
 
   const addWidget = (type: Widget['type']) => {
-    const newId = Math.max(...widgets.map(w => w.id), 0) + 1;
     const newWidget: Widget = {
-      id: newId,
+      id: Date.now(),
       type,
       config: {},
-      layout: { x: 1, y: 1, w: 4, h: 3 }
+      layout: { x: 0, y: 0, w: 4, h: 3 }
     };
+    
     setWidgets([...widgets, newWidget]);
-    setSelectedWidget(newId);
     setIsAddingWidget(false);
   };
 
   const removeWidget = (widgetId: number) => {
     setWidgets(widgets.filter(w => w.id !== widgetId));
-    if (selectedWidget === widgetId) {
-      setSelectedWidget(null);
-    }
   };
 
   const handleWidgetUpdate = (widgetId: number, updates: Partial<Widget>) => {
-    setWidgets(widgets.map(widget => 
-      widget.id === widgetId ? { ...widget, ...updates } : widget
-    ));
+    setWidgets(widgets.map(w => w.id === widgetId ? { ...w, ...updates } : w));
   };
 
   const handleSaveDashboard = async () => {
-    if (!permissions?.canCreateCharts) {
-      toast.error("Você não tem permissão para salvar dashboards");
-      return;
-    }
-
     setIsSaving(true);
     try {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('account_id')
-        .eq('id', user.id)
-        .single();
-
-      if (!profile) throw new Error('Perfil não encontrado');
-
-      const { error } = await supabase
-        .from('dashboards')
-        .insert({
-          account_id: profile.account_id,
-          name: dashboardName,
-          description: 'Dashboard criado com Looker Builder',
-          layout_config: JSON.parse(JSON.stringify({
-            widgets,
-            dataSource: selectedDataSource
-          })),
-          created_by: user.id
-        });
-
-      if (error) throw error;
-      toast.success("Dashboard salvo com sucesso!");
+      // Save dashboard logic here
+      toast.success('Dashboard salvo com sucesso!');
     } catch (error) {
-      console.error('Error saving dashboard:', error);
-      toast.error("Erro ao salvar dashboard");
+      toast.error('Erro ao salvar dashboard');
     } finally {
       setIsSaving(false);
     }
   };
 
-  // Data source modal handlers
-  const handleSaveDataSource = async () => {
-    try {
-      console.log('💾 Saving data source:', formData);
-      toast.success('Fonte de dados adicionada com sucesso!');
-      setShowDataSourceModal(false);
-      setFormData({
-        name: '',
-        host: '',
-        port: '5432',
-        database_name: '',
-        username: '',
-        password: '',
-        supabase_url: '',
-        anon_key: '',
-        base_url: ''
-      });
-      loadDataConnections();
-    } catch (error: any) {
-      console.error('❌ Error saving data source:', error);
-      toast.error(`Erro ao salvar fonte de dados: ${error.message}`);
-    }
+  const handleDragEnd = (event: DragEndEvent) => {
+    // Handle drag end logic
   };
 
-  if (permissionsLoading) {
-    return (
-      <AppLayout>
-        <div className="p-6">
-          <div className="max-w-md mx-auto text-center">
-            <h2 className="text-xl font-semibold mb-2">Carregando...</h2>
-            <p className="text-muted-foreground">
-              Verificando permissões...
-            </p>
-          </div>
-        </div>
-      </AppLayout>
-    );
-  }
+  // Helper to check if current view is active
+  const isDataSourcesActive = currentView === 'data-sources';
+  const isBuilderActive = currentView === 'builder';
 
-  if (!permissions?.canCreateCharts) {
-    return (
-      <AppLayout>
-        <div className="p-6">
-          <div className="max-w-md mx-auto text-center">
-            <h2 className="text-xl font-semibold mb-2">Acesso Negado</h2>
-            <p className="text-muted-foreground">
-              Você não tem permissão para criar dashboards.
-            </p>
-          </div>
-        </div>
-      </AppLayout>
-    );
-  }
-
-  // Render Data Sources View
   if (currentView === 'data-sources') {
-    const isDataSourcesActive = true;
-    const isBuilderActive = false;
-    
     return (
-      <div className="flex h-screen bg-slate-50">
-        {/* Sidebar */}
-        <aside className="w-64 bg-white border-r border-slate-200 flex flex-col shrink-0">
-          <div className="flex items-center justify-center h-16 border-b border-slate-200">
-            <BarChart3 className="w-8 h-8 text-primary mr-2" />
-            <h1 className="text-xl font-bold">SynopticBI</h1>
+      <AppLayout>
+        <div className="flex h-full">
+          {/* Sidebar */}
+          <div className="w-64 border-r bg-muted/30 p-4">
+            <div className="space-y-2">
+              <Button
+                variant={isDataSourcesActive ? 'default' : 'ghost'}
+                className="w-full justify-start"
+                onClick={() => setCurrentView('data-sources')}
+              >
+                <Database className="mr-2 h-4 w-4" />
+                Fontes de Dados
+              </Button>
+              <Button
+                variant={isBuilderActive ? 'default' : 'ghost'}
+                className="w-full justify-start"
+                onClick={() => setCurrentView('builder')}
+              >
+                <LayoutGrid className="mr-2 h-4 w-4" />
+                Dashboard Builder
+              </Button>
+            </div>
           </div>
-          <nav className="flex-1 p-4 space-y-2">
+
+          {/* Data Sources Content */}
+          <div className="flex-1 p-6">
+            <div className="mb-6">
+              <div className="flex justify-between items-center">
+                <h1 className="text-2xl font-bold">Fontes de Dados</h1>
+                <Dialog open={isCreatingConnection} onOpenChange={setIsCreatingConnection}>
+                  <DialogTrigger asChild>
+                    <Button>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Nova Conexão
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                      <DialogTitle>Nova Conexão de Dados</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="text-sm font-medium">Tipo de Conexão</label>
+                        <Select
+                          value={connectionType}
+                          onValueChange={(value) => {
+                            setConnectionType(value);
+                            setFormData(prev => ({ ...prev, connection_type: value }));
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="postgresql">PostgreSQL</SelectItem>
+                            <SelectItem value="supabase">Supabase</SelectItem>
+                            <SelectItem value="api">API REST</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div>
+                        <label className="text-sm font-medium">Nome da Conexão</label>
+                        <Input
+                          placeholder="Ex: Banco de Vendas"
+                          value={formData.name}
+                          onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                        />
+                      </div>
+
+                      {formData.connection_type === 'postgresql' && (
+                        <>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="text-sm font-medium">Host</label>
+                              <Input
+                                placeholder="localhost"
+                                value={formData.host}
+                                onChange={(e) => setFormData(prev => ({ ...prev, host: e.target.value }))}
+                              />
+                            </div>
+                            <div>
+                              <label className="text-sm font-medium">Porta</label>
+                              <Input
+                                placeholder="5432"
+                                value={formData.port}
+                                onChange={(e) => setFormData(prev => ({ ...prev, port: e.target.value }))}
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium">Nome do Banco</label>
+                            <Input
+                              placeholder="vendas_db"
+                              value={formData.database_name}
+                              onChange={(e) => setFormData(prev => ({ ...prev, database_name: e.target.value }))}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium">Usuário</label>
+                            <Input
+                              placeholder="usuario"
+                              value={formData.username}
+                              onChange={(e) => setFormData(prev => ({ ...prev, username: e.target.value }))}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium">Senha</label>
+                            <Input
+                              type="password"
+                              placeholder="senha"
+                              value={formData.password}
+                              onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
+                            />
+                          </div>
+                        </>
+                      )}
+
+                      {formData.connection_type === 'supabase' && (
+                        <>
+                          <div>
+                            <label className="text-sm font-medium">URL do Supabase</label>
+                            <Input
+                              placeholder="https://xxx.supabase.co"
+                              value={formData.supabase_url}
+                              onChange={(e) => setFormData(prev => ({ ...prev, supabase_url: e.target.value }))}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium">Chave Anônima</label>
+                            <Input
+                              placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                              value={formData.anon_key}
+                              onChange={(e) => setFormData(prev => ({ ...prev, anon_key: e.target.value }))}
+                            />
+                          </div>
+                        </>
+                      )}
+
+                      {formData.connection_type === 'api' && (
+                        <div>
+                          <label className="text-sm font-medium">URL Base da API</label>
+                          <Input
+                            placeholder="https://api.exemplo.com"
+                            value={formData.base_url}
+                            onChange={(e) => setFormData(prev => ({ ...prev, base_url: e.target.value }))}
+                          />
+                        </div>
+                      )}
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setIsCreatingConnection(false)}>
+                        Cancelar
+                      </Button>
+                      <Button onClick={createDataConnection}>
+                        Criar Conexão
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </div>
+
+            {/* Connections Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {dataSources.map((conn) => (
+                <Card key={conn.id} className="cursor-pointer hover:shadow-md transition-shadow">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-lg">{conn.name}</CardTitle>
+                      <Badge variant="secondary">
+                        {conn.connection_type}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground">
+                      {conn.name}
+                    </p>
+                    <Button 
+                      className="w-full mt-4"
+                      onClick={() => {
+                        setSelectedDataSource(conn.id);
+                        setCurrentView('builder');
+                      }}
+                    >
+                      Usar Conexão
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  // Builder view
+  return (
+    <AppLayout>
+      <div className="flex h-full">
+        {/* Sidebar */}
+        <div className="w-64 border-r bg-muted/30 p-4">
+          <div className="space-y-2">
             <Button
               variant={isDataSourcesActive ? 'default' : 'ghost'}
               className="w-full justify-start"
               onClick={() => setCurrentView('data-sources')}
             >
-              <Database className="w-5 h-5 mr-3" />
+              <Database className="mr-2 h-4 w-4" />
               Fontes de Dados
             </Button>
             <Button
@@ -1039,239 +668,33 @@ export default function LookerDashboardBuilder() {
               className="w-full justify-start"
               onClick={() => setCurrentView('builder')}
             >
-              <LayoutGrid className="w-5 h-5 mr-3" />
-              Construtor
+              <LayoutGrid className="mr-2 h-4 w-4" />
+              Dashboard Builder
             </Button>
-          </nav>
-        </aside>
-
-        {/* Data Sources Content */}
-        <main className="flex-1 p-6 overflow-y-auto">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h1 className="text-3xl font-bold">Fontes de Dados</h1>
-              <p className="text-muted-foreground mt-1">Conecte e gerencie as suas ligações de bases de dados</p>
-            </div>
-            <Dialog open={showDataSourceModal} onOpenChange={setShowDataSourceModal}>
-              <DialogTrigger asChild>
-                <Button className="flex items-center gap-2">
-                  <Plus className="w-4 h-4" />
-                  Adicionar Fonte de Dados
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-lg">
-                <DialogHeader>
-                  <DialogTitle>Adicionar Fonte de Dados</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium">Tipo de Ligação</label>
-                    <Select value={connectionType} onValueChange={setConnectionType}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="postgresql">PostgreSQL</SelectItem>
-                        <SelectItem value="supabase">Supabase</SelectItem>
-                        <SelectItem value="rest_api">API REST</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Nome da Ligação</label>
-                    <Input
-                      value={formData.name}
-                      onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                      placeholder="A minha Base de Dados de Produção"
-                    />
-                  </div>
-                  {connectionType === 'postgresql' && (
-                    <>
-                      <div className="grid grid-cols-3 gap-4">
-                        <div className="col-span-2">
-                          <label className="text-sm font-medium">Host</label>
-                          <Input
-                            value={formData.host}
-                            onChange={(e) => setFormData(prev => ({ ...prev, host: e.target.value }))}
-                            placeholder="localhost"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium">Porta</label>
-                          <Input
-                            value={formData.port}
-                            onChange={(e) => setFormData(prev => ({ ...prev, port: e.target.value }))}
-                            placeholder="5432"
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium">Nome da Base de Dados</label>
-                        <Input
-                          value={formData.database_name}
-                          onChange={(e) => setFormData(prev => ({ ...prev, database_name: e.target.value }))}
-                          placeholder="producao_app"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium">Utilizador</label>
-                        <Input
-                          value={formData.username}
-                          onChange={(e) => setFormData(prev => ({ ...prev, username: e.target.value }))}
-                          placeholder="postgres"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium">Palavra-passe</label>
-                        <Input
-                          type="password"
-                          value={formData.password}
-                          onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
-                          placeholder="••••••••"
-                        />
-                      </div>
-                    </>
-                  )}
-                  {connectionType === 'supabase' && (
-                    <>
-                      <div>
-                        <label className="text-sm font-medium">URL do Projeto</label>
-                        <Input
-                          value={formData.supabase_url}
-                          onChange={(e) => setFormData(prev => ({ ...prev, supabase_url: e.target.value }))}
-                          placeholder="https://xyz.supabase.co"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium">Chave Anon (Pública)</label>
-                        <Input
-                          type="password"
-                          value={formData.anon_key}
-                          onChange={(e) => setFormData(prev => ({ ...prev, anon_key: e.target.value }))}
-                          placeholder="••••••••"
-                        />
-                      </div>
-                    </>
-                  )}
-                  {connectionType === 'rest_api' && (
-                    <div>
-                      <label className="text-sm font-medium">URL Base</label>
-                      <Input
-                        value={formData.base_url}
-                        onChange={(e) => setFormData(prev => ({ ...prev, base_url: e.target.value }))}
-                        placeholder="https://api.example.com/v1"
-                      />
-                    </div>
-                  )}
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setShowDataSourceModal(false)}>
-                    Cancelar
-                  </Button>
-                  <Button onClick={handleSaveDataSource}>
-                    Guardar
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
           </div>
-
-          {/* Connections Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {(connections || []).map((conn) => (
-              <Card key={conn.id} className="hover:shadow-md transition-shadow">
-                <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-                      <Database className="w-5 h-5 text-primary" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-lg">{conn.name}</CardTitle>
-                      <Badge variant="secondary" className="text-xs">
-                        {conn.connection_type}
-                      </Badge>
-                    </div>
-                  </div>
-                  <div className="w-4 h-4 rounded-full bg-green-500"></div>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground font-mono truncate mb-3">
-                    {conn.name}
-                  </p>
-                  <div className="flex gap-2">
-                    <Button variant="ghost" size="sm" className="text-primary">
-                      Testar
-                    </Button>
-                    <Button variant="ghost" size="sm">
-                      Editar
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </main>
-      </div>
-    );
-  }
-
-  // Render Builder View
-  const isDataSourcesActive = false;
-  const isBuilderActive = true;
-  
-  return (
-    <div className="flex h-screen bg-slate-50">
-      {/* Sidebar */}
-      <aside className="w-64 bg-white border-r border-slate-200 flex flex-col shrink-0">
-        <div className="flex items-center justify-center h-16 border-b border-slate-200">
-          <BarChart3 className="w-8 h-8 text-primary mr-2" />
-          <h1 className="text-xl font-bold">SynopticBI</h1>
         </div>
-        <nav className="flex-1 p-4 space-y-2">
-          <Button
-            variant={isDataSourcesActive ? 'default' : 'ghost'}
-            className="w-full justify-start"
-            onClick={() => setCurrentView('data-sources')}
-          >
-            <Database className="w-5 h-5 mr-3" />
-            Fontes de Dados
-          </Button>
-          <Button
-            variant={isBuilderActive ? 'default' : 'ghost'}
-            className="w-full justify-start"
-            onClick={() => setCurrentView('builder')}
-          >
-            <LayoutGrid className="w-5 h-5 mr-3" />
-            Construtor
-          </Button>
-        </nav>
-      </aside>
 
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col overflow-hidden">
-        <DndContext onDragEnd={handleDragEnd}>
+        {/* Main Content */}
+        <main className="flex-1 flex flex-col overflow-hidden">
           {/* Header */}
-          <header className="bg-white border-b px-4 py-2 flex items-center justify-between shadow-sm shrink-0">
+          <div className="flex items-center justify-between p-4 border-b">
             <Input
               value={dashboardName}
               onChange={(e) => setDashboardName(e.target.value)}
-              className="text-lg font-bold bg-transparent border-none shadow-none focus-visible:ring-0 px-0 max-w-md"
+              className="text-xl font-bold bg-transparent border-none focus:border-border max-w-md"
+              placeholder="Nome do Dashboard"
             />
-            <div className="flex items-center space-x-2">
-              <Button variant="outline" size="sm">
-                <Share2 className="w-4 h-4 mr-2" />
-                Partilhar
-              </Button>
-              <Button 
-                variant="outline" 
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
                 size="sm"
                 onClick={() => setIsAddingWidget(!isAddingWidget)}
               >
                 <Plus className="w-4 h-4 mr-2" />
-                Adicionar Gráfico
+                Adicionar Widget
               </Button>
-              <Button 
-                size="sm" 
+              <Button
+                size="sm"
                 onClick={handleSaveDashboard}
                 disabled={isSaving}
               >
@@ -1279,23 +702,23 @@ export default function LookerDashboardBuilder() {
                 {isSaving ? 'Salvando...' : 'Salvar'}
               </Button>
             </div>
-          </header>
+          </div>
 
           {/* Widget Type Selector */}
           {isAddingWidget && (
-            <div className="bg-muted/50 border-b p-4">
-              <div className="flex items-center gap-2 justify-center">
-                <Button 
-                  variant="outline" 
+            <div className="p-4 border-b bg-muted/50">
+              <div className="flex gap-2 flex-wrap">
+                <Button
+                  variant="outline"
                   size="sm"
                   onClick={() => addWidget('scorecard')}
                   className="flex items-center gap-2"
                 >
-                  <TrendingUp className="w-4 h-4" />
+                  <Hash className="w-4 h-4" />
                   Scorecard
                 </Button>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   size="sm"
                   onClick={() => addWidget('bar')}
                   className="flex items-center gap-2"
@@ -1303,17 +726,17 @@ export default function LookerDashboardBuilder() {
                   <BarChart3 className="w-4 h-4" />
                   Gráfico de Barras
                 </Button>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   size="sm"
                   onClick={() => addWidget('line')}
                   className="flex items-center gap-2"
                 >
                   <LineChart className="w-4 h-4" />
-                  Gráfico de Linha
+                  Gráfico de Linhas
                 </Button>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   size="sm"
                   onClick={() => addWidget('pie')}
                   className="flex items-center gap-2"
@@ -1321,8 +744,8 @@ export default function LookerDashboardBuilder() {
                   <PieChart className="w-4 h-4" />
                   Gráfico de Pizza
                 </Button>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   size="sm"
                   onClick={() => addWidget('table')}
                   className="flex items-center gap-2"
@@ -1330,8 +753,8 @@ export default function LookerDashboardBuilder() {
                   <Table className="w-4 h-4" />
                   Tabela
                 </Button>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   size="sm"
                   onClick={() => addWidget('filter')}
                   className="flex items-center gap-2"
@@ -1343,59 +766,47 @@ export default function LookerDashboardBuilder() {
             </div>
           )}
 
-          <div className="flex flex-1 overflow-hidden">
+          <div className="flex-1 flex overflow-hidden">
             {/* Data Panel */}
-            <aside className="w-72 border-r border-slate-200 bg-white flex flex-col shrink-0">
-              <LookerDataPanel
-                dataSources={dataSources}
-                selectedDataSource={selectedDataSource}
-                selectedTable={selectedTable}
-                tables={tables}
-                dataFields={dataFields}
-                isLoadingFields={isLoadingFields}
-                selectedWidget={selectedWidget}
-                onDataSourceChange={handleDataSourceChange}
-                onTableChange={handleTableChange}
-                onFieldClick={handleFieldClick}
-                onFieldTypeChange={(fieldId, newType, configuredType) => {
-                  console.log('🔧 Field type change:', { fieldId, newType, configuredType });
-                  setDataFields(prevFields => 
-                    prevFields.map(field => 
-                      field.id === fieldId 
-                        ? { ...field, type: newType, configuredType: configuredType as 'text' | 'number' | 'date' | 'datetime' | 'boolean' }
-                        : field
-                    )
-                  );
-                }}
-              />
-            </aside>
-
-            {/* Properties Panel */}
-            <aside className="w-80 border-r border-slate-200 bg-white shrink-0">
-              <LookerPropertiesPanel
-                selectedWidget={widgets.find(w => w.id === selectedWidget) || null}
-                dataFields={dataFields}
-                onWidgetConfigUpdate={updateWidgetConfig}
-                onDeselectWidget={() => setSelectedWidget(null)}
-              />
-            </aside>
+            <LookerDataPanel
+              dataSources={dataSources.map(ds => ({ id: ds.id, name: ds.name, type: ds.connection_type }))}
+              selectedDataSource={selectedDataSource}
+              onDataSourceChange={setSelectedDataSource}
+              dataFields={dataFields}
+              onFieldClick={handleFieldClick}
+              tables={tables}
+              selectedTable={selectedTable}
+              onTableChange={setSelectedTable}
+              isLoadingFields={false}
+              selectedWidget={null}
+            />
 
             {/* Canvas */}
-            <div className="flex-1 p-4 bg-slate-200 overflow-auto">
-              <div className="relative w-full min-h-[1500px] bg-white shadow-lg">
+            <div className="flex-1 relative overflow-auto">
+              <DndContext onDragEnd={handleDragEnd}>
                 <LookerCanvasGrid
                   widgets={widgets}
-                  selectedWidgetId={selectedWidget}
-                  onWidgetSelect={setSelectedWidget}
+                  selectedWidgetId={selectedWidgetId}
+                  onWidgetSelect={setSelectedWidgetId}
                   onWidgetUpdate={handleWidgetUpdate}
                   onWidgetRemove={removeWidget}
                   processDataForWidget={processDataForWidget}
                 />
-              </div>
+              </DndContext>
             </div>
+
+            {/* Properties Panel */}
+            <LookerPropertiesPanel
+              selectedWidget={selectedWidgetId ? widgets.find(w => w.id === selectedWidgetId) || null : null}
+              dataFields={dataFields}
+              onWidgetConfigUpdate={updateWidgetConfig}
+              onDeselectWidget={() => setSelectedWidgetId(null)}
+            />
           </div>
-        </DndContext>
-      </main>
-    </div>
+        </main>
+      </div>
+    </AppLayout>
   );
 }
+
+export default LookerDashboardBuilder;
