@@ -11,7 +11,7 @@ import GridLayout from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 
 export default function DashboardNew() {
-  const { permissions } = usePermissions();
+  const { permissions, loading: permissionsLoading } = usePermissions();
   const { user } = useAuth();
   const [savedCharts, setSavedCharts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -139,6 +139,22 @@ export default function DashboardNew() {
   const handleLayoutChange = (layout: any[]) => {
     setLayouts(layout);
   };
+
+  if (permissionsLoading) {
+    return (
+      <AppLayout>
+        <div className="p-6">
+          <div className="max-w-md mx-auto text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <h2 className="text-xl font-semibold mb-2">Carregando...</h2>
+            <p className="text-muted-foreground">
+              Verificando permissões...
+            </p>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
 
   if (!permissions?.canCreateCharts) {
     return (

@@ -33,7 +33,7 @@ interface ChartBuilderProps {
 }
 
 export default function ChartBuilder({ editChartId }: ChartBuilderProps = {}) {
-  const { permissions } = usePermissions();
+  const { permissions, loading: permissionsLoading } = usePermissions();
   const { toast } = useToast();
   const { user } = useAuth();
   const { connections, tables, loading, loadConnections, loadTables, executeQuery } = useDatabase();
@@ -506,6 +506,22 @@ export default function ChartBuilder({ editChartId }: ChartBuilderProps = {}) {
   };
 
   const availableColumns = data.length > 0 ? Object.keys(data[0]) : [];
+
+  if (permissionsLoading) {
+    return (
+      <AppLayout>
+        <div className="p-6">
+          <div className="max-w-md mx-auto text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <h2 className="text-xl font-semibold mb-2">Carregando...</h2>
+            <p className="text-muted-foreground">
+              Verificando permissões...
+            </p>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
 
   if (!permissions?.canCreateCharts) {
     return (

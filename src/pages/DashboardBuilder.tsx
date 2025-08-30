@@ -16,7 +16,7 @@ import { ChartRenderer } from "@/components/charts/ChartRenderer";
 
 export default function DashboardBuilder() {
   const { user } = useAuth();
-  const { permissions } = usePermissions();
+  const { permissions, loading: permissionsLoading } = usePermissions();
   const { connections, loadConnections } = useDatabase();
   
   // Dashboard State
@@ -247,6 +247,22 @@ export default function DashboardBuilder() {
       type: conn.connection_type
     }));
   };
+
+  if (permissionsLoading) {
+    return (
+      <AppLayout>
+        <div className="p-6">
+          <div className="max-w-md mx-auto text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <h2 className="text-xl font-semibold mb-2">Carregando...</h2>
+            <p className="text-muted-foreground">
+              Verificando permissões...
+            </p>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
 
   if (!permissions?.canCreateCharts) {
     return (
