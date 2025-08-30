@@ -345,6 +345,46 @@ export default function LookerDashboardBuilder() {
     setEndDate(end);
   };
 
+  // Helper function to generate mock data for widgets
+  const generateMockData = (widgetType: string): any => {
+    switch (widgetType) {
+      case 'scorecard':
+        return {
+          value: Math.floor(Math.random() * 10000) + 1000,
+          label: 'Mock Metric'
+        };
+      case 'bar':
+      case 'line':
+        return {
+          labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May'],
+          datasets: [{
+            label: 'Mock Data',
+            data: Array.from({ length: 5 }, () => Math.floor(Math.random() * 1000) + 100),
+            backgroundColor: 'hsl(var(--primary))',
+            borderColor: 'hsl(var(--primary))',
+            borderWidth: 2
+          }]
+        };
+      case 'pie':
+        return {
+          labels: ['A', 'B', 'C', 'D'],
+          datasets: [{
+            data: Array.from({ length: 4 }, () => Math.floor(Math.random() * 500) + 100),
+            backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0'],
+            borderWidth: 1
+          }]
+        };
+      case 'table':
+        return Array.from({ length: 10 }, (_, i) => ({
+          id: i + 1,
+          name: `Item ${i + 1}`,
+          value: Math.floor(Math.random() * 1000) + 100
+        }));
+      default:
+        return {};
+    }
+  };
+
   // Effect to refresh widgets when date range changes
   useEffect(() => {
     if (startDate || endDate) {
@@ -357,10 +397,15 @@ export default function LookerDashboardBuilder() {
   const processDataForWidget = useCallback(async (widget: Widget): Promise<any> => {
     console.log('🔄 Processing data for widget:', widget.type, widget.config);
     console.log('📅 Date range:', { startDate, endDate });
-    
+
     // Always use the selected data source to determine which data to use
     const isUsingMockData = selectedDataSource === 'Vendas Globais';
-    
+
+    if (!selectedDataSource || (!isUsingMockData && !selectedTable)) {
+      console.log('⚠️ No data source or table selected, using mock data');
+      return generateMockData(widget.type);
+    }
+
     if (widget.type === 'scorecard') {
       const metrics = Array.isArray(widget.config.metrics) ? widget.config.metrics : 
                       typeof widget.config.metrics === 'string' ? [widget.config.metrics] :
@@ -423,60 +468,39 @@ export default function LookerDashboardBuilder() {
           value: Math.round(result * 100) / 100 
         };
       } else {
-        // For real database connections, generate meaningful mock data
-        const field = dataFields.find(f => f.id === metric);
-        const metricName = field?.name || metric;
-        
-        let mockValue;
-        switch (aggregation) {
-          case 'count':
-          case 'count_distinct':
-            mockValue = Math.floor(Math.random() * 1000) + 100;
-            break;
-          case 'avg':
-            mockValue = Math.floor(Math.random() * 100) + 10;
-            break;
-          default:
-            mockValue = Math.floor(Math.random() * 50000) + 1000;
-        }
-        
-        // Try to query real data if connection is available
-        if (selectedDataSource && selectedTable) {
-          try {
-            console.log('🔄 Querying real scorecard data...');
-            const { data, error } = await supabase.functions.invoke('query-database', {
-                body: {
-                  connectionId: selectedDataSource,
-                  tableName: selectedTable,
-                  metrics: [metric],
-                  aggregation,
-                  startDate: startDate?.toISOString(),
-                  endDate: endDate?.toISOString()
-                }
-              });
-
-            if (error) {
-              console.warn('⚠️ Query error, using mock data:', error);
-            } else if (data?.success && data.data && data.data.length > 0) {
-              const result = data.data[0];
-              const value = result[`${metric}_${aggregation}`] || result.total_count || mockValue;
-              console.log('✅ Real scorecard data:', value);
-              
-              return {
-                value: typeof value === 'number' ? Math.round(value) : parseFloat(value) || 0,
-                label: `${metricName} (${aggregation})`,
-                aggregation: aggregation.toUpperCase()
-              };
+        // For real database connections
+        try {
+          console.log('🔄 Querying real scorecard data...');
+          const { data, error } = await supabase.functions.invoke('query-database', {
+            body: {
+              connectionId: selectedDataSource,
+              tableName: selectedTable,
+              metrics: [metric],
+              aggregation,
+              limit: 1
             }
-          } catch (error) {
-            console.warn('⚠️ Error querying scorecard data, using mock:', error);
+          });
+
+          if (error) throw error;
+
+          if (data?.success && data.data?.length > 0) {
+            const value = data.data[0][`${metric}_${aggregation}`] || 0;
+            const field = dataFields.find(f => f.id === metric);
+            const metricName = field?.name || metric;
+            
+            console.log('✅ Real scorecard data:', value);
+            return {
+              value: typeof value === 'number' ? Math.round(value) : parseFloat(value) || 0,
+              label: `${metricName} (${aggregation})`,
+              aggregation: aggregation.toUpperCase()
+            };
+          } else {
+            throw new Error('No data returned from query');
           }
+        } catch (error: any) {
+          console.warn('⚠️ Query error, using mock data:', error);
+          return generateMockData(widget.type);
         }
-        
-        return {
-          value: mockValue,
-          label: `${metricName} (${aggregation})`
-        };
       }
     }
     

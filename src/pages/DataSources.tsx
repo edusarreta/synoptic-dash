@@ -251,14 +251,34 @@ export default function DataSources() {
   const testConnection = async (connection: DataConnection) => {
     setTestingConnection(connection.id);
     
-    // Simulate connection test (in real implementation, this would make an API call to test the connection)
-    setTimeout(() => {
-      toast({
-        title: "Connection test",
-        description: "Connection test completed successfully!",
+    try {
+      // Test by fetching schema which also tests the connection
+      const { data, error } = await supabase.functions.invoke('get-database-schema', {
+        body: { connectionId: connection.id }
       });
+
+      if (error) {
+        throw new Error(error.message || 'Connection test failed');
+      }
+
+      if (data?.success) {
+        toast({
+          title: "Connection Successful",
+          description: `Successfully connected to ${connection.name}. Found ${data.tables?.length || 0} tables.`,
+        });
+      } else {
+        throw new Error(data?.error || 'Connection test failed');
+      }
+    } catch (error: any) {
+      console.error('Connection test error:', error);
+      toast({
+        title: "Connection Failed",
+        description: error.message || 'Failed to connect to database',
+        variant: "destructive"
+      });
+    } finally {
       setTestingConnection(null);
-    }, 2000);
+    }
   };
 
   const toggleConnection = async (connectionId: string, isActive: boolean) => {
