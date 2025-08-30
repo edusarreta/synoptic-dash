@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from "react";
+import { useRef, useState } from "react";
 import { 
   Chart, 
   CategoryScale, 
@@ -9,12 +9,10 @@ import {
   Tooltip, 
   Legend 
 } from 'chart.js';
-import { Button } from "@/components/ui/button";
-import { Trash2, BarChart3, Filter as FilterIcon, TrendingUp } from "lucide-react";
+import { BarChart3 } from "lucide-react";
 import { DndContext, DragEndEvent, closestCenter, DragOverlay } from '@dnd-kit/core';
-import { SortableContext, arrayMove } from '@dnd-kit/sortable';
 import { DraggableWidget } from './DraggableWidget';
-import RGL, { WidthProvider } from 'react-grid-layout';
+import RGL from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 
@@ -37,8 +35,6 @@ interface LookerCanvasGridProps {
   onWidgetRemove: (id: number) => void;
   processDataForWidget: (widget: Widget) => any;
 }
-
-const ResponsiveGridLayout = WidthProvider(RGL);
 
 export function LookerCanvasGrid({
   widgets,
@@ -133,7 +129,8 @@ export function LookerCanvasGrid({
     }
   };
 
-  const activeWidget = widgets.find(w => w.id === activeId);
+  // Find active widget for drag overlay
+  const dragOverlayWidget = widgets.find(w => w.id === activeId);
 
   return (
     <DndContext 
@@ -215,10 +212,10 @@ export function LookerCanvasGrid({
 
         {/* Drag Overlay for field drops */}
         <DragOverlay>
-          {activeWidget ? (
+          {dragOverlayWidget ? (
             <div className="bg-card border-2 border-primary rounded-lg shadow-lg opacity-95 transform rotate-3">
               <DraggableWidget
-                widget={activeWidget}
+                widget={dragOverlayWidget}
                 isSelected={false}
                 onSelect={() => {}}
                 onUpdate={() => {}}
