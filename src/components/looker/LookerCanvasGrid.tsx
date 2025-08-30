@@ -14,6 +14,9 @@ import { Trash2, BarChart3, Filter as FilterIcon, TrendingUp } from "lucide-reac
 import { DndContext, DragEndEvent, closestCenter, DragOverlay } from '@dnd-kit/core';
 import { SortableContext, arrayMove } from '@dnd-kit/sortable';
 import { DraggableWidget } from './DraggableWidget';
+import RGL, { WidthProvider } from 'react-grid-layout';
+import 'react-grid-layout/css/styles.css';
+import 'react-resizable/css/styles.css';
 
 // Register Chart.js components including BarController
 Chart.register(CategoryScale, LinearScale, BarElement, BarController, Title, Tooltip, Legend);
@@ -35,6 +38,8 @@ interface LookerCanvasGridProps {
   processDataForWidget: (widget: Widget) => any;
 }
 
+const ResponsiveGridLayout = WidthProvider(RGL);
+
 export function LookerCanvasGrid({
   widgets,
   selectedWidgetId,
@@ -44,13 +49,44 @@ export function LookerCanvasGrid({
   processDataForWidget
 }: LookerCanvasGridProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
-  const [widgetOrder, setWidgetOrder] = useState(widgets.map(w => w.id));
   const [activeId, setActiveId] = useState<number | null>(null);
+  
+  // Convert widgets to grid layout format
+  const layout = widgets.map(widget => ({
+    i: widget.id.toString(),
+    x: widget.layout.x,
+    y: widget.layout.y,
+    w: widget.layout.w,
+    h: widget.layout.h,
+    minW: 2,
+    minH: 2
+  }));
 
-  // Update widget order when widgets change
-  useEffect(() => {
-    setWidgetOrder(widgets.map(w => w.id));
-  }, [widgets]);
+  // Handle grid layout changes (drag and resize)
+  const handleLayoutChange = (newLayout: any[]) => {
+    console.log('📐 Grid layout changed:', newLayout);
+    
+    newLayout.forEach(item => {
+      const widgetId = parseInt(item.i);
+      const widget = widgets.find(w => w.id === widgetId);
+      
+      if (widget && (
+        widget.layout.x !== item.x ||
+        widget.layout.y !== item.y ||
+        widget.layout.w !== item.w ||
+        widget.layout.h !== item.h
+      )) {
+        onWidgetUpdate(widgetId, {
+          layout: {
+            x: item.x,
+            y: item.y,
+            w: item.w,
+            h: item.h
+          }
+        });
+      }
+    });
+  };
 
   const handleDragStart = (event: any) => {
     setActiveId(event.active.id);
@@ -62,7 +98,7 @@ export function LookerCanvasGrid({
     
     if (!over) return;
 
-    console.log('🎯 Canvas drag end:', { active, over });
+    console.log('🎯 Field drag end:', { active, over });
 
     // Handle field drop onto widget (for configuration)
     if (active.data.current?.type === 'field' && over.data.current?.type === 'widget') {
@@ -95,47 +131,6 @@ export function LookerCanvasGrid({
       });
       return;
     }
-
-    // Handle widget movement
-    if (active.data.current?.type === 'widget' && over.id === 'canvas-drop-zone') {
-      console.log('🚀 Moving widget on canvas');
-      // Widget is being moved on the canvas
-      const activeWidget = widgets.find(w => w.id === active.id);
-      if (activeWidget && canvasRef.current) {
-        const canvasRect = canvasRef.current.getBoundingClientRect();
-        const dropX = event.delta.x;
-        const dropY = event.delta.y;
-        
-        console.log('📍 New widget position:', { dropX, dropY });
-        
-        onWidgetUpdate(activeWidget.id, {
-          layout: { 
-            ...activeWidget.layout, 
-            x: Math.max(0, activeWidget.layout.x + dropX), 
-            y: Math.max(0, activeWidget.layout.y + dropY) 
-          }
-        });
-      }
-      return;
-    }
-
-    // Handle widget reordering/repositioning
-    if (active.data.current?.type === 'widget' && over.data.current?.type === 'widget') {
-      const activeWidget = widgets.find(w => w.id === active.id);
-      const overWidget = widgets.find(w => w.id === over.id);
-      
-      console.log('🔄 Swapping widget positions');
-      
-      if (activeWidget && overWidget && activeWidget.id !== overWidget.id) {
-        // Swap positions
-        onWidgetUpdate(activeWidget.id, {
-          layout: { ...activeWidget.layout, x: overWidget.layout.x, y: overWidget.layout.y }
-        });
-        onWidgetUpdate(overWidget.id, {
-          layout: { ...overWidget.layout, x: activeWidget.layout.x, y: activeWidget.layout.y }
-        });
-      }
-    }
   };
 
   const activeWidget = widgets.find(w => w.id === activeId);
@@ -147,70 +142,78 @@ export function LookerCanvasGrid({
       onDragEnd={handleDragEnd}
     >
       <div className="w-full h-full overflow-auto custom-scrollbar">
-        <SortableContext items={widgetOrder}>
-          <div
-            ref={canvasRef}
-            id="canvas-drop-zone"
-            className="w-[1200px] h-full mx-auto bg-card shadow-lg"
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(12, 1fr)',
-              gridAutoRows: '60px',
-              gap: '16px',
-              padding: '16px',
-              minHeight: '100%',
-              alignContent: 'start'
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              onWidgetSelect(null);
-            }}
-            onDrop={(e) => {
-              e.preventDefault();
-              console.log('📦 Canvas drop event');
-            }}
-            onDragOver={(e) => {
-              e.preventDefault();
-              e.dataTransfer.dropEffect = 'move';
-            }}
-          >
-            {widgets.map(widget => (
-              <DraggableWidget
-                key={widget.id}
-                widget={widget}
-                isSelected={selectedWidgetId === widget.id}
-                onSelect={onWidgetSelect}
-                onUpdate={onWidgetUpdate}
-                onRemove={onWidgetRemove}
-                processData={processDataForWidget}
-              />
-            ))}
-
-            {/* Empty State */}
-            {widgets.length === 0 && (
-              <div 
-                className="col-span-12 row-span-8 flex items-center justify-center"
-                style={{ gridColumn: '1 / -1', gridRow: '1 / span 8' }}
-              >
-                <div className="text-center">
-                  <div className="w-16 h-16 bg-muted rounded-lg flex items-center justify-center mb-4 mx-auto">
-                    <BarChart3 className="w-8 h-8 text-muted-foreground" />
-                  </div>
-                  <h2 className="text-xl font-semibold mb-2">Canvas Vazio</h2>
-                  <p className="text-muted-foreground mb-4">
-                    Comece adicionando gráficos e controles ao seu relatório
-                  </p>
-                  <div className="flex gap-2 justify-center">
-                    <span className="text-xs bg-muted px-2 py-1 rounded">Adicionar Gráfico</span>
-                    <span className="text-xs bg-muted px-2 py-1 rounded">Adicionar Controle</span>
-                  </div>
+        <div
+          ref={canvasRef}
+          className="mx-auto bg-card shadow-lg"
+          style={{ minHeight: '100vh', padding: '16px' }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onWidgetSelect(null);
+          }}
+        >
+          {widgets.length === 0 ? (
+            <div className="flex items-center justify-center h-[500px]">
+              <div className="text-center">
+                <div className="w-16 h-16 bg-muted rounded-lg flex items-center justify-center mb-4 mx-auto">
+                  <BarChart3 className="w-8 h-8 text-muted-foreground" />
+                </div>
+                <h2 className="text-xl font-semibold mb-2">Canvas Vazio</h2>
+                <p className="text-muted-foreground mb-4">
+                  Comece adicionando gráficos e controles ao seu relatório
+                </p>
+                <div className="flex gap-2 justify-center">
+                  <span className="text-xs bg-muted px-2 py-1 rounded">Adicionar Gráfico</span>
+                  <span className="text-xs bg-muted px-2 py-1 rounded">Adicionar Controle</span>
                 </div>
               </div>
-            )}
-          </div>
-        </SortableContext>
+            </div>
+          ) : (
+            <RGL
+              className="layout"
+              layout={layout}
+              cols={12}
+              rowHeight={60}
+              width={1200}
+              onLayoutChange={handleLayoutChange}
+              isResizable={true}
+              isDraggable={true}
+              margin={[16, 16]}
+              containerPadding={[0, 0]}
+              useCSSTransforms={true}
+            >
+              {widgets.map(widget => (
+                <div
+                  key={widget.id.toString()}
+                  data-grid={{
+                    i: widget.id.toString(),
+                    x: widget.layout.x,
+                    y: widget.layout.y,
+                    w: widget.layout.w,
+                    h: widget.layout.h,
+                    minW: 2,
+                    minH: 2
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onWidgetSelect(widget.id);
+                  }}
+                  className={`${selectedWidgetId === widget.id ? 'ring-2 ring-primary' : ''}`}
+                >
+                  <DraggableWidget
+                    widget={widget}
+                    isSelected={selectedWidgetId === widget.id}
+                    onSelect={onWidgetSelect}
+                    onUpdate={onWidgetUpdate}
+                    onRemove={onWidgetRemove}
+                    processData={processDataForWidget}
+                  />
+                </div>
+              ))}
+            </RGL>
+          )}
+        </div>
 
-        {/* Drag Overlay */}
+        {/* Drag Overlay for field drops */}
         <DragOverlay>
           {activeWidget ? (
             <div className="bg-card border-2 border-primary rounded-lg shadow-lg opacity-95 transform rotate-3">
