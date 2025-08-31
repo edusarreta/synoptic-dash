@@ -1,17 +1,14 @@
-import { useState } from "react";
 import { 
   BarChart3, 
   Database, 
   LayoutDashboard, 
   Settings, 
-  Users, 
   LogOut,
   ChevronDown,
-  Plus,
-  CreditCard,
-  Bot,
-  ShoppingBag,
-  Presentation
+  Home,
+  FileText,
+  Eye,
+  Shield
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
@@ -28,6 +25,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { useSession } from "@/providers/SessionProvider";
+import { usePermissions } from "@/providers/PermissionsProvider";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -38,25 +36,23 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 const navigationItems = [
-  { title: "Looker Builder", url: "/looker-builder", icon: Presentation },
-  { title: "Dashboards", url: "/dashboards", icon: LayoutDashboard },
-  { title: "Charts", url: "/charts", icon: BarChart3 },
-  { title: "Data Sources", url: "/data-sources", icon: Database },
-  { title: "AI Chat", url: "/ai-chat", icon: Bot },
-  { title: "Marketplace", url: "/marketplace", icon: ShoppingBag },
-  { title: "Ecosystem", url: "/ecosystem", icon: BarChart3 },
-  { title: "Analytics", url: "/analytics", icon: BarChart3 },
+  { title: "Home", url: "/app", icon: Home },
+  { title: "Conexões", url: "/connections", icon: Database, permission: "connections:read" },
+  { title: "Catálogo", url: "/catalog", icon: Eye, permission: "catalog:read" },
+  { title: "Editor SQL", url: "/sql", icon: FileText, permission: "sql:run" },
+  { title: "Dashboards", url: "/dashboards", icon: LayoutDashboard, permission: "dashboards:read" },
+  { title: "Configurações", url: "/settings", icon: Settings },
 ];
 
 const adminItems = [
-  { title: "Users", url: "/users", icon: Users },
-  { title: "Settings", url: "/settings", icon: Settings },
+  { title: "Permissões", url: "/org/permissions", icon: Shield, permission: "rbac:manage" },
 ];
 
 export function AppSidebar() {
   const { open } = useSidebar();
   const location = useLocation();
   const { userProfile, signOut } = useSession();
+  const { can } = usePermissions();
   const currentPath = location.pathname;
 
   const isActive = (path: string) => currentPath.startsWith(path);
@@ -100,11 +96,13 @@ export function AppSidebar() {
         {/* Navigation */}
         <SidebarGroup className="px-2">
           <SidebarGroupLabel className={!open ? "sr-only" : ""}>
-            Main Navigation
+            Navegação
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navigationItems.map((item) => (
+              {navigationItems
+                .filter(item => !item.permission || can(item.permission))
+                .map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild className="h-10">
                     <NavLink 
@@ -117,75 +115,37 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {/* Quick Actions */}
-        <SidebarGroup className="px-2">
-          <SidebarGroupLabel className={!open ? "sr-only" : ""}>Quick Actions</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild className="h-10">
-                  <NavLink 
-                    to="/charts/new" 
-                    className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${getNavClass("/charts/new")}`}
-                  >
-                    <Plus className="w-5 h-5 flex-shrink-0" />
-                    {open && <span className="text-sm font-medium">New Chart</span>}
-                  </NavLink>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild className="h-10">
-                  <NavLink 
-                    to="/billing" 
-                    className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${getNavClass("/billing")}`}
-                  >
-                    <CreditCard className="w-5 h-5 flex-shrink-0" />
-                    {open && <span className="text-sm font-medium">Billing</span>}
-                  </NavLink>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild className="h-10">
-                  <NavLink 
-                    to="/settings" 
-                    className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${getNavClass("/settings")}`}
-                  >
-                    <Settings className="w-5 h-5 flex-shrink-0" />
-                    {open && <span className="text-sm font-medium">Settings</span>}
-                  </NavLink>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
 
         {/* Admin Section */}
-        <SidebarGroup className="px-2">
-          <SidebarGroupLabel className={!open ? "sr-only" : ""}>
-            Administration
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {adminItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild className="h-10">
-                    <NavLink 
-                      to={item.url} 
-                      className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${getNavClass(item.url)}`}
-                    >
-                      <item.icon className="w-5 h-5 flex-shrink-0" />
-                      {open && <span className="text-sm font-medium">{item.title}</span>}
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {adminItems.some(item => !item.permission || can(item.permission)) && (
+          <SidebarGroup className="px-2">
+            <SidebarGroupLabel className={!open ? "sr-only" : ""}>
+              Administração
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {adminItems
+                  .filter(item => !item.permission || can(item.permission))
+                  .map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild className="h-10">
+                      <NavLink 
+                        to={item.url} 
+                        className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${getNavClass(item.url)}`}
+                      >
+                        <item.icon className="w-5 h-5 flex-shrink-0" />
+                        {open && <span className="text-sm font-medium">{item.title}</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
 
         {/* User Menu */}
         <div className="mt-auto p-2 border-t">

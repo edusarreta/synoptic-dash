@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
-import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -65,7 +64,7 @@ const defaultFormValues: ConnectionFormData = {
   test_path: '/api/test'
 };
 
-export default function Connections() {
+export default function ConnectionsPage() {
   const { userProfile } = useSession();
   const { can } = usePermissions();
   const { toast } = useToast();
@@ -79,10 +78,9 @@ export default function Connections() {
   const form = useForm<ConnectionFormData>({
     defaultValues: defaultFormValues
   });
-
-  const selectedConnection = connections.find(c => c.id === selectedConnectionId);
+  
   const watchedRawType = form.watch('rawType');
-  const watchedSelectedId = selectedConnectionId;
+  const selectedConnection = connections.find(c => c.id === selectedConnectionId);
 
   // Reactive form key for re-mounting form when type or selection changes
   const formKey = `${selectedConnectionId ?? 'new'}:${watchedRawType}`;
@@ -372,26 +370,22 @@ export default function Connections() {
 
   if (!canViewConnections) {
     return (
-      <AppLayout>
-        <div className="flex flex-col items-center justify-center h-64">
-          <Database className="w-12 h-12 text-muted-foreground mb-4" />
-          <h3 className="text-lg font-semibold mb-2">Acesso Negado</h3>
-          <p className="text-muted-foreground text-center mb-4">
-            Você não tem permissão para visualizar conexões
-          </p>
-          <BackLink />
-        </div>
-      </AppLayout>
+      <div className="flex flex-col items-center justify-center h-64">
+        <Database className="w-12 h-12 text-muted-foreground mb-4" />
+        <h3 className="text-lg font-semibold mb-2">Acesso Negado</h3>
+        <p className="text-muted-foreground text-center mb-4">
+          Você não tem permissão para visualizar conexões
+        </p>
+        <BackLink />
+      </div>
     );
   }
 
   if (loading) {
     return (
-      <AppLayout>
-        <div className="flex items-center justify-center h-32">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        </div>
-      </AppLayout>
+      <div className="flex items-center justify-center h-32">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
     );
   }
 
@@ -399,18 +393,14 @@ export default function Connections() {
   const typeLabel = getTypeLabel(watchedRawType);
 
   return (
-    <AppLayout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <BackLink />
-            <div>
-              <h1 className="text-3xl font-bold">Conexões de Dados</h1>
-              <p className="text-muted-foreground mt-2">
-                Gerencie suas conexões com bancos de dados e APIs
-              </p>
-            </div>
-          </div>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Conexões de Dados</h1>
+          <p className="text-muted-foreground mt-2">
+            Gerencie suas conexões com bancos de dados e APIs
+          </p>
+        </div>
 
           {canCreateConnections && (
             <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
@@ -737,7 +727,6 @@ export default function Connections() {
             ))
           )}
         </div>
-      </div>
-    </AppLayout>
+    </div>
   );
 }

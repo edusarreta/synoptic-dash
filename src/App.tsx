@@ -5,8 +5,10 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { SessionProvider } from "./providers/SessionProvider";
+import { PermissionsProvider } from "./providers/PermissionsProvider";
 import { RequireAuth } from "./components/RequireAuth";
 import { RequirePermission } from "./components/RequirePermission";
+import { AppLayout } from "./layouts/AppLayout";
 
 // Public pages
 import Index from "./pages/Index";
@@ -19,18 +21,11 @@ import NotFound from "./pages/NotFound";
 // Protected pages
 import { App as AppHome } from "./pages/App";
 import Dashboard from "./pages/Dashboard";
-import DataSources from "./pages/DataSources";
-import ChartBuilderWrapper from "./components/ChartBuilderWrapper";
 import Settings from "./pages/Settings";
-import Billing from "./pages/Billing";
-import AIChat from "./pages/AIChat";
-import Marketplace from "./pages/Marketplace";
-import Ecosystem from "./pages/Ecosystem";
-import SuperAdmin from "./pages/SuperAdmin";
-import LookerDashboardBuilder from "./pages/LookerDashboardBuilder";
 import { EditorPage } from "./modules/editor/pages/EditorPage";
 import { ConnectionsPage } from "./modules/connections/pages/ConnectionsPage";
 import SQLEditor from "./pages/SQLEditor";
+import Catalog from "./pages/Catalog";
 
 const queryClient = new QueryClient();
 
@@ -38,54 +33,112 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <SessionProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <Routes>
-              {/* Public routes */}
-              <Route path="/" element={<Index />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/auth/callback" element={<AuthCallback />} />
-              <Route path="/post-auth" element={<PostAuth />} />
-              <Route path="/demo" element={<Demo />} />
-              
-              {/* Protected routes */}
-              <Route path="/app" element={<RequireAuth><AppHome /></RequireAuth>} />
-              <Route path="/dashboards" element={<RequireAuth><Dashboard /></RequireAuth>} />
-              <Route path="/data-sources" element={<RequireAuth><DataSources /></RequireAuth>} />
-              <Route path="/connections" element={<RequireAuth><ConnectionsPage /></RequireAuth>} />
-              <Route path="/sql" element={<RequireAuth><SQLEditor /></RequireAuth>} />
-              <Route path="/charts/new" element={<RequireAuth><ChartBuilderWrapper /></RequireAuth>} />
-              <Route path="/charts" element={<RequireAuth><ChartBuilderWrapper /></RequireAuth>} />
-              <Route path="/looker-builder" element={<RequireAuth><LookerDashboardBuilder /></RequireAuth>} />
-              <Route path="/editor" element={
-                <RequireAuth>
-                  <RequirePermission permissions={["dashboards:update_layout", "charts:update_spec"]}>
-                    <EditorPage />
-                  </RequirePermission>
-                </RequireAuth>
-              } />
-              <Route path="/editor/:id" element={
-                <RequireAuth>
-                  <RequirePermission permissions={["dashboards:update_layout", "charts:update_spec"]}>
-                    <EditorPage />
-                  </RequirePermission>
-                </RequireAuth>
-              } />
-              <Route path="/analytics" element={<RequireAuth><Dashboard /></RequireAuth>} />
-              <Route path="/ai-chat" element={<RequireAuth><AIChat /></RequireAuth>} />
-              <Route path="/marketplace" element={<RequireAuth><Marketplace /></RequireAuth>} />
-              <Route path="/ecosystem" element={<RequireAuth><Ecosystem /></RequireAuth>} />
-              <Route path="/super-admin" element={<RequireAuth><SuperAdmin /></RequireAuth>} />
-              <Route path="/billing" element={<RequireAuth><Billing /></RequireAuth>} />
-              <Route path="/settings" element={<RequireAuth><Settings /></RequireAuth>} />
-              
-              {/* Catch-all */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </TooltipProvider>
+        <PermissionsProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <Routes>
+                {/* Public routes */}
+                <Route path="/" element={<Index />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/auth/callback" element={<AuthCallback />} />
+                <Route path="/post-auth" element={<PostAuth />} />
+                <Route path="/demo" element={<Demo />} />
+                
+                {/* Protected routes with unified layout */}
+                <Route path="/app" element={
+                  <RequireAuth>
+                    <AppLayout>
+                      <AppHome />
+                    </AppLayout>
+                  </RequireAuth>
+                } />
+                
+                <Route path="/connections" element={
+                  <RequireAuth>
+                    <RequirePermission permissions={["connections:read", "connections:create"]}>
+                      <AppLayout>
+                        <ConnectionsPage />
+                      </AppLayout>
+                    </RequirePermission>
+                  </RequireAuth>
+                } />
+                
+                <Route path="/catalog" element={
+                  <RequireAuth>
+                    <RequirePermission permissions={["catalog:read"]}>
+                      <AppLayout>
+                        <Catalog />
+                      </AppLayout>
+                    </RequirePermission>
+                  </RequireAuth>
+                } />
+                
+                <Route path="/sql" element={
+                  <RequireAuth>
+                    <RequirePermission permissions={["sql:run"]}>
+                      <AppLayout>
+                        <SQLEditor />
+                      </AppLayout>
+                    </RequirePermission>
+                  </RequireAuth>
+                } />
+                
+                <Route path="/dashboards" element={
+                  <RequireAuth>
+                    <RequirePermission permissions={["dashboards:read"]}>
+                      <AppLayout>
+                        <Dashboard />
+                      </AppLayout>
+                    </RequirePermission>
+                  </RequireAuth>
+                } />
+                
+                <Route path="/dashboards/new" element={
+                  <RequireAuth>
+                    <RequirePermission permissions={["dashboards:create"]}>
+                      <AppLayout>
+                        <EditorPage />
+                      </AppLayout>
+                    </RequirePermission>
+                  </RequireAuth>
+                } />
+                
+                <Route path="/editor/:id" element={
+                  <RequireAuth>
+                    <RequirePermission permissions={["dashboards:update_layout", "charts:update_spec"]}>
+                      <AppLayout>
+                        <EditorPage />
+                      </AppLayout>
+                    </RequirePermission>
+                  </RequireAuth>
+                } />
+                
+                <Route path="/settings" element={
+                  <RequireAuth>
+                    <AppLayout>
+                      <Settings />
+                    </AppLayout>
+                  </RequireAuth>
+                } />
+                
+                <Route path="/org/permissions" element={
+                  <RequireAuth>
+                    <RequirePermission permissions={["rbac:manage"]}>
+                      <AppLayout>
+                        <div>Permissions Management (Coming Soon)</div>
+                      </AppLayout>
+                    </RequirePermission>
+                  </RequireAuth>
+                } />
+                
+                {/* Catch-all */}
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+          </TooltipProvider>
+        </PermissionsProvider>
       </SessionProvider>
     </QueryClientProvider>
   );
