@@ -20,20 +20,16 @@ interface CreateConnectionRequest {
   update_id?: string; // For updating existing connections
 }
 
-// Simple encryption for demo - in production use proper key management
+// Unified encryption method matching decrypt function
 async function encryptPassword(password: string): Promise<string> {
-  const key = Deno.env.get('DB_ENCRYPTION_KEY') || 'demo-key-change-in-production';
-  const encoder = new TextEncoder();
-  const data = encoder.encode(password);
-  const keyData = encoder.encode(key);
-  
-  // Simple XOR encryption for demo
-  const encrypted = new Uint8Array(data.length);
-  for (let i = 0; i < data.length; i++) {
-    encrypted[i] = data[i] ^ keyData[i % keyData.length];
+  const encryptionKey = Deno.env.get('DB_ENCRYPTION_KEY');
+  if (!encryptionKey) {
+    throw new Error('Encryption key not configured');
   }
   
-  return btoa(String.fromCharCode(...encrypted));
+  // Use the same method as encrypt-password function: base64 + delimiter
+  const combined = password + '::' + encryptionKey.slice(0, 8);
+  return btoa(combined);
 }
 
 function normalizeConnectionType(type: string): string {
