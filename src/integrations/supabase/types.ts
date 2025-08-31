@@ -1143,6 +1143,39 @@ export type Database = {
           },
         ]
       }
+      role_permissions: {
+        Row: {
+          org_id: string
+          perm_code: string
+          role: string
+        }
+        Insert: {
+          org_id: string
+          perm_code: string
+          role: string
+        }
+        Update: {
+          org_id?: string
+          perm_code?: string
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "role_permissions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "role_permissions_perm_code_fkey"
+            columns: ["perm_code"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["code"]
+          },
+        ]
+      }
       saved_charts: {
         Row: {
           account_id: string
@@ -1385,6 +1418,51 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "accounts"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_grants: {
+        Row: {
+          created_at: string | null
+          effect: string
+          id: string
+          org_id: string
+          perm_code: string
+          user_id: string
+          workspace_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          effect: string
+          id?: string
+          org_id: string
+          perm_code: string
+          user_id: string
+          workspace_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          effect?: string
+          id?: string
+          org_id?: string
+          perm_code?: string
+          user_id?: string
+          workspace_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_grants_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_grants_perm_code_fkey"
+            columns: ["perm_code"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["code"]
           },
         ]
       }
