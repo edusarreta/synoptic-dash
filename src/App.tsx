@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { SessionProvider } from "./providers/SessionProvider";
 import { RequireAuth } from "./components/RequireAuth";
+import { RequirePermission } from "./components/RequirePermission";
 
 // Public pages
 import Index from "./pages/Index";
@@ -29,6 +30,7 @@ import SuperAdmin from "./pages/SuperAdmin";
 import LookerDashboardBuilder from "./pages/LookerDashboardBuilder";
 import { EditorPage } from "./modules/editor/pages/EditorPage";
 import { ConnectionsPage } from "./modules/connections/pages/ConnectionsPage";
+import SQLEditor from "./pages/SQLEditor";
 
 const queryClient = new QueryClient();
 
@@ -53,11 +55,24 @@ export default function App() {
               <Route path="/dashboards" element={<RequireAuth><Dashboard /></RequireAuth>} />
               <Route path="/data-sources" element={<RequireAuth><DataSources /></RequireAuth>} />
               <Route path="/connections" element={<RequireAuth><ConnectionsPage /></RequireAuth>} />
+              <Route path="/sql" element={<RequireAuth><SQLEditor /></RequireAuth>} />
               <Route path="/charts/new" element={<RequireAuth><ChartBuilderWrapper /></RequireAuth>} />
               <Route path="/charts" element={<RequireAuth><ChartBuilderWrapper /></RequireAuth>} />
               <Route path="/looker-builder" element={<RequireAuth><LookerDashboardBuilder /></RequireAuth>} />
-              <Route path="/editor" element={<RequireAuth><EditorPage /></RequireAuth>} />
-              <Route path="/editor/:id" element={<RequireAuth><EditorPage /></RequireAuth>} />
+              <Route path="/editor" element={
+                <RequireAuth>
+                  <RequirePermission permissions={["dashboards:update_layout", "charts:update_spec"]}>
+                    <EditorPage />
+                  </RequirePermission>
+                </RequireAuth>
+              } />
+              <Route path="/editor/:id" element={
+                <RequireAuth>
+                  <RequirePermission permissions={["dashboards:update_layout", "charts:update_spec"]}>
+                    <EditorPage />
+                  </RequirePermission>
+                </RequireAuth>
+              } />
               <Route path="/analytics" element={<RequireAuth><Dashboard /></RequireAuth>} />
               <Route path="/ai-chat" element={<RequireAuth><AIChat /></RequireAuth>} />
               <Route path="/marketplace" element={<RequireAuth><Marketplace /></RequireAuth>} />

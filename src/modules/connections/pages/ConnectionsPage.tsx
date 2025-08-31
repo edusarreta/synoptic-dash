@@ -38,7 +38,13 @@ export function ConnectionsPage() {
     username: '',
     password: '',
     port: 5432,
+    ssl_mode: 'require',
   });
+
+  const [testConnectionResult, setTestConnectionResult] = useState<{
+    status: 'success' | 'error' | null;
+    message: string;
+  }>({ status: null, message: '' });
 
   const fetchConnections = async () => {
     try {
@@ -102,6 +108,7 @@ export function ConnectionsPage() {
         username: '',
         password: '',
         port: 5432,
+        ssl_mode: 'require',
       });
       fetchConnections();
     } catch (error) {
@@ -111,6 +118,68 @@ export function ConnectionsPage() {
         description: "Falha ao criar conexão",
         variant: "destructive",
       });
+    }
+  };
+
+  const handleTestNewConnection = async () => {
+    if (!userProfile?.org_id) {
+      toast({
+        title: "Erro",
+        description: "Usuário não está associado a uma organização",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsTestingConnection('new');
+    setTestConnectionResult({ status: null, message: '' });
+
+    try {
+      const { data, error } = await supabase.functions.invoke('test-database-connection', {
+        body: {
+          org_id: userProfile.org_id,
+          type: newConnection.connection_type,
+          host: newConnection.host,
+          port: newConnection.port,
+          database: newConnection.database_name,
+          user: newConnection.username,
+          password: newConnection.password,
+          ssl_mode: newConnection.ssl_mode,
+        }
+      });
+
+      if (error) throw error;
+
+      setTestConnectionResult({
+        status: data.ok ? 'success' : 'error',
+        message: data.ok 
+          ? `Conexão bem-sucedida! ${data.server_version ? `(${data.server_version})` : ''}` 
+          : data.error_message || 'Falha na conexão'
+      });
+
+      toast({
+        title: data.ok ? "Sucesso" : "Erro",
+        description: data.ok 
+          ? `Conexão testada com sucesso! ${data.server_version ? `Versão: ${data.server_version}` : ''}` 
+          : data.error_message || 'Falha ao testar conexão',
+        variant: data.ok ? "default" : "destructive",
+      });
+    } catch (error: any) {
+      console.error('Erro ao testar conexão:', error);
+      const errorMessage = error.message || 'Falha ao testar conexão';
+      
+      setTestConnectionResult({
+        status: 'error',
+        message: errorMessage
+      });
+
+      toast({
+        title: "Erro",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsTestingConnection(null);
     }
   };
 
@@ -282,12 +351,58 @@ export function ConnectionsPage() {
                   placeholder="Senha do banco"
                 />
               </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="ssl_mode">Modo SSL</Label>
+                <Select 
+                  value={newConnection.ssl_mode} 
+                  onValueChange={(value) => setNewConnection({...newConnection, ssl_mode: value})}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="require">Require (Recomendado)</SelectItem>
+                    <SelectItem value="disable">Disable</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {testConnectionResult.status && (
+                <div className={`p-3 rounded border flex items-center gap-2 ${
+                  testConnectionResult.status === 'success' 
+                    ? 'bg-green-50 border-green-200 text-green-800' 
+                    : 'bg-red-50 border-red-200 text-red-800'
+                }`}>
+                  {testConnectionResult.status === 'success' ? (
+                    <CheckCircle className="w-4 h-4" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4" />
+                  )}
+                  <span className="text-sm">{testConnectionResult.message}</span>
+                </div>
+              )}
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
                 Cancelar
               </Button>
-              <Button onClick={handleCreateConnection}>
+              <Button 
+                variant="outline" 
+                onClick={handleTestNewConnection}
+                disabled={isTestingConnection === 'new'}
+              >
+                {isTestingConnection === 'new' ? (
+                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-primary mr-1"></div>
+                ) : (
+                  <TestTube className="w-4 h-4 mr-1" />
+                )}
+                Testar Conexão
+              </Button>
+              <Button 
+                onClick={handleCreateConnection}
+                disabled={testConnectionResult.status !== 'success'}
+              >
                 Criar Conexão
               </Button>
             </div>
