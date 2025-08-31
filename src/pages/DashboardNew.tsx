@@ -78,16 +78,19 @@ export default function DashboardNew() {
       const chartsWithData = await Promise.all(
         (charts || []).map(async (chart) => {
           try {
-            const { data } = await supabase.functions.invoke('execute-sql-query', {
+            const { data } = await supabase.functions.invoke('run-sql-query', {
               body: {
-                connectionId: chart.data_connection_id,
-                sqlQuery: chart.sql_query
+                org_id: profile.org_id,
+                connection_id: chart.data_connection_id,
+                sql: chart.sql_query,
+                mode: 'preview',
+                row_limit: 100
               }
             });
             
             return {
               ...chart,
-              data: data?.data || []
+              data: data?.rows || []
             };
           } catch (error) {
             console.error(`Error executing query for chart ${chart.id}:`, error);

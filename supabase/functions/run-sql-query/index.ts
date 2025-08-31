@@ -177,47 +177,83 @@ serve(async (req) => {
     const startTime = Date.now();
     
     try {
-      // This is a simplified version - in production, use proper database drivers
-      // For now, we'll simulate the query execution
-      const mockResult = {
-        columns: ['id', 'name', 'created_at'],
-        rows: [
-          ['1', 'Sample Data', '2024-01-01T00:00:00Z'],
-          ['2', 'Test Record', '2024-01-02T00:00:00Z']
-        ],
-        truncated: false,
-        elapsed_ms: Date.now() - startTime
-      };
-
-      // If mode is 'dataset', record usage
-      if (mode === 'dataset') {
-        // Record usage event
-        await supabase.from('usage_tracking').insert({
-          org_id: org_id,
-          metric_name: 'sql_queries_executed',
-          metric_value: 1
-        });
-
-        // Log in audit
-        await supabase.functions.invoke('audit-log', {
-          body: {
-            org_id: org_id,
-            user_id: user.id,
-            action: 'sql_query_executed',
-            resource_type: 'query',
-            metadata: {
-              connection_id: connection_id,
-              mode: mode,
-              row_count: mockResult.rows.length
-            }
+      // Execute real query based on connection type
+      if (connection.connection_type === 'postgresql' || connection.connection_type === 'supabase') {
+        const { Client } = await import("https://deno.land/x/postgres@v0.17.0/mod.ts");
+        
+        const client = new Client({
+          user: connection.username,
+          database: connection.database_name,
+          hostname: connection.host,
+          port: connection.port,
+          password: decryptResult.decrypted_password,
+          tls: {
+            enabled: connection.ssl_enabled,
+            enforce: false,
+            caCertificates: []
           }
         });
-      }
 
-      return new Response(JSON.stringify(mockResult), {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+        await client.connect();
+        
+        console.log('🔧 Executing SQL:', parameterizedSql);
+        const result = await client.queryObject(parameterizedSql);
+        const elapsedMs = Date.now() - startTime;
+        
+        await client.end();
+
+        // Format response
+        const columns = result.rows.length > 0 ? Object.keys(result.rows[0]) : [];
+        const rows = result.rows.map(row => Object.values(row));
+
+        const queryResult = {
+          columns,
+          rows,
+          total_rows: result.rows.length,
+          truncated: result.rows.length >= Math.min(row_limit, 10000),
+          elapsed_ms: elapsedMs
+        };
+
+        console.log(`✅ Query executed successfully. Rows: ${queryResult.rows.length}, Time: ${elapsedMs}ms`);
+
+        // If mode is 'dataset', record usage
+        if (mode === 'dataset') {
+          // Record usage event
+          await supabase.from('usage_tracking').insert({
+            org_id: org_id,
+            metric_name: 'sql_queries_executed',
+            metric_value: 1
+          });
+
+          // Log in audit
+          await supabase.functions.invoke('audit-log', {
+            body: {
+              org_id: org_id,
+              user_id: user.id,
+              action: 'sql_query_executed',
+              resource_type: 'query',
+              metadata: {
+                connection_id: connection_id,
+                mode: mode,
+                row_count: queryResult.rows.length
+              }
+            }
+          });
+        }
+
+        return new Response(JSON.stringify(queryResult), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      } else {
+        return new Response(JSON.stringify({ 
+          error_code: 'UNSUPPORTED_CONNECTION_TYPE',
+          message: `Connection type ${connection.connection_type} not supported for SQL queries` 
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
 
     } catch (queryError) {
       return new Response(JSON.stringify({ 
