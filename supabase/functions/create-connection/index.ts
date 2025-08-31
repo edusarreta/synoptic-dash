@@ -37,10 +37,10 @@ async function encryptPassword(password: string): Promise<string> {
 
 function normalizeConnectionType(type: string): string {
   const t = type.toLowerCase();
-  if (t === 'postgres' || t === 'postgresql' || t === 'supabase') return 'POSTGRES';
-  if (t === 'mysql') return 'MYSQL';
-  if (t === 'rest') return 'REST';
-  if (t === 'webhook') return 'WEBHOOK';
+  if (t === 'postgres' || t === 'postgresql' || t === 'supabase') return 'postgresql';
+  if (t === 'mysql') return 'mysql';
+  if (t === 'rest') return 'rest';
+  if (t === 'webhook') return 'webhook';
   throw new Error(`UNSUPPORTED_TYPE:${type}`);
 }
 
@@ -112,6 +112,7 @@ serve(async (req) => {
 
     // Normalize connection type
     const normalizedType = normalizeConnectionType(requestData.type);
+    console.log(`🔧 Normalized type from ${requestData.type} to ${normalizedType}`);
 
     // Encrypt password
     const encryptedPassword = await encryptPassword(requestData.password);
@@ -120,7 +121,7 @@ serve(async (req) => {
     const connectionData = {
       account_id: requestData.org_id,
       name: requestData.name,
-      connection_type: normalizedType.toLowerCase(),
+      connection_type: normalizedType,
       host: requestData.host,
       port: requestData.port,
       database_name: requestData.database,
@@ -134,6 +135,11 @@ serve(async (req) => {
       is_active: true,
       created_by: user.id
     };
+
+    console.log('🔧 Creating connection with data:', {
+      ...connectionData,
+      encrypted_password: '[HIDDEN]'
+    });
 
     const { data: connection, error: createError } = await supabaseClient
       .from('data_connections')

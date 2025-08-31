@@ -281,6 +281,17 @@ export default function ConnectionsPage() {
     setCreating(true);
 
     try {
+      console.log('Creating connection with data:', {
+        org_id: userProfile.org_id,
+        name: formData.name,
+        type: formData.rawType,
+        host: formData.host,
+        port: formData.port,
+        database: formData.database,
+        user: formData.user,
+        ssl_mode: formData.ssl_mode
+      });
+
       const { data, error } = await supabase.functions.invoke('create-connection', {
         body: {
           org_id: userProfile.org_id,
@@ -307,7 +318,7 @@ export default function ConnectionsPage() {
       if (data?.success) {
         toast({
           title: "✅ Conexão criada",
-          description: "Conexão criada com sucesso",
+          description: data?.message || "Conexão criada com sucesso",
         });
 
         setShowCreateDialog(false);
@@ -315,17 +326,26 @@ export default function ConnectionsPage() {
         form.reset(defaultFormValues);
         loadConnections();
       } else {
+        const errorMessage = data?.message || error?.message || "Erro desconhecido";
+        console.error('Creation failed:', data, error);
+        
         toast({
-          title: "❌ Falha ao criar",
-          description: data?.message || "Erro desconhecido",
+          title: "❌ Falha ao criar conexão",
+          description: errorMessage,
           variant: "destructive",
         });
       }
     } catch (error) {
       console.error('Create connection error:', error);
+      
+      let errorMessage = "Falha ao criar conexão";
+      if (error.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
-        title: "Erro",
-        description: "Falha ao criar conexão",
+        title: "❌ Erro",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
