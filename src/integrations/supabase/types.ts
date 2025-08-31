@@ -187,6 +187,33 @@ export type Database = {
           },
         ]
       }
+      api_tokens: {
+        Row: {
+          created_at: string | null
+          id: string
+          last_used_at: string | null
+          name: string
+          token_hash: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          last_used_at?: string | null
+          name: string
+          token_hash: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          last_used_at?: string | null
+          name?: string
+          token_hash?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       audit_logs: {
         Row: {
           action: string
@@ -1048,6 +1075,27 @@ export type Database = {
         }
         Relationships: []
       }
+      permissions: {
+        Row: {
+          code: string
+          created_at: string | null
+          description: string | null
+          module: string
+        }
+        Insert: {
+          code: string
+          created_at?: string | null
+          description?: string | null
+          module: string
+        }
+        Update: {
+          code?: string
+          created_at?: string | null
+          description?: string | null
+          module?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -1339,6 +1387,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_settings: {
+        Row: {
+          created_at: string | null
+          date_format: string | null
+          default_org_id: string | null
+          default_workspace_id: string | null
+          email_opt_in: boolean | null
+          id: string
+          locale: string | null
+          number_format: string | null
+          theme: string | null
+          timezone: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          date_format?: string | null
+          default_org_id?: string | null
+          default_workspace_id?: string | null
+          email_opt_in?: boolean | null
+          id: string
+          locale?: string | null
+          number_format?: string | null
+          theme?: string | null
+          timezone?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          date_format?: string | null
+          default_org_id?: string | null
+          default_workspace_id?: string | null
+          email_opt_in?: boolean | null
+          id?: string
+          locale?: string | null
+          number_format?: string | null
+          theme?: string | null
+          timezone?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
     }
     Views: {
