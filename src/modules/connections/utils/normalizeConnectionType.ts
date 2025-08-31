@@ -39,14 +39,28 @@ export function getTypeLabel(rawType: string): string {
     case 'postgresql':
       return 'PostgreSQL';
     case 'supabase':
-      return 'Supabase (PostgreSQL)';
+      return 'Supabase Postgres (DB)';
     case 'mysql':
       return 'MySQL';
     case 'rest':
-      return 'REST API (beta)';
+      return 'REST API (Supabase/Genérico)';
     case 'webhook':
       return 'Webhook';
     default:
       return rawType;
+  }
+}
+
+export function getConnectionHelpText(rawType: string): string {
+  switch (rawType) {
+    case 'supabase':
+      return 'Pegue host/porta/database/username/password em Supabase → Settings → Database. Isto não é a URL da API. Use SSL=require.';
+    case 'rest':
+      return 'Configure base_url, tipo de autenticação e headers para conectar com APIs REST.';
+    case 'postgres':
+    case 'postgresql':
+      return 'Conexão direta com banco PostgreSQL. Certifique-se que o firewall permite acesso.';
+    default:
+      return '';
   }
 }

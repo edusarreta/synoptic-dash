@@ -6,10 +6,11 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Database, Plus, TestTube, CheckCircle, XCircle, AlertCircle, Trash2 } from 'lucide-react';
+import { Database, Plus, TestTube, CheckCircle, XCircle, AlertCircle, Trash2, Info } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useSession } from '@/providers/SessionProvider';
+import { getTypeLabel, getConnectionHelpText } from '../utils/normalizeConnectionType';
 
 interface DataConnection {
   id: string;
@@ -40,6 +41,12 @@ export function ConnectionsPage() {
     password: '',
     port: 5432,
     ssl_mode: 'require',
+    // REST API specific fields
+    base_url: '',
+    auth_type: 'anon',
+    auth_token: '',
+    headers_json: '{}',
+    test_path: '',
   });
 
   const [editingConnection, setEditingConnection] = useState<DataConnection | null>(null);
@@ -129,6 +136,11 @@ export function ConnectionsPage() {
         password: '',
         port: 5432,
         ssl_mode: 'require',
+        base_url: '',
+        auth_type: 'anon',
+        auth_token: '',
+        headers_json: '{}',
+        test_path: '',
       });
       fetchConnections();
     } catch (error) {
@@ -240,6 +252,11 @@ export function ConnectionsPage() {
       password: '', // Don't populate password for security
       port: connection.port,
       ssl_mode: 'require', // Default since we don't store this separately
+      base_url: '',
+      auth_type: 'anon',
+      auth_token: '',
+      headers_json: '{}',
+      test_path: '',
     });
     setIsEditDialogOpen(true);
   };
@@ -289,6 +306,11 @@ export function ConnectionsPage() {
           password: '',
           port: 5432,
           ssl_mode: 'require',
+          base_url: '',
+          auth_type: 'anon',
+          auth_token: '',
+          headers_json: '{}',
+          test_path: '',
         });
         fetchConnections();
       } else {
@@ -309,20 +331,38 @@ export function ConnectionsPage() {
   };
 
   const handleDeleteConnection = async (connectionId: string) => {
+    if (!userProfile?.org_id) {
+      toast({
+        title: "Erro",
+        description: "Usuário não está associado a uma organização",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
-      const { error } = await supabase
-        .from('data_connections')
-        .delete()
-        .eq('id', connectionId);
+      const { data, error } = await supabase.functions.invoke('delete-connection', {
+        body: {
+          org_id: userProfile.org_id,
+          connection_id: connectionId,
+        }
+      });
 
       if (error) throw error;
 
-      toast({
-        title: "Sucesso",
-        description: "Conexão excluída com sucesso",
-      });
-
-      fetchConnections();
+      if (data?.success) {
+        toast({
+          title: "Sucesso",
+          description: data.message || "Conexão excluída com sucesso",
+        });
+        fetchConnections();
+      } else {
+        toast({
+          title: "Erro",
+          description: data?.message || "Falha ao excluir conexão",
+          variant: "destructive",
+        });
+      }
     } catch (error) {
       console.error('Erro ao excluir conexão:', error);
       toast({
@@ -410,7 +450,7 @@ export function ConnectionsPage() {
               </div>
               
               <div className="grid gap-2">
-                <Label htmlFor="type">Tipo de Banco</Label>
+                <Label htmlFor="type">Tipo de Conexão</Label>
                 <Select 
                   value={newConnection.connection_type} 
                   onValueChange={(value) => setNewConnection({...newConnection, connection_type: value})}
@@ -420,80 +460,149 @@ export function ConnectionsPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="postgresql">PostgreSQL</SelectItem>
-                    <SelectItem value="supabase">Supabase (PostgreSQL)</SelectItem>
+                    <SelectItem value="supabase">Supabase Postgres (DB)</SelectItem>
+                    <SelectItem value="rest">REST API (Supabase/Genérico)</SelectItem>
                     <SelectItem value="mysql">MySQL</SelectItem>
-                    <SelectItem value="mongodb">MongoDB</SelectItem>
                   </SelectContent>
                 </Select>
+                
+                {/* Help text for connection type */}
+                {getConnectionHelpText(newConnection.connection_type) && (
+                  <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                    <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                    <p className="text-sm text-blue-800">
+                      {getConnectionHelpText(newConnection.connection_type)}
+                    </p>
+                  </div>
+                )}
               </div>
 
-              <div className="grid gap-2">
-                <Label htmlFor="host">Host</Label>
-                <Input
-                  id="host"
-                  value={newConnection.host}
-                  onChange={(e) => setNewConnection({...newConnection, host: e.target.value})}
-                  placeholder="localhost ou IP do servidor"
-                />
-              </div>
+              {/* Database connection fields */}
+              {['postgresql', 'supabase', 'mysql'].includes(newConnection.connection_type) && (
+                <>
+                  <div className="grid gap-2">
+                    <Label htmlFor="host">Host</Label>
+                    <Input
+                      id="host"
+                      value={newConnection.host}
+                      onChange={(e) => setNewConnection({...newConnection, host: e.target.value})}
+                      placeholder="localhost ou IP do servidor"
+                    />
+                  </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div className="grid gap-2">
-                  <Label htmlFor="port">Porta</Label>
-                  <Input
-                    id="port"
-                    type="number"
-                    value={newConnection.port}
-                    onChange={(e) => setNewConnection({...newConnection, port: parseInt(e.target.value)})}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="database">Banco</Label>
-                  <Input
-                    id="database"
-                    value={newConnection.database_name}
-                    onChange={(e) => setNewConnection({...newConnection, database_name: e.target.value})}
-                    placeholder="Nome do banco"
-                  />
-                </div>
-              </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="grid gap-2">
+                      <Label htmlFor="port">Porta</Label>
+                      <Input
+                        id="port"
+                        type="number"
+                        value={newConnection.port}
+                        onChange={(e) => setNewConnection({...newConnection, port: parseInt(e.target.value)})}
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="database">Banco</Label>
+                      <Input
+                        id="database"
+                        value={newConnection.database_name}
+                        onChange={(e) => setNewConnection({...newConnection, database_name: e.target.value})}
+                        placeholder="Nome do banco"
+                      />
+                    </div>
+                  </div>
 
-              <div className="grid gap-2">
-                <Label htmlFor="username">Usuário</Label>
-                <Input
-                  id="username"
-                  value={newConnection.username}
-                  onChange={(e) => setNewConnection({...newConnection, username: e.target.value})}
-                  placeholder="Nome do usuário"
-                />
-              </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="username">Usuário</Label>
+                    <Input
+                      id="username"
+                      value={newConnection.username}
+                      onChange={(e) => setNewConnection({...newConnection, username: e.target.value})}
+                      placeholder="Nome do usuário"
+                    />
+                  </div>
 
-              <div className="grid gap-2">
-                <Label htmlFor="password">Senha</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={newConnection.password}
-                  onChange={(e) => setNewConnection({...newConnection, password: e.target.value})}
-                  placeholder="Senha do banco"
-                />
-              </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="password">Senha</Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      value={newConnection.password}
+                      onChange={(e) => setNewConnection({...newConnection, password: e.target.value})}
+                      placeholder="Senha do banco"
+                    />
+                  </div>
 
-              <div className="grid gap-2">
-                <Label htmlFor="ssl_mode">Modo SSL</Label>
-                <Select 
-                  value={newConnection.ssl_mode} 
-                  onValueChange={(value) => setNewConnection({...newConnection, ssl_mode: value})}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="require">Require (Recomendado)</SelectItem>
-                    <SelectItem value="disable">Disable</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="ssl_mode">Modo SSL</Label>
+                    <Select 
+                      value={newConnection.ssl_mode} 
+                      onValueChange={(value) => setNewConnection({...newConnection, ssl_mode: value})}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="require">Require (Recomendado)</SelectItem>
+                        <SelectItem value="disable">Disable</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
+              )}
+
+              {/* REST API connection fields */}
+              {newConnection.connection_type === 'rest' && (
+                <>
+                  <div className="grid gap-2">
+                    <Label htmlFor="base_url">URL Base da API</Label>
+                    <Input
+                      id="base_url"
+                      value={newConnection.base_url}
+                      onChange={(e) => setNewConnection({...newConnection, base_url: e.target.value})}
+                      placeholder="https://api.exemplo.com"
+                    />
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label htmlFor="auth_type">Tipo de Autenticação</Label>
+                    <Select 
+                      value={newConnection.auth_type} 
+                      onValueChange={(value) => setNewConnection({...newConnection, auth_type: value})}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="anon">Anon (Supabase)</SelectItem>
+                        <SelectItem value="service">Service Role (Supabase)</SelectItem>
+                        <SelectItem value="bearer">Bearer Token</SelectItem>
+                        <SelectItem value="header">Custom Header</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label htmlFor="auth_token">Token/Chave de Autenticação</Label>
+                    <Input
+                      id="auth_token"
+                      type="password"
+                      value={newConnection.auth_token}
+                      onChange={(e) => setNewConnection({...newConnection, auth_token: e.target.value})}
+                      placeholder="Token de autenticação"
+                    />
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label htmlFor="test_path">Caminho de Teste</Label>
+                    <Input
+                      id="test_path"
+                      value={newConnection.test_path}
+                      onChange={(e) => setNewConnection({...newConnection, test_path: e.target.value})}
+                      placeholder="/health ou /api/status"
+                    />
+                  </div>
+                </>
+              )}
 
               {testConnectionResult.status && (
                 <div className={`p-3 rounded border flex items-center gap-2 ${
