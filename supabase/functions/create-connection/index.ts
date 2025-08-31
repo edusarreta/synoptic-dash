@@ -1,0 +1,238 @@
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+interface CreateConnectionRequest {
+  org_id: string;
+  workspace_id?: string;
+  name: string;
+  type: string;
+  host: string;
+  port: number;
+  database: string;
+  user: string;
+  password: string;
+  ssl_mode: 'require' | 'disable';
+}
+
+// Simple encryption for demo - in production use proper key management
+async function encryptPassword(password: string): Promise<string> {
+  const key = Deno.env.get('DB_ENCRYPTION_KEY') || 'demo-key-change-in-production';
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  const keyData = encoder.encode(key);
+  
+  // Simple XOR encryption for demo
+  const encrypted = new Uint8Array(data.length);
+  for (let i = 0; i < data.length; i++) {
+    encrypted[i] = data[i] ^ keyData[i % keyData.length];
+  }
+  
+  return btoa(String.fromCharCode(...encrypted));
+}
+
+function normalizeConnectionType(type: string): string {
+  const t = type.toLowerCase();
+  if (t === 'postgres' || t === 'postgresql' || t === 'supabase') return 'POSTGRES';
+  if (t === 'mysql') return 'MYSQL';
+  if (t === 'rest') return 'REST';
+  if (t === 'webhook') return 'WEBHOOK';
+  throw new Error(`UNSUPPORTED_TYPE:${type}`);
+}
+
+serve(async (req) => {
+  // Handle CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+    );
+
+    // Get the user from the Authorization header
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      throw new Error('Missing authorization header');
+    }
+
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(
+      authHeader.replace('Bearer ', '')
+    );
+
+    if (userError || !user) {
+      throw new Error('Invalid user token');
+    }
+
+    const requestData: CreateConnectionRequest = await req.json();
+    console.log(`🔧 Creating ${requestData.type} connection for user ${user.id} in org ${requestData.org_id}`);
+
+    // Validate org membership and permissions
+    const { data: profile } = await supabaseClient
+      .from('profiles')
+      .select('org_id, role')
+      .eq('id', user.id)
+      .eq('org_id', requestData.org_id)
+      .single();
+
+    if (!profile) {
+      return new Response(
+        JSON.stringify({ 
+          success: false,
+          error_code: 'FORBIDDEN',
+          message: 'Sem acesso a esta organização'
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 403,
+        }
+      );
+    }
+
+    // Check permissions - only ADMIN or MASTER can create connections
+    if (!['ADMIN', 'MASTER'].includes(profile.role)) {
+      return new Response(
+        JSON.stringify({ 
+          success: false,
+          error_code: 'INSUFFICIENT_PERMISSIONS',
+          message: 'Sem permissão para criar conexões'
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 403,
+        }
+      );
+    }
+
+    // Normalize connection type
+    const normalizedType = normalizeConnectionType(requestData.type);
+
+    // Encrypt password
+    const encryptedPassword = await encryptPassword(requestData.password);
+
+    // Create connection record
+    const connectionData = {
+      account_id: requestData.org_id,
+      name: requestData.name,
+      connection_type: normalizedType.toLowerCase(),
+      host: requestData.host,
+      port: requestData.port,
+      database_name: requestData.database,
+      username: requestData.user,
+      encrypted_password: encryptedPassword,
+      ssl_enabled: requestData.ssl_mode === 'require',
+      connection_config: {
+        ssl_mode: requestData.ssl_mode,
+        workspace_id: requestData.workspace_id
+      },
+      is_active: true,
+      created_by: user.id
+    };
+
+    const { data: connection, error: createError } = await supabaseClient
+      .from('data_connections')
+      .insert(connectionData)
+      .select()
+      .single();
+
+    if (createError) {
+      console.error('Failed to create connection:', createError);
+      
+      let message = 'Erro ao criar conexão';
+      if (createError.code === '23505') {
+        message = 'Já existe uma conexão com este nome';
+      }
+      
+      return new Response(
+        JSON.stringify({ 
+          success: false,
+          error_code: 'CREATE_FAILED',
+          message: message
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400,
+        }
+      );
+    }
+
+    // Log the creation for audit
+    await supabaseClient
+      .from('audit_logs')
+      .insert({
+        org_id: requestData.org_id,
+        user_id: user.id,
+        action: 'connection_created',
+        resource_type: 'data_connection',
+        resource_id: connection.id,
+        metadata: {
+          connection_name: requestData.name,
+          connection_type: normalizedType,
+          host: requestData.host
+        }
+      });
+
+    console.log(`✅ Connection created successfully: ${connection.id}`);
+
+    // Return connection without sensitive data
+    const responseConnection = {
+      id: connection.id,
+      name: connection.name,
+      connection_type: connection.connection_type,
+      host: connection.host,
+      port: connection.port,
+      database_name: connection.database_name,
+      username: connection.username,
+      ssl_enabled: connection.ssl_enabled,
+      is_active: connection.is_active,
+      created_at: connection.created_at
+    };
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        connection: responseConnection,
+        message: 'Conexão criada com sucesso'
+      }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 201,
+      }
+    );
+
+  } catch (error) {
+    console.error('❌ Connection creation failed:', error);
+    
+    let errorCode = 'INTERNAL_ERROR';
+    let message = 'Erro interno do servidor';
+
+    if (error.message.includes('UNSUPPORTED_TYPE')) {
+      errorCode = 'UNSUPPORTED_TYPE';
+      message = error.message;
+    } else if (error.message.includes('Missing authorization')) {
+      errorCode = 'UNAUTHORIZED';
+      message = 'Token de autorização necessário';
+    } else if (error.message.includes('Invalid user token')) {
+      errorCode = 'INVALID_TOKEN';
+      message = 'Token de usuário inválido';
+    }
+
+    return new Response(
+      JSON.stringify({ 
+        success: false,
+        error_code: errorCode,
+        message: message
+      }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400,
+      }
+    );
+  }
+});
