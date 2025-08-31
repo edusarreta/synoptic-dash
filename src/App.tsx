@@ -26,6 +26,7 @@ import { EditorPage } from "./modules/editor/pages/EditorPage";
 import { ConnectionsPage } from "./modules/connections/pages/ConnectionsPage";
 import SQLEditor from "./pages/SQLEditor";
 import Catalog from "./pages/Catalog";
+import OrgPermissions from "./pages/OrgPermissions";
 
 const queryClient = new QueryClient();
 
@@ -127,7 +128,7 @@ export default function App() {
                   <RequireAuth>
                     <RequirePermission permissions={["rbac:manage"]}>
                       <AppLayout>
-                        <div>Permissions Management (Coming Soon)</div>
+                        <OrgPermissions />
                       </AppLayout>
                     </RequirePermission>
                   </RequireAuth>

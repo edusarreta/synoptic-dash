@@ -10,6 +10,7 @@ interface Permission {
 
 interface PermissionsContextType {
   permissions: string[];
+  role: string;
   can: (permissionCode: string) => boolean;
   loading: boolean;
   refreshPermissions: () => Promise<void>;
@@ -20,6 +21,7 @@ const PermissionsContext = createContext<PermissionsContextType | undefined>(und
 export function PermissionsProvider({ children }: { children: ReactNode }) {
   const { userProfile } = useSession();
   const [permissions, setPermissions] = useState<string[]>([]);
+  const [role, setRole] = useState<string>('VIEWER');
   const [loading, setLoading] = useState(true);
 
   const refreshPermissions = async () => {
@@ -32,12 +34,26 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
     try {
       setLoading(true);
       
+      // Set current user role
+      const currentRole = userProfile.role || 'VIEWER';
+      setRole(currentRole);
+      
+      // MASTER bypass - they have all permissions
+      if (currentRole === 'MASTER') {
+        const { data: allPerms } = await supabase
+          .from('permissions')
+          .select('code');
+        
+        setPermissions(allPerms?.map(p => p.code) || []);
+        return;
+      }
+      
       // Get role-based permissions
       const { data: rolePerms } = await supabase
         .from('role_permissions')
         .select('perm_code')
         .eq('org_id', userProfile.org_id)
-        .eq('role', userProfile.role);
+        .eq('role', currentRole);
 
       // Get user-specific grants
       const { data: userGrants } = await supabase
@@ -69,11 +85,14 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
   }, [userProfile?.org_id, userProfile?.role]);
 
   const can = (permissionCode: string): boolean => {
+    // MASTER bypass
+    if (role === 'MASTER') return true;
     return permissions.includes(permissionCode);
   };
 
   const value = {
     permissions,
+    role,
     can,
     loading,
     refreshPermissions,
