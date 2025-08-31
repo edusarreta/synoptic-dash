@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { useSession } from "@/providers/SessionProvider";
-import { usePermissions } from "@/providers/PermissionsProvider";
+import { usePermissions } from "@/modules/auth/PermissionsProvider";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -34,6 +34,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { BRAND } from '@/config/brand';
 
 const navigationItems = [
   { title: "Home", url: "/app", icon: Home },
@@ -81,7 +82,7 @@ export function AppSidebar() {
                 <BarChart3 className="w-5 h-5 text-primary-foreground" />
               </div>
               <span className="font-bold text-lg gradient-primary bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent">
-                SynopticBI
+                {BRAND.APP_NAME}
               </span>
             </div>
           ) : (

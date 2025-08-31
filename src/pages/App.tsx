@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Database, BarChart3, FileText, Plus } from 'lucide-react';
 import { useSession } from '@/providers/SessionProvider';
-import { usePermissions } from '@/providers/PermissionsProvider';
+import { usePermissions } from '@/modules/auth/PermissionsProvider';
+import { BRAND } from '@/config/brand';
 
 export function App() {
   const { user } = useSession();
@@ -13,9 +14,9 @@ export function App() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Bem-vindo ao SynopticBI!</h1>
+        <h1 className="text-3xl font-bold mb-2">Bem-vindo ao {BRAND.APP_NAME}!</h1>
         <p className="text-muted-foreground">
-          Comece criando conexões com suas fontes de dados e construindo dashboards.
+          {BRAND.TAGLINE}
         </p>
       </div>
 

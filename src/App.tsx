@@ -5,9 +5,9 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { SessionProvider } from "./providers/SessionProvider";
-import { PermissionsProvider } from "./providers/PermissionsProvider";
+import { PermissionsProvider } from "./modules/auth/PermissionsProvider";
 import { RequireAuth } from "./components/RequireAuth";
-import { RequirePermission } from "./components/RequirePermission";
+import { RequirePermission } from "./components/auth/RequirePermission";
 import { AppLayout } from "./layouts/AppLayout";
 
 // Public pages
@@ -58,7 +58,7 @@ export default function App() {
                 
                 <Route path="/connections" element={
                   <RequireAuth>
-                    <RequirePermission permissions={["connections:read", "connections:create"]}>
+                    <RequirePermission perms={["connections:read"]} mode="any">
                       <AppLayout>
                         <ConnectionsPage />
                       </AppLayout>
@@ -68,7 +68,7 @@ export default function App() {
                 
                 <Route path="/catalog" element={
                   <RequireAuth>
-                    <RequirePermission permissions={["catalog:read"]}>
+                    <RequirePermission perms={["catalog:read"]}>
                       <AppLayout>
                         <Catalog />
                       </AppLayout>
@@ -78,7 +78,7 @@ export default function App() {
                 
                 <Route path="/sql" element={
                   <RequireAuth>
-                    <RequirePermission permissions={["sql:run"]}>
+                    <RequirePermission perms={["sql:run"]}>
                       <AppLayout>
                         <SQLEditor />
                       </AppLayout>
@@ -88,7 +88,7 @@ export default function App() {
                 
                 <Route path="/dashboards" element={
                   <RequireAuth>
-                    <RequirePermission permissions={["dashboards:read"]}>
+                    <RequirePermission perms={["dashboards:read"]}>
                       <AppLayout>
                         <Dashboard />
                       </AppLayout>
@@ -98,7 +98,7 @@ export default function App() {
                 
                 <Route path="/dashboards/new" element={
                   <RequireAuth>
-                    <RequirePermission permissions={["dashboards:create"]}>
+                    <RequirePermission perms={["dashboards:create"]}>
                       <AppLayout>
                         <EditorPage />
                       </AppLayout>
@@ -108,7 +108,7 @@ export default function App() {
                 
                 <Route path="/editor/:id" element={
                   <RequireAuth>
-                    <RequirePermission permissions={["dashboards:update_layout", "charts:update_spec"]}>
+                    <RequirePermission perms={["dashboards:update_layout", "charts:update_spec"]} mode="all">
                       <AppLayout>
                         <EditorPage />
                       </AppLayout>
@@ -126,7 +126,7 @@ export default function App() {
                 
                 <Route path="/org/permissions" element={
                   <RequireAuth>
-                    <RequirePermission permissions={["rbac:manage"]}>
+                    <RequirePermission perms={["rbac:manage"]}>
                       <AppLayout>
                         <OrgPermissions />
                       </AppLayout>

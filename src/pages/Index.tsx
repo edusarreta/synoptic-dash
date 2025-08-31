@@ -82,7 +82,7 @@ const Index = () => {
 
   useEffect(() => {
     if (user && !loading) {
-      navigate("/looker-builder");
+      navigate("/app");
     }
   }, [user, loading, navigate]);
 
@@ -114,7 +114,7 @@ const Index = () => {
                 <BarChart3 className="w-8 h-8 text-primary-foreground" />
               </div>
               <h1 className="text-4xl font-bold gradient-primary bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent">
-                SynopticBI
+                ConnectaDados
               </h1>
             </div>
             
@@ -126,8 +126,8 @@ const Index = () => {
             </h2>
             
             <p className="text-xl text-muted-foreground mb-10 max-w-3xl mx-auto">
-              The modern Business Intelligence platform that connects your databases, 
-              builds stunning visualizations, and creates powerful dashboards that drive business decisions.
+              Construa dashboards conectando suas fontes de dados. 
+              A plataforma moderna de BI que transforma dados em insights acionáveis.
             </p>
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -281,7 +281,7 @@ const Index = () => {
             Ready to transform your data?
           </h3>
           <p className="text-xl text-muted-foreground mb-10">
-            Join thousands of teams already using SynopticBI to make data-driven decisions.
+            Junte-se a milhares de equipes que já usam ConnectaDados para tomar decisões baseadas em dados.
           </p>
           <Button 
             size="lg" 
