@@ -189,36 +189,36 @@ export type Database = {
       }
       audit_logs: {
         Row: {
-          account_id: string
           action: string
           created_at: string
           id: string
           ip_address: unknown | null
           metadata: Json | null
+          org_id: string
           resource_id: string | null
           resource_type: string
           user_agent: string | null
           user_id: string | null
         }
         Insert: {
-          account_id: string
           action: string
           created_at?: string
           id?: string
           ip_address?: unknown | null
           metadata?: Json | null
+          org_id: string
           resource_id?: string | null
           resource_type: string
           user_agent?: string | null
           user_id?: string | null
         }
         Update: {
-          account_id?: string
           action?: string
           created_at?: string
           id?: string
           ip_address?: unknown | null
           metadata?: Json | null
+          org_id?: string
           resource_id?: string | null
           resource_type?: string
           user_agent?: string | null
@@ -1248,11 +1248,11 @@ export type Database = {
       }
       subscriptions: {
         Row: {
-          account_id: string
           created_at: string
           current_period_end: string | null
           current_period_start: string | null
           id: string
+          org_id: string
           plan_type: string
           status: string
           stripe_customer_id: string | null
@@ -1261,11 +1261,11 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          account_id: string
           created_at?: string
           current_period_end?: string | null
           current_period_start?: string | null
           id?: string
+          org_id: string
           plan_type?: string
           status?: string
           stripe_customer_id?: string | null
@@ -1274,11 +1274,11 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          account_id?: string
           created_at?: string
           current_period_end?: string | null
           current_period_start?: string | null
           id?: string
+          org_id?: string
           plan_type?: string
           status?: string
           stripe_customer_id?: string | null
@@ -1289,7 +1289,7 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "subscriptions_account_id_fkey"
-            columns: ["account_id"]
+            columns: ["org_id"]
             isOneToOne: true
             referencedRelation: "accounts"
             referencedColumns: ["id"]
@@ -1298,31 +1298,31 @@ export type Database = {
       }
       usage_tracking: {
         Row: {
-          account_id: string
           created_at: string
           id: string
           metric_name: string
           metric_value: number
+          org_id: string
           period_end: string
           period_start: string
           updated_at: string
         }
         Insert: {
-          account_id: string
           created_at?: string
           id?: string
           metric_name: string
           metric_value?: number
+          org_id: string
           period_end?: string
           period_start?: string
           updated_at?: string
         }
         Update: {
-          account_id?: string
           created_at?: string
           id?: string
           metric_name?: string
           metric_value?: number
+          org_id?: string
           period_end?: string
           period_start?: string
           updated_at?: string
@@ -1330,7 +1330,7 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "usage_tracking_account_id_fkey"
-            columns: ["account_id"]
+            columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "accounts"
             referencedColumns: ["id"]
