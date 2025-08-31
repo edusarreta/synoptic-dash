@@ -280,6 +280,69 @@ export type Database = {
           },
         ]
       }
+      chart_specs: {
+        Row: {
+          calculated_fields: Json | null
+          created_at: string
+          created_by: string
+          dataset_id: string
+          encoding: Json | null
+          filters: Json | null
+          format_config: Json | null
+          id: string
+          name: string
+          options: Json | null
+          org_id: string
+          updated_at: string
+          viz_type: string
+        }
+        Insert: {
+          calculated_fields?: Json | null
+          created_at?: string
+          created_by: string
+          dataset_id: string
+          encoding?: Json | null
+          filters?: Json | null
+          format_config?: Json | null
+          id?: string
+          name: string
+          options?: Json | null
+          org_id: string
+          updated_at?: string
+          viz_type: string
+        }
+        Update: {
+          calculated_fields?: Json | null
+          created_at?: string
+          created_by?: string
+          dataset_id?: string
+          encoding?: Json | null
+          filters?: Json | null
+          format_config?: Json | null
+          id?: string
+          name?: string
+          options?: Json | null
+          org_id?: string
+          updated_at?: string
+          viz_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chart_specs_dataset_id_fkey"
+            columns: ["dataset_id"]
+            isOneToOne: false
+            referencedRelation: "datasets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chart_specs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client: {
         Row: {
           access_token_wa_business: string | null
@@ -517,9 +580,43 @@ export type Database = {
           },
         ]
       }
+      dashboard_layouts: {
+        Row: {
+          breakpoint: string
+          created_at: string
+          dashboard_id: string
+          id: string
+          layout_config: Json
+          updated_at: string
+        }
+        Insert: {
+          breakpoint: string
+          created_at?: string
+          dashboard_id: string
+          id?: string
+          layout_config?: Json
+          updated_at?: string
+        }
+        Update: {
+          breakpoint?: string
+          created_at?: string
+          dashboard_id?: string
+          id?: string
+          layout_config?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dashboard_layouts_dashboard_id_fkey"
+            columns: ["dashboard_id"]
+            isOneToOne: false
+            referencedRelation: "dashboards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       dashboards: {
         Row: {
-          account_id: string
           created_at: string
           created_by: string
           description: string | null
@@ -527,10 +624,10 @@ export type Database = {
           is_public: boolean | null
           layout_config: Json | null
           name: string
+          org_id: string
           updated_at: string
         }
         Insert: {
-          account_id: string
           created_at?: string
           created_by: string
           description?: string | null
@@ -538,10 +635,10 @@ export type Database = {
           is_public?: boolean | null
           layout_config?: Json | null
           name: string
+          org_id: string
           updated_at?: string
         }
         Update: {
-          account_id?: string
           created_at?: string
           created_by?: string
           description?: string | null
@@ -549,14 +646,15 @@ export type Database = {
           is_public?: boolean | null
           layout_config?: Json | null
           name?: string
+          org_id?: string
           updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "dashboards_account_id_fkey"
-            columns: ["account_id"]
+            foreignKeyName: "dashboards_org_id_fkey"
+            columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "accounts"
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -675,6 +773,56 @@ export type Database = {
             columns: ["account_id"]
             isOneToOne: false
             referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      datasets: {
+        Row: {
+          cache_ttl_seconds: number | null
+          created_at: string
+          created_by: string
+          data_schema: Json | null
+          description: string | null
+          id: string
+          last_updated: string | null
+          name: string
+          org_id: string
+          saved_query_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          cache_ttl_seconds?: number | null
+          created_at?: string
+          created_by: string
+          data_schema?: Json | null
+          description?: string | null
+          id?: string
+          last_updated?: string | null
+          name: string
+          org_id: string
+          saved_query_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cache_ttl_seconds?: number | null
+          created_at?: string
+          created_by?: string
+          data_schema?: Json | null
+          description?: string | null
+          id?: string
+          last_updated?: string | null
+          name?: string
+          org_id?: string
+          saved_query_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "datasets_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -867,43 +1015,79 @@ export type Database = {
         }
         Relationships: []
       }
+      organizations: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          plan_type: string | null
+          settings: Json | null
+          slug: string
+          status: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          plan_type?: string | null
+          settings?: Json | null
+          slug: string
+          status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          plan_type?: string | null
+          settings?: Json | null
+          slug?: string
+          status?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
-          account_id: string
           created_at: string
           email: string
           full_name: string | null
           id: string
-          is_super_admin: boolean | null
+          is_active: boolean | null
+          org_id: string
+          permissions: string[] | null
           role: string
           updated_at: string
         }
         Insert: {
-          account_id: string
           created_at?: string
           email: string
           full_name?: string | null
           id: string
-          is_super_admin?: boolean | null
+          is_active?: boolean | null
+          org_id: string
+          permissions?: string[] | null
           role?: string
           updated_at?: string
         }
         Update: {
-          account_id?: string
           created_at?: string
           email?: string
           full_name?: string | null
           id?: string
-          is_super_admin?: boolean | null
+          is_active?: boolean | null
+          org_id?: string
+          permissions?: string[] | null
           role?: string
           updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "profiles_account_id_fkey"
-            columns: ["account_id"]
+            foreignKeyName: "profiles_org_id_fkey"
+            columns: ["org_id"]
             isOneToOne: false
-            referencedRelation: "accounts"
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -964,6 +1148,59 @@ export type Database = {
             columns: ["data_connection_id"]
             isOneToOne: false
             referencedRelation: "data_connections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      saved_queries: {
+        Row: {
+          connection_id: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          name: string
+          org_id: string
+          parameters: Json | null
+          sql_query: string
+          tags: string[] | null
+          updated_at: string
+          version: number | null
+        }
+        Insert: {
+          connection_id?: string | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          name: string
+          org_id: string
+          parameters?: Json | null
+          sql_query: string
+          tags?: string[] | null
+          updated_at?: string
+          version?: number | null
+        }
+        Update: {
+          connection_id?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          name?: string
+          org_id?: string
+          parameters?: Json | null
+          sql_query?: string
+          tags?: string[] | null
+          updated_at?: string
+          version?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_queries_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]

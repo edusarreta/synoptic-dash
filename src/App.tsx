@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./hooks/useAuth";
+import { RBACProvider } from "./modules/core/rbac";
 import { SubscriptionProvider } from "./hooks/useSubscription";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
@@ -32,7 +33,9 @@ const App = () => (
       <Toaster />
       <Sonner />
       <AuthProvider>
-        <SubscriptionProvider>
+        {(user, loading) => (
+          <RBACProvider user={user} isLoading={loading}>
+            <SubscriptionProvider>
           <BrowserRouter>
             <Routes>
               <Route path="/" element={<Index />} />
@@ -57,8 +60,10 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
-      </SubscriptionProvider>
-    </AuthProvider>
+            </SubscriptionProvider>
+          </RBACProvider>
+        )}
+      </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );
