@@ -30,116 +30,125 @@ import OrgPermissions from "./pages/OrgPermissions";
 
 const queryClient = new QueryClient();
 
+// Component wrapper for authenticated routes with permissions
+const AuthenticatedRoute = ({ children }: { children: React.ReactNode }) => {
+  return (
+    <RequireAuth>
+      <PermissionsProvider>
+        {children}
+      </PermissionsProvider>
+    </RequireAuth>
+  );
+};
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <SessionProvider>
-        <PermissionsProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
-              <Routes>
-                {/* Public routes */}
-                <Route path="/" element={<Index />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/auth/callback" element={<AuthCallback />} />
-                <Route path="/post-auth" element={<PostAuth />} />
-                <Route path="/demo" element={<Demo />} />
-                
-                {/* Protected routes with unified layout */}
-                <Route path="/app" element={
-                  <RequireAuth>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              {/* Public routes */}
+              <Route path="/" element={<Index />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/auth/callback" element={<AuthCallback />} />
+              <Route path="/post-auth" element={<PostAuth />} />
+              <Route path="/demo" element={<Demo />} />
+              
+              {/* Protected routes with unified layout */}
+              <Route path="/app" element={
+                <AuthenticatedRoute>
+                  <AppLayout>
+                    <AppHome />
+                  </AppLayout>
+                </AuthenticatedRoute>
+              } />
+              
+              <Route path="/connections" element={
+                <AuthenticatedRoute>
+                  <RequirePermission perms={["connections:read"]} mode="any">
                     <AppLayout>
-                      <AppHome />
+                      <ConnectionsPage />
                     </AppLayout>
-                  </RequireAuth>
-                } />
-                
-                <Route path="/connections" element={
-                  <RequireAuth>
-                    <RequirePermission perms={["connections:read"]} mode="any">
-                      <AppLayout>
-                        <ConnectionsPage />
-                      </AppLayout>
-                    </RequirePermission>
-                  </RequireAuth>
-                } />
-                
-                <Route path="/catalog" element={
-                  <RequireAuth>
-                    <RequirePermission perms={["catalog:read"]}>
-                      <AppLayout>
-                        <Catalog />
-                      </AppLayout>
-                    </RequirePermission>
-                  </RequireAuth>
-                } />
-                
-                <Route path="/sql" element={
-                  <RequireAuth>
-                    <RequirePermission perms={["sql:run"]}>
-                      <AppLayout>
-                        <SQLEditor />
-                      </AppLayout>
-                    </RequirePermission>
-                  </RequireAuth>
-                } />
-                
-                <Route path="/dashboards" element={
-                  <RequireAuth>
-                    <RequirePermission perms={["dashboards:read"]}>
-                      <AppLayout>
-                        <Dashboard />
-                      </AppLayout>
-                    </RequirePermission>
-                  </RequireAuth>
-                } />
-                
-                <Route path="/dashboards/new" element={
-                  <RequireAuth>
-                    <RequirePermission perms={["dashboards:create"]}>
-                      <AppLayout>
-                        <EditorPage />
-                      </AppLayout>
-                    </RequirePermission>
-                  </RequireAuth>
-                } />
-                
-                <Route path="/editor/:id" element={
-                  <RequireAuth>
-                    <RequirePermission perms={["dashboards:update_layout", "charts:update_spec"]} mode="all">
-                      <AppLayout>
-                        <EditorPage />
-                      </AppLayout>
-                    </RequirePermission>
-                  </RequireAuth>
-                } />
-                
-                <Route path="/settings" element={
-                  <RequireAuth>
+                  </RequirePermission>
+                </AuthenticatedRoute>
+              } />
+              
+              <Route path="/catalog" element={
+                <AuthenticatedRoute>
+                  <RequirePermission perms={["catalog:read"]}>
                     <AppLayout>
-                      <Settings />
+                      <Catalog />
                     </AppLayout>
-                  </RequireAuth>
-                } />
-                
-                <Route path="/org/permissions" element={
-                  <RequireAuth>
-                    <RequirePermission perms={["rbac:manage"]}>
-                      <AppLayout>
-                        <OrgPermissions />
-                      </AppLayout>
-                    </RequirePermission>
-                  </RequireAuth>
-                } />
-                
-                {/* Catch-all */}
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </BrowserRouter>
-          </TooltipProvider>
-        </PermissionsProvider>
+                  </RequirePermission>
+                </AuthenticatedRoute>
+              } />
+              
+              <Route path="/sql" element={
+                <AuthenticatedRoute>
+                  <RequirePermission perms={["sql:run"]}>
+                    <AppLayout>
+                      <SQLEditor />
+                    </AppLayout>
+                  </RequirePermission>
+                </AuthenticatedRoute>
+              } />
+              
+              <Route path="/dashboards" element={
+                <AuthenticatedRoute>
+                  <RequirePermission perms={["dashboards:read"]}>
+                    <AppLayout>
+                      <Dashboard />
+                    </AppLayout>
+                  </RequirePermission>
+                </AuthenticatedRoute>
+              } />
+              
+              <Route path="/dashboards/new" element={
+                <AuthenticatedRoute>
+                  <RequirePermission perms={["dashboards:create"]}>
+                    <AppLayout>
+                      <EditorPage />
+                    </AppLayout>
+                  </RequirePermission>
+                </AuthenticatedRoute>
+              } />
+              
+              <Route path="/editor/:id" element={
+                <AuthenticatedRoute>
+                  <RequirePermission perms={["dashboards:update_layout", "charts:update_spec"]} mode="all">
+                    <AppLayout>
+                      <EditorPage />
+                    </AppLayout>
+                  </RequirePermission>
+                </AuthenticatedRoute>
+              } />
+              
+              <Route path="/settings" element={
+                <AuthenticatedRoute>
+                  <AppLayout>
+                    <Settings />
+                  </AppLayout>
+                </AuthenticatedRoute>
+              } />
+              
+              <Route path="/org/permissions" element={
+                <AuthenticatedRoute>
+                  <RequirePermission perms={["rbac:manage"]}>
+                    <AppLayout>
+                      <OrgPermissions />
+                    </AppLayout>
+                  </RequirePermission>
+                </AuthenticatedRoute>
+              } />
+              
+              {/* Catch-all */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
       </SessionProvider>
     </QueryClientProvider>
   );
