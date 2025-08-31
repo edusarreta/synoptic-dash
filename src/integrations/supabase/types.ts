@@ -1332,11 +1332,12 @@ export type Database = {
       }
       subscriptions: {
         Row: {
+          account_id: string | null
           created_at: string
           current_period_end: string | null
           current_period_start: string | null
           id: string
-          org_id: string
+          org_id: string | null
           plan_type: string
           status: string
           stripe_customer_id: string | null
@@ -1345,11 +1346,12 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          account_id?: string | null
           created_at?: string
           current_period_end?: string | null
           current_period_start?: string | null
           id?: string
-          org_id: string
+          org_id?: string | null
           plan_type?: string
           status?: string
           stripe_customer_id?: string | null
@@ -1358,11 +1360,12 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          account_id?: string | null
           created_at?: string
           current_period_end?: string | null
           current_period_start?: string | null
           id?: string
-          org_id?: string
+          org_id?: string | null
           plan_type?: string
           status?: string
           stripe_customer_id?: string | null
@@ -1375,6 +1378,13 @@ export type Database = {
             foreignKeyName: "subscriptions_account_id_fkey"
             columns: ["org_id"]
             isOneToOne: true
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscriptions_account_id_fkey1"
+            columns: ["account_id"]
+            isOneToOne: false
             referencedRelation: "accounts"
             referencedColumns: ["id"]
           },

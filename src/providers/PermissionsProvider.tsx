@@ -26,6 +26,7 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
 
   const refreshPermissions = async () => {
     if (!userProfile?.org_id) {
+      console.log('No org_id found, clearing permissions');
       setPermissions([]);
       setLoading(false);
       return;
@@ -37,24 +38,48 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
       // Set current user role
       const currentRole = userProfile.role || 'VIEWER';
       setRole(currentRole);
+      console.log(`Loading permissions for user ${userProfile.email} with role ${currentRole} in org ${userProfile.org_id}`);
       
       // MASTER bypass - they have all permissions
       if (currentRole === 'MASTER') {
-        console.log('MASTER user detected, granting all permissions');
+        console.log('🔑 MASTER user detected, granting all permissions');
+        
+        // First try to get permissions from role_permissions table (should exist now)
+        const { data: masterPerms, error: masterError } = await supabase
+          .from('role_permissions')
+          .select('perm_code')
+          .eq('org_id', userProfile.org_id)
+          .eq('role', 'MASTER');
+        
+        if (masterError) {
+          console.error('Error fetching MASTER role permissions:', masterError);
+        }
+        
+        if (masterPerms && masterPerms.length > 0) {
+          console.log(`✅ Found ${masterPerms.length} MASTER permissions in role_permissions`);
+          setPermissions(masterPerms.map(p => p.perm_code));
+          return;
+        }
+        
+        // Fallback: get all available permissions
+        console.log('⚠️ No MASTER permissions in role_permissions, fetching all permissions as fallback');
         const { data: allPerms, error } = await supabase
           .from('permissions')
           .select('code');
         
         if (error) {
           console.error('Error fetching all permissions for MASTER:', error);
-          // Fallback: grant common permissions for MASTER
-          setPermissions([
+          // Final fallback: grant essential permissions for MASTER
+          const fallbackPermissions = [
             'rbac:manage', 'dashboards:create', 'dashboards:read', 'dashboards:update', 'dashboards:delete',
             'charts:create', 'charts:read', 'charts:update', 'charts:delete',
             'connections:create', 'connections:read', 'connections:update', 'connections:delete',
             'datasets:create', 'datasets:read', 'datasets:update', 'datasets:delete'
-          ]);
+          ];
+          console.log('🚨 Using hardcoded fallback permissions for MASTER');
+          setPermissions(fallbackPermissions);
         } else {
+          console.log(`✅ Granting ${allPerms?.length || 0} permissions to MASTER user`);
           setPermissions(allPerms?.map(p => p.code) || []);
         }
         return;
