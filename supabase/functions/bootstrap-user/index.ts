@@ -43,47 +43,10 @@ serve(async (req) => {
 
     let profile = existingProfile;
 
-    if (profileCheckError && profileCheckError.code === 'PGRST116') {
-      // Profile doesn't exist, create it
-      const { data: newProfile, error: createProfileError } = await supabaseClient
-        .from('profiles')
-        .insert({
-          id: user.id,
-          email: user.email!,
-          full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
-          role: 'MASTER',
-          org_id: null // Will be set after creating org
-        })
-        .select()
-        .single();
-
-      if (createProfileError) {
-        throw new Error(`Failed to create profile: ${createProfileError.message}`);
-      }
-
-      profile = newProfile;
-    } else if (profileCheckError) {
-      throw new Error(`Failed to check profile: ${profileCheckError.message}`);
-    }
-
-    // 2. Check if user has any organization membership
     let userOrg = null;
-
-    if (profile?.org_id) {
-      // User already has an org
-      const { data: org, error: orgError } = await supabaseClient
-        .from('organizations')
-        .select('*')
-        .eq('id', profile.org_id)
-        .single();
-
-      if (!orgError && org) {
-        userOrg = org;
-      }
-    }
-
-    // 3. If no org, create one
-    if (!userOrg) {
+    
+    if (profileCheckError && profileCheckError.code === 'PGRST116') {
+      // Profile doesn't exist, need to create org first then profile
       const orgName = user.user_metadata?.account_name || 
                      user.user_metadata?.full_name || 
                      user.email?.split('@')[0] || 
@@ -95,6 +58,7 @@ serve(async (req) => {
         .replace(/-+/g, '-')
         .trim();
 
+      // Create organization first
       const { data: newOrg, error: createOrgError } = await supabaseClient
         .from('organizations')
         .insert({
@@ -112,14 +76,36 @@ serve(async (req) => {
 
       userOrg = newOrg;
 
-      // Update profile with org_id
-      const { error: updateProfileError } = await supabaseClient
+      // Now create profile with the org_id
+      const { data: newProfile, error: createProfileError } = await supabaseClient
         .from('profiles')
-        .update({ org_id: userOrg.id })
-        .eq('id', user.id);
+        .insert({
+          id: user.id,
+          email: user.email!,
+          full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
+          role: 'MASTER',
+          org_id: userOrg.id
+        })
+        .select()
+        .single();
 
-      if (updateProfileError) {
-        throw new Error(`Failed to update profile with org: ${updateProfileError.message}`);
+      if (createProfileError) {
+        throw new Error(`Failed to create profile: ${createProfileError.message}`);
+      }
+
+      profile = newProfile;
+    } else if (profileCheckError) {
+      throw new Error(`Failed to check profile: ${profileCheckError.message}`);
+    } else if (profile?.org_id) {
+      // User already has profile and org, get the org
+      const { data: org, error: orgError } = await supabaseClient
+        .from('organizations')
+        .select('*')
+        .eq('id', profile.org_id)
+        .single();
+
+      if (!orgError && org) {
+        userOrg = org;
       }
     }
 
