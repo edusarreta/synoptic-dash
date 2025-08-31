@@ -1,5 +1,5 @@
 import React from 'react';
-import { usePermissions } from '@/providers/PermissionsProvider';
+import { usePermissions } from '@/modules/auth/PermissionsProvider';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, Home, Settings } from 'lucide-react';

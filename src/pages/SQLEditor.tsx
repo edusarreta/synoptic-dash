@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Play, Square, Save, Download, Database, Clock, Loader2, AlertCircle } from "lucide-react";
 import { BackLink } from "@/components/BackLink";
 import { useSession } from "@/providers/SessionProvider";
-import { usePermissions } from "@/providers/PermissionsProvider";
+import { usePermissions } from "@/modules/auth/PermissionsProvider";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { getTypeLabel } from "@/modules/connections/utils/normalizeConnectionType";

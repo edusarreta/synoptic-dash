@@ -9,6 +9,7 @@ interface PermissionsContextType {
   workspaceId: string | null;
   isLoadingOrg: boolean;
   isLoadingPerms: boolean;
+  loading: boolean; // Add this for backwards compatibility
   can: (permissionCode: string) => boolean;
   refetch: () => Promise<void>;
 }
@@ -144,6 +145,7 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
     workspaceId,
     isLoadingOrg,
     isLoadingPerms,
+    loading: isLoadingOrg || isLoadingPerms, // Backwards compatibility
     can,
     refetch,
   };

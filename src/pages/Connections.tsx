@@ -11,7 +11,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Database, Plus, TestTube, Trash2, Loader2, CheckCircle, XCircle, Globe, Server } from "lucide-react";
 import { BackLink } from "@/components/BackLink";
 import { useSession } from "@/providers/SessionProvider";
-import { usePermissions } from "@/providers/PermissionsProvider";
+import { usePermissions } from "@/modules/auth/PermissionsProvider";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { getTypeLabel } from "@/modules/connections/utils/normalizeConnectionType";

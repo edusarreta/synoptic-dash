@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/providers/SessionProvider';
-import { usePermissions } from '@/providers/PermissionsProvider';
+import { usePermissions } from '@/modules/auth/PermissionsProvider';
 import { BackLink } from '@/components/BackLink';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,7 +27,7 @@ const ROLES = ['MASTER', 'ADMIN', 'EDITOR', 'VIEWER'] as const;
 
 export default function OrgPermissions() {
   const { userProfile } = useSession();
-  const { role, refreshPermissions } = usePermissions();
+  const { role, refetch } = usePermissions();
   const { toast } = useToast();
   
   const [permissions, setPermissions] = useState<Permission[]>([]);
@@ -138,7 +138,7 @@ export default function OrgPermissions() {
   const saveChanges = async () => {
     setSaving(true);
     try {
-      await refreshPermissions();
+      await refetch();
       toast({
         title: 'Sucesso',
         description: 'Permissões atualizadas com sucesso',

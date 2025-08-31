@@ -9,7 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { ChevronDown, ChevronRight, Database, Table, Columns, Globe, Eye, Loader2 } from "lucide-react";
 import { BackLink } from "@/components/BackLink";
 import { useSession } from "@/providers/SessionProvider";
-import { usePermissions } from "@/providers/PermissionsProvider";
+import { usePermissions } from "@/modules/auth/PermissionsProvider";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { getTypeLabel } from "@/modules/connections/utils/normalizeConnectionType";
