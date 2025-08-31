@@ -15,6 +15,29 @@ interface ListCatalogRequest {
   preview_limit?: number;
 }
 
+// Internal function for decrypting passwords
+function decryptPassword(encryptedPassword: string): string {
+  try {
+    const encryptionKey = Deno.env.get('DB_ENCRYPTION_KEY');
+    if (!encryptionKey) {
+      throw new Error('Encryption key not configured');
+    }
+
+    // Simple decryption matching the encryption function
+    const decoded = atob(encryptedPassword);
+    const parts = decoded.split('::');
+    
+    if (parts.length !== 2 || parts[1] !== encryptionKey.slice(0, 8)) {
+      throw new Error('Invalid encrypted password format');
+    }
+
+    return parts[0];
+  } catch (error) {
+    console.error('Decryption error:', error);
+    throw new Error('Failed to decrypt password');
+  }
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -111,21 +134,15 @@ serve(async (req) => {
       if (connection.connection_type === 'postgresql' || connection.connection_type === 'supabase') {
         const { Client } = await import("https://deno.land/x/postgres@v0.17.0/mod.ts");
         
-        // Decrypt password
-        const { data: decryptResult } = await supabaseClient.functions.invoke('decrypt-password', {
-          body: { encrypted_password: connection.encrypted_password }
-        });
-
-        if (!decryptResult?.decrypted_password) {
-          throw new Error('Failed to decrypt connection password');
-        }
+        // Decrypt password using internal function
+        const decryptedPassword = decryptPassword(connection.encrypted_password);
         
         const client = new Client({
           user: connection.username,
           database: connection.database_name,
           hostname: connection.host,
           port: connection.port || 5432,
-          password: decryptResult.decrypted_password,
+          password: decryptedPassword,
           tls: {
             enabled: connection.ssl_enabled,
             enforce: false,
