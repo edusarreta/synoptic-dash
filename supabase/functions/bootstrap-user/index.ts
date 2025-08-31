@@ -47,6 +47,8 @@ serve(async (req) => {
     
     if (profileCheckError && profileCheckError.code === 'PGRST116') {
       // Profile doesn't exist, need to create org first then profile
+      console.log('Creating new organization and profile for user:', user.id);
+      
       const orgName = user.user_metadata?.account_name || 
                      user.user_metadata?.full_name || 
                      user.email?.split('@')[0] || 
@@ -71,9 +73,11 @@ serve(async (req) => {
         .single();
 
       if (createOrgError) {
+        console.error('Failed to create organization:', createOrgError);
         throw new Error(`Failed to create organization: ${createOrgError.message}`);
       }
 
+      console.log('Organization created:', newOrg.id);
       userOrg = newOrg;
 
       // Now create profile with the org_id
@@ -90,14 +94,18 @@ serve(async (req) => {
         .single();
 
       if (createProfileError) {
+        console.error('Failed to create profile:', createProfileError);
         throw new Error(`Failed to create profile: ${createProfileError.message}`);
       }
 
+      console.log('Profile created:', newProfile.id);
       profile = newProfile;
     } else if (profileCheckError) {
+      console.error('Error checking profile:', profileCheckError);
       throw new Error(`Failed to check profile: ${profileCheckError.message}`);
     } else if (profile?.org_id) {
       // User already has profile and org, get the org
+      console.log('Fetching existing organization for profile:', profile.org_id);
       const { data: org, error: orgError } = await supabaseClient
         .from('organizations')
         .select('*')
@@ -105,8 +113,69 @@ serve(async (req) => {
         .single();
 
       if (!orgError && org) {
+        console.log('Found existing organization:', org.id);
         userOrg = org;
+      } else {
+        console.error('Error fetching organization or org not found:', orgError);
       }
+    } else if (profile && !profile.org_id) {
+      // Profile exists but has no organization - create one
+      console.log('Profile exists without organization, creating new org for user:', user.id);
+      
+      const orgName = user.user_metadata?.account_name || 
+                     user.user_metadata?.full_name || 
+                     user.email?.split('@')[0] || 
+                     'Minha Organização';
+
+      const orgSlug = orgName.toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .trim();
+
+      // Create organization
+      const { data: newOrg, error: createOrgError } = await supabaseClient
+        .from('organizations')
+        .insert({
+          name: orgName,
+          slug: `${orgSlug}-${user.id.substring(0, 8)}`,
+          status: 'active',
+          plan_type: 'FREE'
+        })
+        .select()
+        .single();
+
+      if (createOrgError) {
+        console.error('Failed to create organization for existing profile:', createOrgError);
+        throw new Error(`Failed to create organization: ${createOrgError.message}`);
+      }
+
+      console.log('Organization created for existing profile:', newOrg.id);
+      userOrg = newOrg;
+
+      // Update profile with org_id
+      const { error: updateProfileError } = await supabaseClient
+        .from('profiles')
+        .update({ org_id: userOrg.id })
+        .eq('id', user.id);
+
+      if (updateProfileError) {
+        console.error('Failed to update profile with org_id:', updateProfileError);
+        throw new Error(`Failed to update profile with org: ${updateProfileError.message}`);
+      }
+
+      console.log('Profile updated with org_id:', userOrg.id);
+    }
+
+    // Final validation - ensure we have both profile and organization
+    if (!userOrg) {
+      console.error('No organization found or created for user:', user.id);
+      throw new Error('Failed to establish user organization');
+    }
+
+    if (!profile) {
+      console.error('No profile found or created for user:', user.id);
+      throw new Error('Failed to establish user profile');
     }
 
     // 4. Prepare response with user memberships
