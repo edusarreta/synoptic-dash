@@ -108,16 +108,29 @@ serve(async (req) => {
     console.log(`📋 Listing catalog for connection ${connection_id} in org ${org_id}`);
 
     try {
-      if (connection.connection_type === 'postgresql') {
+      if (connection.connection_type === 'postgresql' || connection.connection_type === 'supabase') {
         const { Client } = await import("https://deno.land/x/postgres@v0.17.0/mod.ts");
+        
+        // Decrypt password
+        const { data: decryptResult } = await supabaseClient.functions.invoke('decrypt-password', {
+          body: { encrypted_password: connection.encrypted_password }
+        });
+
+        if (!decryptResult?.decrypted_password) {
+          throw new Error('Failed to decrypt connection password');
+        }
         
         const client = new Client({
           user: connection.username,
           database: connection.database_name,
           hostname: connection.host,
           port: connection.port || 5432,
-          password: connection.encrypted_password, // In production, decrypt this
-          tls: connection.ssl_enabled ? { enabled: true, enforce: false } : 'disable',
+          password: decryptResult.decrypted_password,
+          tls: {
+            enabled: connection.ssl_enabled,
+            enforce: false,
+            caCertificates: []
+          }
         });
 
         await client.connect();
