@@ -31,45 +31,45 @@ import { EditorPage } from "./modules/editor/pages/EditorPage";
 
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
+export default function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
       <SessionProvider>
-        <BrowserRouter>
-          <Routes>
-            {/* Public routes */}
-            <Route path="/" element={<Index />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/auth/callback" element={<AuthCallback />} />
-            <Route path="/post-auth" element={<PostAuth />} />
-            <Route path="/demo" element={<Demo />} />
-            
-            {/* Protected routes */}
-            <Route path="/app" element={<RequireAuth><AppHome /></RequireAuth>} />
-            <Route path="/dashboards" element={<RequireAuth><Dashboard /></RequireAuth>} />
-            <Route path="/data-sources" element={<RequireAuth><DataSources /></RequireAuth>} />
-            <Route path="/charts/new" element={<RequireAuth><ChartBuilderWrapper /></RequireAuth>} />
-            <Route path="/charts" element={<RequireAuth><ChartBuilderWrapper /></RequireAuth>} />
-            <Route path="/looker-builder" element={<RequireAuth><LookerDashboardBuilder /></RequireAuth>} />
-            <Route path="/editor" element={<RequireAuth><EditorPage /></RequireAuth>} />
-            <Route path="/editor/:id" element={<RequireAuth><EditorPage /></RequireAuth>} />
-            <Route path="/analytics" element={<RequireAuth><Dashboard /></RequireAuth>} />
-            <Route path="/ai-chat" element={<RequireAuth><AIChat /></RequireAuth>} />
-            <Route path="/marketplace" element={<RequireAuth><Marketplace /></RequireAuth>} />
-            <Route path="/ecosystem" element={<RequireAuth><Ecosystem /></RequireAuth>} />
-            <Route path="/super-admin" element={<RequireAuth><SuperAdmin /></RequireAuth>} />
-            <Route path="/billing" element={<RequireAuth><Billing /></RequireAuth>} />
-            <Route path="/settings" element={<RequireAuth><Settings /></RequireAuth>} />
-            
-            {/* Catch-all */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              {/* Public routes */}
+              <Route path="/" element={<Index />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/auth/callback" element={<AuthCallback />} />
+              <Route path="/post-auth" element={<PostAuth />} />
+              <Route path="/demo" element={<Demo />} />
+              
+              {/* Protected routes */}
+              <Route path="/app" element={<RequireAuth><AppHome /></RequireAuth>} />
+              <Route path="/dashboards" element={<RequireAuth><Dashboard /></RequireAuth>} />
+              <Route path="/data-sources" element={<RequireAuth><DataSources /></RequireAuth>} />
+              <Route path="/charts/new" element={<RequireAuth><ChartBuilderWrapper /></RequireAuth>} />
+              <Route path="/charts" element={<RequireAuth><ChartBuilderWrapper /></RequireAuth>} />
+              <Route path="/looker-builder" element={<RequireAuth><LookerDashboardBuilder /></RequireAuth>} />
+              <Route path="/editor" element={<RequireAuth><EditorPage /></RequireAuth>} />
+              <Route path="/editor/:id" element={<RequireAuth><EditorPage /></RequireAuth>} />
+              <Route path="/analytics" element={<RequireAuth><Dashboard /></RequireAuth>} />
+              <Route path="/ai-chat" element={<RequireAuth><AIChat /></RequireAuth>} />
+              <Route path="/marketplace" element={<RequireAuth><Marketplace /></RequireAuth>} />
+              <Route path="/ecosystem" element={<RequireAuth><Ecosystem /></RequireAuth>} />
+              <Route path="/super-admin" element={<RequireAuth><SuperAdmin /></RequireAuth>} />
+              <Route path="/billing" element={<RequireAuth><Billing /></RequireAuth>} />
+              <Route path="/settings" element={<RequireAuth><Settings /></RequireAuth>} />
+              
+              {/* Catch-all */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
       </SessionProvider>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
-
-export default App;
+    </QueryClientProvider>
+  );
+}
