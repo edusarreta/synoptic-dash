@@ -84,20 +84,36 @@ export function ConnectionsPage() {
     }
 
     try {
-      const { error } = await supabase
-        .from('data_connections')
-        .insert([{
-          ...newConnection,
-          account_id: userProfile.org_id,
-          created_by: user.id
-        }]);
+      const { data, error } = await supabase.functions.invoke('create-connection', {
+        body: {
+          org_id: userProfile.org_id,
+          name: newConnection.name,
+          type: newConnection.connection_type,
+          host: newConnection.host,
+          port: newConnection.port,
+          database: newConnection.database_name,
+          user: newConnection.username,
+          password: newConnection.password,
+          ssl_mode: newConnection.ssl_mode,
+        }
+      });
 
       if (error) throw error;
 
-      toast({
-        title: "Sucesso",
-        description: "Conexão criada com sucesso",
-      });
+      if (data?.success) {
+
+        toast({
+          title: "Sucesso",
+          description: data?.message || "Conexão criada com sucesso",
+        });
+      } else {
+        toast({
+          title: "Erro",
+          description: data?.message || "Falha ao criar conexão",
+          variant: "destructive",
+        });
+        return;
+      }
 
       setIsDialogOpen(false);
       setNewConnection({
@@ -212,6 +228,7 @@ export function ConnectionsPage() {
   const getConnectionIcon = (type: string) => {
     switch (type) {
       case 'postgresql':
+      case 'supabase':
         return <Database className="w-5 h-5 text-blue-600" />;
       case 'mysql':
         return <Database className="w-5 h-5 text-orange-600" />;
@@ -225,6 +242,7 @@ export function ConnectionsPage() {
   const getConnectionColor = (type: string) => {
     switch (type) {
       case 'postgresql':
+      case 'supabase':
         return 'bg-blue-100';
       case 'mysql':
         return 'bg-orange-100';
@@ -294,6 +312,7 @@ export function ConnectionsPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="postgresql">PostgreSQL</SelectItem>
+                    <SelectItem value="supabase">Supabase (PostgreSQL)</SelectItem>
                     <SelectItem value="mysql">MySQL</SelectItem>
                     <SelectItem value="mongodb">MongoDB</SelectItem>
                   </SelectContent>
