@@ -15,26 +15,46 @@ interface ListCatalogRequest {
   preview_limit?: number;
 }
 
-// Internal function for decrypting passwords
+// Internal function for decrypting passwords with fallback support
 function decryptPassword(encryptedPassword: string): string {
-  try {
-    const encryptionKey = Deno.env.get('DB_ENCRYPTION_KEY');
-    if (!encryptionKey) {
-      throw new Error('Encryption key not configured');
-    }
+  const encryptionKey = Deno.env.get('DB_ENCRYPTION_KEY');
+  if (!encryptionKey) {
+    throw new Error('Encryption key not configured');
+  }
 
-    // Simple decryption matching the encryption function
+  // Try new method first (base64 + delimiter)
+  try {
     const decoded = atob(encryptedPassword);
     const parts = decoded.split('::');
     
-    if (parts.length !== 2 || parts[1] !== encryptionKey.slice(0, 8)) {
-      throw new Error('Invalid encrypted password format');
+    if (parts.length === 2 && parts[1] === encryptionKey.slice(0, 8)) {
+      console.log('Using new decryption method (base64 + delimiter)');
+      return parts[0];
     }
-
-    return parts[0];
   } catch (error) {
-    console.error('Decryption error:', error);
-    throw new Error('Failed to decrypt password');
+    console.log('New decryption method failed, trying legacy method');
+  }
+
+  // Fallback to old method (XOR)
+  try {
+    console.log('Using legacy decryption method (XOR)');
+    const decoder = new TextDecoder();
+    const encoder = new TextEncoder();
+    const keyData = encoder.encode(encryptionKey);
+    
+    // Decode base64 to get XOR encrypted data
+    const encryptedData = Uint8Array.from(atob(encryptedPassword), c => c.charCodeAt(0));
+    
+    // XOR decrypt
+    const decrypted = new Uint8Array(encryptedData.length);
+    for (let i = 0; i < encryptedData.length; i++) {
+      decrypted[i] = encryptedData[i] ^ keyData[i % keyData.length];
+    }
+    
+    return decoder.decode(decrypted);
+  } catch (error) {
+    console.error('Both decryption methods failed:', error);
+    throw new Error('Failed to decrypt password with both methods');
   }
 }
 
