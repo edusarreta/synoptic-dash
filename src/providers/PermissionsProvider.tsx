@@ -40,27 +40,47 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
       
       // MASTER bypass - they have all permissions
       if (currentRole === 'MASTER') {
-        const { data: allPerms } = await supabase
+        console.log('MASTER user detected, granting all permissions');
+        const { data: allPerms, error } = await supabase
           .from('permissions')
           .select('code');
         
-        setPermissions(allPerms?.map(p => p.code) || []);
+        if (error) {
+          console.error('Error fetching all permissions for MASTER:', error);
+          // Fallback: grant common permissions for MASTER
+          setPermissions([
+            'rbac:manage', 'dashboards:create', 'dashboards:read', 'dashboards:update', 'dashboards:delete',
+            'charts:create', 'charts:read', 'charts:update', 'charts:delete',
+            'connections:create', 'connections:read', 'connections:update', 'connections:delete',
+            'datasets:create', 'datasets:read', 'datasets:update', 'datasets:delete'
+          ]);
+        } else {
+          setPermissions(allPerms?.map(p => p.code) || []);
+        }
         return;
       }
       
       // Get role-based permissions
-      const { data: rolePerms } = await supabase
+      const { data: rolePerms, error: roleError } = await supabase
         .from('role_permissions')
         .select('perm_code')
         .eq('org_id', userProfile.org_id)
         .eq('role', currentRole);
 
+      if (roleError) {
+        console.error('Error fetching role permissions:', roleError);
+      }
+
       // Get user-specific grants
-      const { data: userGrants } = await supabase
+      const { data: userGrants, error: grantsError } = await supabase
         .from('user_grants')
         .select('perm_code, effect')
         .eq('org_id', userProfile.org_id)
         .eq('user_id', userProfile.id);
+
+      if (grantsError) {
+        console.error('Error fetching user grants:', grantsError);
+      }
 
       // Combine permissions
       const rolePermissions = rolePerms?.map(p => p.perm_code) || [];
@@ -71,6 +91,7 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
       const allPerms = [...new Set([...rolePermissions, ...allowedGrants])];
       const finalPerms = allPerms.filter(perm => !deniedGrants.includes(perm));
 
+      console.log(`Permissions for ${currentRole}:`, finalPerms);
       setPermissions(finalPerms);
     } catch (error) {
       console.error('Error loading permissions:', error);
