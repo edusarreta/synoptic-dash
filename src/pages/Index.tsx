@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/hooks/useAuth";
+import { useSession } from "@/providers/SessionProvider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -77,7 +77,7 @@ const MockChart = ({ type, title, data }: { type: string; title: string; data: a
 };
 
 const Index = () => {
-  const { user, loading } = useAuth();
+  const { user, loading } = useSession();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -134,7 +134,7 @@ const Index = () => {
               <Button 
                 size="lg" 
                 className="gradient-primary text-lg px-8 py-6 h-auto shadow-glow"
-                onClick={() => navigate("/auth?mode=signup")}
+                onClick={() => navigate("/login")}
               >
                 Começar Grátis
               </Button>
@@ -286,7 +286,7 @@ const Index = () => {
           <Button 
             size="lg" 
             className="gradient-primary text-lg px-12 py-6 h-auto shadow-glow"
-            onClick={() => navigate("/auth?mode=signup")}
+            onClick={() => navigate("/login")}
           >
             Começar Teste Grátis
           </Button>
