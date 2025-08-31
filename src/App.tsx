@@ -22,6 +22,7 @@ import Ecosystem from "./pages/Ecosystem";
 import SuperAdmin from "./pages/SuperAdmin";
 import NotFound from "./pages/NotFound";
 import LookerDashboardBuilder from "./pages/LookerDashboardBuilder";
+import { EditorPage } from "./modules/editor/pages/EditorPage";
 
 const queryClient = new QueryClient();
 
@@ -43,6 +44,8 @@ const App = () => (
               <Route path="/charts/new" element={<ProtectedRoute><ChartBuilderWrapper /></ProtectedRoute>} />
               <Route path="/charts" element={<ProtectedRoute><ChartBuilderWrapper /></ProtectedRoute>} />
               <Route path="/looker-builder" element={<ProtectedRoute><LookerDashboardBuilder /></ProtectedRoute>} />
+              <Route path="/editor" element={<ProtectedRoute><EditorPage /></ProtectedRoute>} />
+              <Route path="/editor/:id" element={<ProtectedRoute><EditorPage /></ProtectedRoute>} />
               <Route path="/analytics" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/ai-chat" element={<ProtectedRoute><AIChat /></ProtectedRoute>} />
             <Route path="/marketplace" element={<ProtectedRoute><Marketplace /></ProtectedRoute>} />
