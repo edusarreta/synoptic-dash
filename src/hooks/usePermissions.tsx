@@ -12,13 +12,13 @@ export interface UserPermissions {
 }
 
 export function usePermissions() {
-  const { user } = useAuth();
+  const { userProfile } = useSession();
   const [permissions, setPermissions] = useState<UserPermissions | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchPermissions() {
-      if (!user) {
+      if (!userProfile) {
         setPermissions(null);
         setLoading(false);
         return;
@@ -28,7 +28,7 @@ export function usePermissions() {
         const { data: profile } = await supabase
           .from('profiles')
           .select('role')
-          .eq('id', user.id)
+          .eq('id', userProfile.id)
           .single();
 
         if (profile) {
@@ -51,7 +51,7 @@ export function usePermissions() {
     }
 
     fetchPermissions();
-  }, [user]);
+  }, [userProfile]);
 
   return { permissions, loading };
 }

@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
+import { useSession } from "@/providers/SessionProvider";
 import { Plus, Database, Check, X, Edit, Trash2, Globe } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { createClient } from "@supabase/supabase-js";
@@ -31,7 +31,7 @@ interface DataConnection {
 export default function DataSources() {
   const [selectedType, setSelectedType] = useState<'postgresql' | 'supabase' | 'rest_api'>('postgresql');
   const [authType, setAuthType] = useState<string>('none');
-  const { user } = useAuth();
+  const { user, userProfile } = useSession();
   const { toast } = useToast();
   const [connections, setConnections] = useState<DataConnection[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -105,8 +105,8 @@ export default function DataSources() {
         const { data: newAccount } = await supabase
           .from('accounts')
           .insert({
-            name: user.full_name || 'My Organization',
-            slug: (user.full_name || 'my-organization').toLowerCase().replace(/\s+/g, '-')
+            name: userProfile?.full_name || 'My Organization',
+            slug: (userProfile?.full_name || 'my-organization').toLowerCase().replace(/\s+/g, '-')
           })
           .select('id')
           .single();
@@ -120,7 +120,7 @@ export default function DataSources() {
             id: user.id,
             org_id: newAccount.id,
             email: user.email!,
-            full_name: user.full_name || 'User',
+            full_name: userProfile?.full_name || 'User',
             role: 'ADMIN' // First user becomes admin
           })
           .select('org_id')

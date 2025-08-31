@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
-import { useAuth } from "@/hooks/useAuth";
+import { useSession } from "@/providers/SessionProvider";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, CheckCircle } from "lucide-react";
 
 export default function Onboarding() {
-  const { user, loading } = useAuth();
+  const { user, userProfile, loading } = useSession();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [step, setStep] = useState(1);
@@ -52,7 +52,7 @@ export default function Onboarding() {
       const { data: account, error: accountError } = await supabase
         .from('accounts')
         .insert({
-          name: user.full_name || 'My Organization',
+          name: userProfile?.full_name || 'My Organization',
           slug: slug,
         })
         .select()
@@ -67,7 +67,7 @@ export default function Onboarding() {
           id: user.id,
           org_id: account.id,
           email: user.email!,
-          full_name: user.full_name,
+          full_name: userProfile?.full_name,
           role: 'ADMIN', // First user is admin
         });
 
@@ -118,7 +118,7 @@ export default function Onboarding() {
                 <p className="text-muted-foreground">
                   Let's set up your workspace for{" "}
                   <span className="font-medium text-foreground">
-                    {user.full_name || user.email}
+                    {userProfile?.full_name || userProfile?.email}
                   </span>
                 </p>
               </div>

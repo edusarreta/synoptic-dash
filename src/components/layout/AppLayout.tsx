@@ -9,7 +9,7 @@ interface AppLayoutProps {
 }
 
 export function AppLayout({ children }: AppLayoutProps) {
-  const { user, loading } = useAuth();
+  const { userProfile, loading } = useSession();
 
   if (loading) {
     return (
@@ -22,7 +22,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     );
   }
 
-  if (!user) {
+  if (!userProfile) {
     return <Navigate to="/auth" replace />;
   }
 

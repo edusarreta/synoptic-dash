@@ -1,18 +1,16 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase, setupAuthListener } from '@/lib/supabase';
-
-interface UserProfile {
-  id: string;
-  email: string;
-  org_id: string;
-}
+import { UserProfile } from '@/modules/core/types';
 
 interface SessionContextType {
   user: User | null;
   session: Session | null;
   userProfile: UserProfile | null;
   loading: boolean;
+  signIn: (email: string, password: string) => Promise<{ error: any }>;
+  signUp: (email: string, password: string, fullName: string, accountName: string) => Promise<{ error: any }>;
+  signOut: () => Promise<{ error: any }>;
 }
 
 const SessionContext = createContext<SessionContextType | undefined>(undefined);
@@ -27,7 +25,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, email, org_id')
+        .select('*')
         .eq('id', userId)
         .single();
 
@@ -36,7 +34,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      setUserProfile(data);
+      if (data) {
+        setUserProfile({
+          id: data.id,
+          email: data.email,
+          full_name: data.full_name,
+          org_id: data.org_id,
+          role: data.role as 'MASTER' | 'ADMIN' | 'EDITOR' | 'VIEWER',
+          permissions: data.permissions || [],
+          is_active: data.is_active
+        });
+      }
     } catch (error) {
       console.error('Error in fetchUserProfile:', error);
     }
@@ -53,32 +61,65 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       } else {
         setUserProfile(null);
       }
-      
       setLoading(false);
     });
 
-    // Get initial session
+    // Check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
-      
       if (session?.user) {
         fetchUserProfile(session.user.id);
+      } else {
+        setLoading(false);
       }
-      
-      setLoading(false);
     });
 
     return () => {
-      authListener?.subscription?.unsubscribe();
+      if (authListener?.subscription) {
+        authListener.subscription.unsubscribe();
+      }
     };
   }, []);
+
+  const signIn = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    return { error };
+  };
+
+  const signUp = async (email: string, password: string, fullName: string, accountName: string) => {
+    const redirectUrl = `${window.location.origin}/auth/callback`;
+    
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: redirectUrl,
+        data: {
+          full_name: fullName,
+          account_name: accountName,
+        }
+      }
+    });
+    return { error };
+  };
+
+  const signOut = async () => {
+    const { error } = await supabase.auth.signOut();
+    return { error };
+  };
 
   const value = {
     user,
     session,
     userProfile,
     loading,
+    signIn,
+    signUp,
+    signOut,
   };
 
   return (

@@ -27,7 +27,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/hooks/useAuth";
+import { useSession } from "@/providers/SessionProvider";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -56,7 +56,7 @@ const adminItems = [
 export function AppSidebar() {
   const { open } = useSidebar();
   const location = useLocation();
-  const { user, signOut } = useAuth();
+  const { userProfile, signOut } = useSession();
   const currentPath = location.pathname;
 
   const isActive = (path: string) => currentPath.startsWith(path);
@@ -69,10 +69,10 @@ export function AppSidebar() {
     await signOut();
   };
 
-  const userInitials = user?.full_name
+  const userInitials = userProfile?.full_name
     ?.split(' ')
     .map((n: string) => n[0])
-    .join('') || user?.email?.[0]?.toUpperCase() || 'U';
+    .join('') || userProfile?.email?.[0]?.toUpperCase() || 'U';
 
   return (
     <Sidebar className={`border-r ${!open ? "w-14" : "w-64"}`} collapsible="icon">
@@ -200,10 +200,10 @@ export function AppSidebar() {
                   </Avatar>
                   <div className="flex-1 text-left">
                     <p className="text-sm font-medium truncate">
-                      {user?.full_name || user?.email}
+                      {userProfile?.full_name || userProfile?.email}
                     </p>
                     <p className="text-xs text-muted-foreground truncate">
-                      {user?.email}
+                      {userProfile?.email}
                     </p>
                   </div>
                   <ChevronDown className="w-4 h-4 ml-2" />
