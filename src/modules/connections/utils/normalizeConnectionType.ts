@@ -32,3 +32,21 @@ export function getDisplayName(normalizedType: NormalizedConnectionType): string
       return normalizedType;
   }
 }
+
+export function getTypeLabel(rawType: string): string {
+  switch (rawType) {
+    case 'postgres':
+    case 'postgresql':
+      return 'PostgreSQL';
+    case 'supabase':
+      return 'Supabase (PostgreSQL)';
+    case 'mysql':
+      return 'MySQL';
+    case 'rest':
+      return 'REST API (beta)';
+    case 'webhook':
+      return 'Webhook';
+    default:
+      return rawType;
+  }
+}

@@ -1,400 +1,299 @@
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Play, Square, Download, Save, Database, Clock, AlertCircle } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
-import { useSession } from '@/providers/SessionProvider';
-import { Textarea } from '@/components/ui/textarea';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import React, { useState, useEffect } from "react";
+import { AppLayout } from "@/components/layout/AppLayout";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Play, Square, Save, Download, Database, Clock, Loader2, AlertCircle } from "lucide-react";
+import { BackLink } from "@/components/BackLink";
+import { useSession } from "@/providers/SessionProvider";
+import { usePermissions } from "@/providers/PermissionsProvider";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { getTypeLabel } from "@/modules/connections/utils/normalizeConnectionType";
 
-interface DataConnection {
+interface Connection {
   id: string;
   name: string;
   connection_type: string;
-  host: string;
-  database_name: string;
+  is_active: boolean;
 }
 
 interface QueryResult {
-  columns: Array<{ name: string; }>;
-  rows: Array<Record<string, any>>;
-  truncated: boolean;
-  elapsed_ms: number;
-  row_count: number;
+  columns: string[];
+  rows: any[][];
+  truncated?: boolean;
+  elapsed_ms?: number;
+  total_rows?: number;
+}
+
+interface QueryParams {
+  [key: string]: string | number | boolean;
 }
 
 export default function SQLEditor() {
-  const [connections, setConnections] = useState<DataConnection[]>([]);
-  const [selectedConnectionId, setSelectedConnectionId] = useState<string>('');
-  const [sqlQuery, setSqlQuery] = useState('SELECT now() as current_time;');
-  const [queryResult, setQueryResult] = useState<QueryResult | null>(null);
-  const [queryError, setQueryError] = useState<string>('');
-  const [isExecuting, setIsExecuting] = useState(false);
-  const [rowLimit, setRowLimit] = useState(5000);
-  const [timeoutMs, setTimeoutMs] = useState(15000);
-  const [queryParams, setQueryParams] = useState<Record<string, any>>({});
-  
-  const { toast } = useToast();
   const { userProfile } = useSession();
+  const { can } = usePermissions();
+  const { toast } = useToast();
+  
+  const [connections, setConnections] = useState<Connection[]>([]);
+  const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
+  const [sql, setSql] = useState("SELECT 1 as id, 'Exemplo' as name, NOW() as timestamp;");
+  const [queryParams, setQueryParams] = useState<QueryParams>({});
+  const [queryResult, setQueryResult] = useState<QueryResult | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [loadingConnections, setLoadingConnections] = useState(true);
+  const [rowLimit, setRowLimit] = useState(1000);
+  const [timeout, setTimeout] = useState(15);
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [queryName, setQueryName] = useState("");
+  const [queryDescription, setQueryDescription] = useState("");
 
   useEffect(() => {
-    fetchConnections();
+    loadConnections();
   }, []);
 
-  const fetchConnections = async () => {
+  const loadConnections = async () => {
+    if (!userProfile?.org_id) return;
+
     try {
       const { data, error } = await supabase
         .from('data_connections')
-        .select('id, name, connection_type, host, database_name')
+        .select('id, name, connection_type, is_active')
+        .eq('account_id', userProfile.org_id)
         .eq('is_active', true)
         .order('name');
 
-      if (error) throw error;
-      
+      if (error) {
+        console.error('Error loading connections:', error);
+        toast({
+          title: "Erro",
+          description: "Falha ao carregar conexões",
+          variant: "destructive",
+        });
+        return;
+      }
+
       setConnections(data || []);
       if (data && data.length > 0 && !selectedConnectionId) {
         setSelectedConnectionId(data[0].id);
       }
     } catch (error) {
-      console.error('Erro ao carregar conexões:', error);
+      console.error('Error loading connections:', error);
       toast({
         title: "Erro",
-        description: "Falha ao carregar conexões de dados",
+        description: "Falha ao carregar conexões",
         variant: "destructive",
       });
+    } finally {
+      setLoadingConnections(false);
     }
   };
 
-  const executeQuery = async () => {
-    if (!selectedConnectionId || !sqlQuery.trim()) {
+  const executeQuery = async (mode: 'preview' | 'dataset' = 'preview') => {
+    if (!userProfile?.org_id || !selectedConnectionId || !sql.trim()) {
       toast({
-        title: "Erro",
-        description: "Selecione uma conexão e digite uma query",
+        title: "Dados incompletos",
+        description: "Selecione uma conexão e insira uma consulta SQL",
         variant: "destructive",
       });
       return;
     }
 
-    if (!userProfile?.org_id) {
-      toast({
-        title: "Erro",
-        description: "Usuário não está associado a uma organização",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsExecuting(true);
-    setQueryError('');
-    setQueryResult(null);
-
+    setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('run-sql-query', {
         body: {
           org_id: userProfile.org_id,
           connection_id: selectedConnectionId,
-          sql: sqlQuery,
+          sql: sql.trim(),
           params: queryParams,
           row_limit: rowLimit,
-          timeout_ms: timeoutMs,
-          mode: 'preview'
+          timeout_ms: timeout * 1000,
+          mode
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('SQL execution error:', error);
+        toast({
+          title: "Erro na execução",
+          description: "Falha ao executar consulta SQL",
+          variant: "destructive",
+        });
+        return;
+      }
 
       if (data.error_code) {
-        setQueryError(data.message || 'Erro na execução da query');
         toast({
-          title: "Erro na Query",
+          title: `❌ ${data.error_code}`,
           description: data.message,
           variant: "destructive",
         });
-      } else {
-        setQueryResult(data);
+        return;
+      }
+
+      setQueryResult(data);
+      
+      if (mode === 'dataset') {
         toast({
-          title: "Query Executada",
-          description: `${data.row_count} linhas retornadas em ${data.elapsed_ms}ms`,
+          title: "✅ Dataset criado",
+          description: `Query executada e dataset criado com ${data.rows?.length || 0} linhas`,
+        });
+      } else {
+        toast({
+          title: "✅ Query executada",
+          description: `${data.rows?.length || 0} linhas retornadas em ${data.elapsed_ms}ms`,
         });
       }
-    } catch (error: any) {
-      console.error('Erro ao executar query:', error);
-      const errorMessage = error.message || 'Falha ao executar query';
-      setQueryError(errorMessage);
-      
+    } catch (error) {
+      console.error('SQL execution error:', error);
       toast({
-        title: "Erro",
-        description: errorMessage,
+        title: "Erro na execução",
+        description: "Falha ao executar consulta SQL",
         variant: "destructive",
       });
     } finally {
-      setIsExecuting(false);
+      setLoading(false);
     }
   };
 
-  const cancelQuery = () => {
-    setIsExecuting(false);
-    toast({
-      title: "Query Cancelada",
-      description: "Execução da query foi cancelada",
-    });
-  };
-
-  const exportResults = (format: 'csv' | 'json') => {
-    if (!queryResult || !queryResult.rows.length) {
-      toast({
-        title: "Aviso",
-        description: "Nenhum resultado para exportar",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    let content = '';
-    let filename = '';
-
-    if (format === 'csv') {
-      const headers = queryResult.columns.map(col => col.name).join(',');
-      const rows = queryResult.rows.map(row => 
-        queryResult.columns.map(col => {
-          const value = row[col.name];
-          return value !== null && value !== undefined ? `"${String(value).replace(/"/g, '""')}"` : '';
-        }).join(',')
-      );
-      content = [headers, ...rows].join('\n');
-      filename = 'query_results.csv';
-    } else {
-      content = JSON.stringify(queryResult.rows, null, 2);
-      filename = 'query_results.json';
-    }
-
-    const blob = new Blob([content], { type: format === 'csv' ? 'text/csv' : 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-
-    toast({
-      title: "Exportado",
-      description: `Resultados exportados como ${format.toUpperCase()}`,
-    });
-  };
-
-  const selectedConnection = connections.find(conn => conn.id === selectedConnectionId);
+  if (!can('sql:run')) {
+    return (
+      <AppLayout>
+        <div className="flex flex-col items-center justify-center h-64">
+          <Database className="w-12 h-12 text-muted-foreground mb-4" />
+          <h3 className="text-lg font-semibold mb-2">Acesso Negado</h3>
+          <p className="text-muted-foreground text-center mb-4">
+            Você não tem permissão para executar consultas SQL
+          </p>
+          <BackLink />
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
-    <div className="h-screen flex flex-col bg-background">
-      {/* Header */}
-      <div className="border-b bg-muted/30 px-4 py-3">
+    <AppLayout>
+      <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <h1 className="text-xl font-semibold flex items-center gap-2">
-              <Database className="w-5 h-5" />
-              Editor SQL
-            </h1>
-            <Badge variant="secondary" className="text-xs">
-              SELECT-only
-            </Badge>
-          </div>
-          
-          <div className="flex items-center gap-2">
-            <Select value={selectedConnectionId} onValueChange={setSelectedConnectionId}>
-              <SelectTrigger className="w-64">
-                <SelectValue placeholder="Selecione uma conexão" />
-              </SelectTrigger>
-              <SelectContent>
-                {connections.map((conn) => (
-                  <SelectItem key={conn.id} value={conn.id}>
-                    <div className="flex items-center gap-2">
-                      <Database className="w-4 h-4" />
-                      <span>{conn.name}</span>
-                      <span className="text-xs text-muted-foreground">({conn.connection_type})</span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        {selectedConnection && (
-          <div className="mt-2 text-sm text-muted-foreground">
-            Conectado em: {selectedConnection.host} → {selectedConnection.database_name}
-          </div>
-        )}
-      </div>
-
-      {/* Editor and Controls */}
-      <div className="flex-1 flex">
-        {/* Left Panel - Query Editor */}
-        <div className="flex-1 flex flex-col border-r">
-          <div className="border-b p-3 flex items-center justify-between bg-muted/20">
-            <div className="flex items-center gap-2">
-              <Button 
-                size="sm" 
-                onClick={executeQuery}
-                disabled={isExecuting || !selectedConnectionId}
-                className="gap-1"
-              >
-                <Play className="w-3 h-3" />
-                Run
-              </Button>
-              
-              {isExecuting && (
-                <Button 
-                  size="sm" 
-                  variant="outline"
-                  onClick={cancelQuery}
-                  className="gap-1"
-                >
-                  <Square className="w-3 h-3" />
-                  Cancel
-                </Button>
-              )}
-            </div>
-
-            <div className="flex items-center gap-4 text-xs text-muted-foreground">
-              <div className="flex items-center gap-1">
-                <Label>Limite:</Label>
-                <Input
-                  type="number"
-                  value={rowLimit}
-                  onChange={(e) => setRowLimit(parseInt(e.target.value) || 5000)}
-                  className="w-16 h-6 text-xs"
-                  min="1"
-                  max="50000"
-                />
-              </div>
-              <div className="flex items-center gap-1">
-                <Clock className="w-3 h-3" />
-                <Input
-                  type="number"
-                  value={timeoutMs}
-                  onChange={(e) => setTimeoutMs(parseInt(e.target.value) || 15000)}
-                  className="w-16 h-6 text-xs"
-                  min="1000"
-                  max="300000"
-                />
-                <span>ms</span>
-              </div>
+            <BackLink />
+            <div>
+              <h1 className="text-3xl font-bold">Editor SQL</h1>
+              <p className="text-muted-foreground mt-2">
+                Execute consultas SELECT e crie datasets a partir dos resultados
+              </p>
             </div>
           </div>
-
-          <div className="flex-1 p-3">
-            <Textarea
-              value={sqlQuery}
-              onChange={(e) => setSqlQuery(e.target.value)}
-              placeholder="Digite sua query SQL aqui... (apenas SELECT permitido)"
-              className="w-full h-full font-mono text-sm resize-none"
-              style={{ minHeight: '200px' }}
-            />
-          </div>
+          <Badge variant="outline" className="flex items-center gap-1">
+            <AlertCircle className="w-3 h-3" />
+            SELECT Only
+          </Badge>
         </div>
 
-        {/* Right Panel - Results */}
-        <div className="w-2/3 flex flex-col">
-          <div className="border-b p-3 flex items-center justify-between bg-muted/20">
-            <h3 className="font-medium">Resultados</h3>
-            
-            {queryResult && (
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">
-                  {queryResult.row_count} linhas · {queryResult.elapsed_ms}ms
-                  {queryResult.truncated && ' · truncado'}
-                </span>
-                <Button 
-                  size="sm" 
-                  variant="outline"
-                  onClick={() => exportResults('csv')}
-                  className="gap-1"
-                >
-                  <Download className="w-3 h-3" />
-                  CSV
-                </Button>
-                <Button 
-                  size="sm" 
-                  variant="outline"
-                  onClick={() => exportResults('json')}
-                  className="gap-1"
-                >
-                  <Download className="w-3 h-3" />
-                  JSON
-                </Button>
-              </div>
-            )}
-          </div>
-
-          <div className="flex-1 overflow-auto p-3">
-            {isExecuting && (
-              <div className="flex items-center justify-center h-32">
-                <div className="text-center">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto"></div>
-                  <p className="mt-2 text-sm text-muted-foreground">Executando query...</p>
-                </div>
-              </div>
-            )}
-
-            {queryError && (
-              <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded text-red-800">
-                <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                <div className="text-sm">{queryError}</div>
-              </div>
-            )}
-
-            {queryResult && (
-              <div className="border rounded">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      {queryResult.columns.map((col, index) => (
-                        <TableHead key={index} className="font-mono text-xs">
-                          {col.name}
-                        </TableHead>
-                      ))}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {queryResult.rows.map((row, rowIndex) => (
-                      <TableRow key={rowIndex}>
-                        {queryResult.columns.map((col, colIndex) => (
-                          <TableCell key={colIndex} className="font-mono text-xs max-w-xs truncate">
-                            {row[col.name] !== null && row[col.name] !== undefined 
-                              ? String(row[col.name]) 
-                              : <span className="text-muted-foreground italic">null</span>
-                            }
-                          </TableCell>
-                        ))}
-                      </TableRow>
+        <Card>
+          <CardHeader>
+            <CardTitle>Editor de Consultas</CardTitle>
+            <CardDescription>Escreva consultas SELECT para explorar seus dados</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Conexão</Label>
+                <Select value={selectedConnectionId || ''} onValueChange={setSelectedConnectionId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione uma conexão" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {connections.map((connection) => (
+                      <SelectItem key={connection.id} value={connection.id}>
+                        {connection.name} - {getTypeLabel(connection.connection_type)}
+                      </SelectItem>
                     ))}
-                  </TableBody>
-                </Table>
-                
-                {queryResult.truncated && (
-                  <div className="p-2 bg-yellow-50 border-t border-yellow-200 text-yellow-800 text-sm text-center">
-                    ⚠️ Resultados truncados. Ajuste o limite de linhas para ver mais dados.
-                  </div>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Consulta SQL</Label>
+                <Textarea
+                  value={sql}
+                  onChange={(e) => setSql(e.target.value)}
+                  placeholder="SELECT * FROM tabela WHERE coluna = 'valor'"
+                  className="font-mono text-sm min-h-[200px]"
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => executeQuery('preview')}
+                  disabled={loading || !selectedConnectionId}
+                >
+                  {loading ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Play className="w-4 h-4 mr-2" />
+                  )}
+                  Executar Preview
+                </Button>
+
+                {can('datasets:create') && (
+                  <Button
+                    variant="outline"
+                    onClick={() => executeQuery('dataset')}
+                    disabled={loading || !selectedConnectionId}
+                  >
+                    <Database className="w-4 h-4 mr-2" />
+                    Criar Dataset
+                  </Button>
                 )}
               </div>
-            )}
 
-            {!isExecuting && !queryError && !queryResult && (
-              <div className="flex items-center justify-center h-32 text-muted-foreground">
-                <div className="text-center">
-                  <Database className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">Execute uma query para ver os resultados</p>
+              {queryResult && (
+                <div className="mt-6 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold">Resultados</h3>
+                    <Badge variant="outline">
+                      {queryResult.rows?.length || 0} linhas
+                    </Badge>
+                  </div>
+                  
+                  <div className="border rounded overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted">
+                        <tr>
+                          {queryResult.columns.map((column) => (
+                            <th key={column} className="p-2 text-left font-medium">
+                              {column}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {queryResult.rows.slice(0, 100).map((row, index) => (
+                          <tr key={index} className="border-t hover:bg-muted/50">
+                            {row.map((cell, cellIndex) => (
+                              <td key={cellIndex} className="p-2">
+                                {cell}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
-        </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </div>
-    </div>
+    </AppLayout>
   );
 }
