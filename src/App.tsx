@@ -28,6 +28,7 @@ import Ecosystem from "./pages/Ecosystem";
 import SuperAdmin from "./pages/SuperAdmin";
 import LookerDashboardBuilder from "./pages/LookerDashboardBuilder";
 import { EditorPage } from "./modules/editor/pages/EditorPage";
+import { ConnectionsPage } from "./modules/connections/pages/ConnectionsPage";
 
 const queryClient = new QueryClient();
 
@@ -51,6 +52,7 @@ export default function App() {
               <Route path="/app" element={<RequireAuth><AppHome /></RequireAuth>} />
               <Route path="/dashboards" element={<RequireAuth><Dashboard /></RequireAuth>} />
               <Route path="/data-sources" element={<RequireAuth><DataSources /></RequireAuth>} />
+              <Route path="/connections" element={<RequireAuth><ConnectionsPage /></RequireAuth>} />
               <Route path="/charts/new" element={<RequireAuth><ChartBuilderWrapper /></RequireAuth>} />
               <Route path="/charts" element={<RequireAuth><ChartBuilderWrapper /></RequireAuth>} />
               <Route path="/looker-builder" element={<RequireAuth><LookerDashboardBuilder /></RequireAuth>} />
