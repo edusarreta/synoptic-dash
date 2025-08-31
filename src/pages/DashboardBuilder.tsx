@@ -54,7 +54,7 @@ export default function DashboardBuilder() {
       // Get user's account_id first
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('account_id')
+        .select('org_id')
         .eq('id', user.id)
         .single();
 
@@ -75,7 +75,7 @@ export default function DashboardBuilder() {
             connection_type
           )
         `)
-        .eq('account_id', profile.account_id)
+        .eq('account_id', profile.org_id)
         .order('created_at', { ascending: false })
         .limit(6); // Limit for demo
 
@@ -203,7 +203,7 @@ export default function DashboardBuilder() {
       // Get user's account_id first
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('account_id')
+        .select('org_id')
         .eq('id', user.id)
         .single();
 
@@ -215,7 +215,7 @@ export default function DashboardBuilder() {
       const { data: dashboard, error } = await supabase
         .from('dashboards')
         .insert({
-          account_id: profile.account_id,
+          org_id: profile.org_id,
           name: dashboardName,
           description: 'Dashboard criado com controles interativos',
           layout_config: JSON.parse(JSON.stringify({

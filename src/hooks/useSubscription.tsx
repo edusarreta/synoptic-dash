@@ -50,13 +50,13 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
       // Get plan limits
       const { data: profile } = await supabase
         .from('profiles')
-        .select('account_id')
+        .select('org_id')
         .eq('id', user.id)
         .single();
 
       if (profile) {
         const { data: limits } = await supabase
-          .rpc('check_subscription_status', { account_uuid: profile.account_id })
+          .rpc('check_subscription_status', { account_uuid: profile.org_id })
           .single();
 
         if (limits) {

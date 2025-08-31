@@ -33,7 +33,7 @@ export function useAccountSettings() {
     try {
       const { data: profile } = await supabase
         .from('profiles')
-        .select('account_id')
+        .select('org_id')
         .eq('id', user.id)
         .single();
 
@@ -41,7 +41,7 @@ export function useAccountSettings() {
         const { data, error } = await supabase
           .from('account_settings')
           .select('*')
-          .eq('account_id', profile.account_id)
+          .eq('account_id', profile.org_id)
           .single();
 
         if (error && error.code !== 'PGRST116') { // Not found error
@@ -55,7 +55,7 @@ export function useAccountSettings() {
           const { data: newSettings, error: createError } = await supabase
             .from('account_settings')
             .insert({
-              account_id: profile.account_id,
+              account_id: profile.org_id,
               primary_color: '#3b82f6',
               secondary_color: '#64748b',
               sso_enabled: false,

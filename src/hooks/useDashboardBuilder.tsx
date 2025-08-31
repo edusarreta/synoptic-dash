@@ -325,7 +325,7 @@ export function useDashboardBuilder() {
         .from('dashboards')
         .insert({
           name: dashboardName,
-          account_id: accountId,
+          org_id: accountId,
           created_by: userId,
           layout_config: {
             widgets: widgets.map(w => ({

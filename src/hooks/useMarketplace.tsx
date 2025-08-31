@@ -58,7 +58,7 @@ export function useMarketplace() {
     try {
       const { data: profile } = await supabase
         .from('profiles')
-        .select('account_id')
+        .select('org_id')
         .eq('id', user.id)
         .single();
 
@@ -69,7 +69,7 @@ export function useMarketplace() {
             *,
             marketplace_items (*)
           `)
-          .eq('account_id', profile.account_id)
+          .eq('account_id', profile.org_id)
           .eq('is_active', true);
 
         if (error) throw error;
@@ -86,7 +86,7 @@ export function useMarketplace() {
     try {
       const { data: profile } = await supabase
         .from('profiles')
-        .select('account_id')
+        .select('org_id')
         .eq('id', user.id)
         .single();
 
@@ -95,7 +95,7 @@ export function useMarketplace() {
       const { data, error } = await supabase
         .from('installed_marketplace_items')
         .insert({
-          account_id: profile.account_id,
+          account_id: profile.org_id,
           marketplace_item_id: itemId,
           installed_by: user.id,
           config: config || {}

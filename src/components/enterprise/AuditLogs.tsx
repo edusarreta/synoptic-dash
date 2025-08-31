@@ -50,7 +50,7 @@ export function AuditLogs() {
       // Get user's account
       const { data: profile } = await supabase
         .from('profiles')
-        .select('account_id, role')
+        .select('org_id, role')
         .eq('id', user.id)
         .single();
 
@@ -67,7 +67,7 @@ export function AuditLogs() {
       const { data, error } = await supabase
         .from('audit_logs')
         .select('*')
-        .eq('account_id', profile.account_id)
+        .eq('org_id', profile.org_id)
         .order('created_at', { ascending: false })
         .limit(100);
 

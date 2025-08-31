@@ -82,7 +82,7 @@ export function VisualDataPrep() {
     try {
       const { data: profile } = await supabase
         .from('profiles')
-        .select('account_id')
+        .select('org_id')
         .eq('id', user.id)
         .single();
 
@@ -90,7 +90,7 @@ export function VisualDataPrep() {
         const { data } = await supabase
           .from('data_connections')
           .select('id, name, connection_type, database_name')
-          .eq('account_id', profile.account_id)
+          .eq('account_id', profile.org_id)
           .eq('is_active', true);
 
         setConnections(data || []);
@@ -106,7 +106,7 @@ export function VisualDataPrep() {
     try {
       const { data: profile } = await supabase
         .from('profiles')
-        .select('account_id')
+        .select('org_id')
         .eq('id', user.id)
         .single();
 
@@ -114,7 +114,7 @@ export function VisualDataPrep() {
         const { data } = await supabase
           .from('data_transformations')
           .select('*')
-          .eq('account_id', profile.account_id)
+          .eq('account_id', profile.org_id)
           .order('created_at', { ascending: false });
 
         setTransformations(data || []);
@@ -197,7 +197,7 @@ export function VisualDataPrep() {
     try {
       const { data: profile } = await supabase
         .from('profiles')
-        .select('account_id')
+        .select('org_id')
         .eq('id', user.id)
         .single();
 
@@ -205,7 +205,7 @@ export function VisualDataPrep() {
         const transformationData = {
           name: currentTransformation.name,
           description: currentTransformation.description,
-          account_id: profile.account_id,
+          account_id: profile.org_id,
           source_connections: selectedConnections,
           transformation_config: {
             steps,

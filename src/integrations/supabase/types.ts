@@ -1055,6 +1055,7 @@ export type Database = {
           full_name: string | null
           id: string
           is_active: boolean | null
+          is_super_admin: boolean | null
           org_id: string
           permissions: string[] | null
           role: string
@@ -1066,6 +1067,7 @@ export type Database = {
           full_name?: string | null
           id: string
           is_active?: boolean | null
+          is_super_admin?: boolean | null
           org_id: string
           permissions?: string[] | null
           role?: string
@@ -1077,6 +1079,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           is_active?: boolean | null
+          is_super_admin?: boolean | null
           org_id?: string
           permissions?: string[] | null
           role?: string

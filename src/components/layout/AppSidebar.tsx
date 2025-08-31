@@ -69,7 +69,7 @@ export function AppSidebar() {
     await signOut();
   };
 
-  const userInitials = user?.user_metadata?.full_name
+  const userInitials = user?.full_name
     ?.split(' ')
     .map((n: string) => n[0])
     .join('') || user?.email?.[0]?.toUpperCase() || 'U';
@@ -200,7 +200,7 @@ export function AppSidebar() {
                   </Avatar>
                   <div className="flex-1 text-left">
                     <p className="text-sm font-medium truncate">
-                      {user?.user_metadata?.full_name || user?.email}
+                      {user?.full_name || user?.email}
                     </p>
                     <p className="text-xs text-muted-foreground truncate">
                       {user?.email}

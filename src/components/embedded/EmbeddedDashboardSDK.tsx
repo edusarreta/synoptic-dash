@@ -43,7 +43,7 @@ export function EmbeddedDashboardSDK({ dashboardId, dashboardName }: EmbeddedDas
     try {
       const { data: profile } = await supabase
         .from('profiles')
-        .select('account_id')
+        .select('org_id')
         .eq('id', user.id)
         .single();
 
@@ -52,7 +52,7 @@ export function EmbeddedDashboardSDK({ dashboardId, dashboardName }: EmbeddedDas
           .from('embedded_analytics')
           .select('*')
           .eq('dashboard_id', dashboardId)
-          .eq('account_id', profile.account_id)
+          .eq('account_id', profile.org_id)
           .single();
 
         setConfig(data);
@@ -72,7 +72,7 @@ export function EmbeddedDashboardSDK({ dashboardId, dashboardName }: EmbeddedDas
     try {
       const { data: profile } = await supabase
         .from('profiles')
-        .select('account_id')
+        .select('org_id')
         .eq('id', user.id)
         .single();
 
@@ -81,7 +81,7 @@ export function EmbeddedDashboardSDK({ dashboardId, dashboardName }: EmbeddedDas
           .from('embedded_analytics')
           .insert({
             dashboard_id: dashboardId,
-            account_id: profile.account_id,
+            account_id: profile.org_id,
             created_by: user.id,
             allowed_domains: domains.split('\n').filter(d => d.trim()),
           })

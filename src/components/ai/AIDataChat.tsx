@@ -53,7 +53,7 @@ export function AIDataChat() {
     try {
       const { data: profile } = await supabase
         .from('profiles')
-        .select('account_id')
+        .select('org_id')
         .eq('id', user.id)
         .single();
 
@@ -61,7 +61,7 @@ export function AIDataChat() {
         const { data } = await supabase
           .from('data_connections')
           .select('id, name, connection_type, database_name')
-          .eq('account_id', profile.account_id)
+          .eq('account_id', profile.org_id)
           .eq('is_active', true);
 
         setConnections(data || []);

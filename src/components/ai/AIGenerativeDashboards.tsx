@@ -69,7 +69,7 @@ export function AIGenerativeDashboards() {
     try {
       const { data: profile } = await supabase
         .from('profiles')
-        .select('account_id')
+        .select('org_id')
         .eq('id', user.id)
         .single();
 
@@ -77,7 +77,7 @@ export function AIGenerativeDashboards() {
         const { data } = await supabase
           .from('data_connections')
           .select('id, name, connection_type, database_name')
-          .eq('account_id', profile.account_id)
+          .eq('account_id', profile.org_id)
           .eq('is_active', true);
 
         setConnections(data || []);
@@ -93,7 +93,7 @@ export function AIGenerativeDashboards() {
     try {
       const { data: profile } = await supabase
         .from('profiles')
-        .select('account_id')
+        .select('org_id')
         .eq('id', user.id)
         .single();
 
@@ -101,7 +101,7 @@ export function AIGenerativeDashboards() {
         const { data } = await supabase
           .from('ai_generated_dashboards')
           .select('*')
-          .eq('account_id', profile.account_id)
+          .eq('account_id', profile.org_id)
           .order('created_at', { ascending: false })
           .limit(10);
 
@@ -143,7 +143,7 @@ export function AIGenerativeDashboards() {
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('account_id')
+        .select('org_id')
         .eq('id', user.id)
         .single();
 
@@ -154,7 +154,7 @@ export function AIGenerativeDashboards() {
           .insert({
             name: request.dashboardName,
             description: `AI-generated dashboard: ${request.prompt}`,
-            account_id: profile.account_id,
+            org_id: profile.org_id,
             created_by: user.id,
           })
           .select()
@@ -197,7 +197,7 @@ export function AIGenerativeDashboards() {
                 description: `AI-generated: ${chartTemplate.name}`,
                 chart_type: chartTemplate.chart_type,
                 sql_query: chartTemplate.sql_query,
-                account_id: profile.account_id,
+                account_id: profile.org_id,
                 data_connection_id: request.dataSourceId,
                 created_by: user.id,
               });
@@ -215,7 +215,7 @@ export function AIGenerativeDashboards() {
           .from('ai_generated_dashboards')
           .insert({
             dashboard_id: dashboard.id,
-            account_id: profile.account_id,
+            account_id: profile.org_id,
             generation_prompt: request.prompt,
             ai_model_used: 'gpt-4o-mini',
             charts_generated: chartsCreated,

@@ -96,7 +96,7 @@ export default function DataSources() {
       // Get user's account - create profile if it doesn't exist
       let { data: profile } = await supabase
         .from('profiles')
-        .select('account_id')
+        .select('org_id')
         .eq('id', user.id)
         .maybeSingle();
 
@@ -105,8 +105,8 @@ export default function DataSources() {
         const { data: newAccount } = await supabase
           .from('accounts')
           .insert({
-            name: user.user_metadata?.account_name || 'My Account',
-            slug: user.user_metadata?.account_name?.toLowerCase().replace(/\s+/g, '-') || 'my-account'
+            name: user.full_name || 'My Organization',
+            slug: (user.full_name || 'my-organization').toLowerCase().replace(/\s+/g, '-')
           })
           .select('id')
           .single();
@@ -118,12 +118,12 @@ export default function DataSources() {
           .from('profiles')
           .insert({
             id: user.id,
-            account_id: newAccount.id,
+            org_id: newAccount.id,
             email: user.email!,
-            full_name: user.user_metadata?.full_name || 'User',
-            role: 'admin' // First user becomes admin
+            full_name: user.full_name || 'User',
+            role: 'ADMIN' // First user becomes admin
           })
-          .select('account_id')
+          .select('org_id')
           .single();
 
         profile = newProfile;
@@ -177,7 +177,7 @@ export default function DataSources() {
       } else {
         // Create new connection
         const insertData: any = {
-          account_id: profile.account_id,
+          account_id: profile.org_id,
           name: formData.name,
           connection_type: selectedType,
           created_by: user.id,

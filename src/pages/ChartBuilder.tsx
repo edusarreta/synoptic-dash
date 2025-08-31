@@ -406,7 +406,7 @@ export default function ChartBuilder({ editChartId }: ChartBuilderProps = {}) {
       // Get user's account_id first
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('account_id')
+        .select('org_id')
         .eq('id', user.id)
         .single();
 
@@ -456,7 +456,7 @@ export default function ChartBuilder({ editChartId }: ChartBuilderProps = {}) {
         const result = await supabase
           .from('saved_charts')
           .insert({
-          account_id: profile.account_id,
+          account_id: profile.org_id,
           data_connection_id: selectedConnection,
           name: chartTitle,
           description: chartDescription,

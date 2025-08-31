@@ -52,7 +52,7 @@ export default function Onboarding() {
       const { data: account, error: accountError } = await supabase
         .from('accounts')
         .insert({
-          name: user.user_metadata.account_name,
+          name: user.full_name || 'My Organization',
           slug: slug,
         })
         .select()
@@ -65,10 +65,10 @@ export default function Onboarding() {
         .from('profiles')
         .insert({
           id: user.id,
-          account_id: account.id,
+          org_id: account.id,
           email: user.email!,
-          full_name: user.user_metadata.full_name,
-          role: 'admin', // First user is admin
+          full_name: user.full_name,
+          role: 'ADMIN', // First user is admin
         });
 
       if (profileError) throw profileError;
@@ -118,7 +118,7 @@ export default function Onboarding() {
                 <p className="text-muted-foreground">
                   Let's set up your workspace for{" "}
                   <span className="font-medium text-foreground">
-                    {user.user_metadata.account_name}
+                    {user.full_name || user.email}
                   </span>
                 </p>
               </div>

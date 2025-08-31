@@ -132,7 +132,7 @@ export function DashboardComments({ dashboardId, chartId }: DashboardCommentsPro
     try {
       const { data: profile } = await supabase
         .from('profiles')
-        .select('account_id')
+        .select('org_id')
         .eq('id', user.id)
         .single();
 
@@ -140,7 +140,7 @@ export function DashboardComments({ dashboardId, chartId }: DashboardCommentsPro
         const { data } = await supabase
           .from('profiles')
           .select('id, full_name, email')
-          .eq('account_id', profile.account_id);
+          .eq('org_id', profile.org_id);
 
         setTeamMembers(data || []);
       }
@@ -156,7 +156,7 @@ export function DashboardComments({ dashboardId, chartId }: DashboardCommentsPro
     try {
       const { data: profile } = await supabase
         .from('profiles')
-        .select('account_id')
+        .select('org_id')
         .eq('id', user.id)
         .single();
 
@@ -182,7 +182,7 @@ export function DashboardComments({ dashboardId, chartId }: DashboardCommentsPro
             chart_id: chartId,
             comment_text: newComment,
             user_id: user.id,
-            account_id: profile.account_id,
+            account_id: profile.org_id,
             mentioned_users: mentions,
             parent_comment_id: replyTo,
           });

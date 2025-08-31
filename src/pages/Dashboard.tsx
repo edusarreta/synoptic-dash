@@ -84,7 +84,7 @@ export default function Dashboard() {
       // Get user's account_id first
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('account_id')
+        .select('org_id')
         .eq('id', user.id)
         .single();
 
@@ -104,7 +104,7 @@ export default function Dashboard() {
             connection_type
           )
         `)
-        .eq('account_id', profile.account_id)
+        .eq('account_id', profile.org_id)
         .order('created_at', { ascending: false });
 
       if (error) {
