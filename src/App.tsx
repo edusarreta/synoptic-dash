@@ -9,9 +9,9 @@ import { RequireAuth } from "./components/RequireAuth";
 
 // Public pages
 import Index from "./pages/Index";
-import Login from "./modules/auth/pages/Login";
-import AuthCallback from "./modules/auth/pages/AuthCallback";
-import PostAuth from "./modules/auth/pages/PostAuth";
+import { Login } from "./modules/auth/pages/Login";
+import { AuthCallback } from "./modules/auth/pages/AuthCallback";
+import { PostAuth } from "./modules/auth/pages/PostAuth";
 import Demo from "./pages/Demo";
 import NotFound from "./pages/NotFound";
 
