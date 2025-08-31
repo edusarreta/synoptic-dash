@@ -131,9 +131,15 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
   }, [userProfile?.org_id, userProfile?.role]);
 
   const can = (permissionCode: string): boolean => {
-    // MASTER bypass
-    if (role === 'MASTER') return true;
-    return permissions.includes(permissionCode);
+    // MASTER bypass - they have all permissions
+    if (role === 'MASTER') {
+      console.log(`MASTER bypass: granting permission '${permissionCode}'`);
+      return true;
+    }
+    
+    const hasPermission = permissions.includes(permissionCode);
+    console.log(`Permission check for '${permissionCode}': ${hasPermission ? 'GRANTED' : 'DENIED'} (role: ${role})`);
+    return hasPermission;
   };
 
   const value = {
