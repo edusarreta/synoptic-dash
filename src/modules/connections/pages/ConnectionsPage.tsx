@@ -41,6 +41,9 @@ export function ConnectionsPage() {
     ssl_mode: 'require',
   });
 
+  const [editingConnection, setEditingConnection] = useState<DataConnection | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+
   const [testConnectionResult, setTestConnectionResult] = useState<{
     status: 'success' | 'error' | null;
     message: string;
@@ -222,6 +225,85 @@ export function ConnectionsPage() {
       });
     } finally {
       setIsTestingConnection(null);
+    }
+  };
+
+  const handleEditConnection = (connection: DataConnection) => {
+    setEditingConnection(connection);
+    setNewConnection({
+      name: connection.name,
+      connection_type: connection.connection_type,
+      host: connection.host,
+      database_name: connection.database_name,
+      username: connection.username,
+      password: '', // Don't populate password for security
+      port: connection.port,
+      ssl_mode: 'require', // Default since we don't store this separately
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdateConnection = async () => {
+    if (!userProfile?.org_id || !user?.id || !editingConnection) {
+      toast({
+        title: "Erro",
+        description: "Dados inválidos para atualização",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase.functions.invoke('create-connection', {
+        body: {
+          org_id: userProfile.org_id,
+          name: newConnection.name,
+          type: newConnection.connection_type,
+          host: newConnection.host,
+          port: newConnection.port,
+          database: newConnection.database_name,
+          user: newConnection.username,
+          password: newConnection.password || 'unchanged', // Use special value if password not changed
+          ssl_mode: newConnection.ssl_mode,
+          update_id: editingConnection.id, // Special parameter for update
+        }
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        toast({
+          title: "Sucesso",
+          description: data?.message || "Conexão atualizada com sucesso",
+        });
+
+        setIsEditDialogOpen(false);
+        setEditingConnection(null);
+        setNewConnection({
+          name: '',
+          connection_type: 'postgresql',
+          host: '',
+          database_name: '',
+          username: '',
+          password: '',
+          port: 5432,
+          ssl_mode: 'require',
+        });
+        fetchConnections();
+      } else {
+        toast({
+          title: "Erro",
+          description: data?.message || "Falha ao atualizar conexão",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Erro ao atualizar conexão:', error);
+      toast({
+        title: "Erro",
+        description: "Falha ao atualizar conexão",
+        variant: "destructive",
+      });
     }
   };
 
@@ -482,7 +564,11 @@ export function ConnectionsPage() {
                   )}
                   Testar
                 </Button>
-                <Button size="sm" variant="outline">
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={() => handleEditConnection(connection)}
+                >
                   Editar
                 </Button>
               </div>
@@ -507,6 +593,124 @@ export function ConnectionsPage() {
               </CardContent>
             </Card>
           </DialogTrigger>
+        </Dialog>
+
+        {/* Edit connection dialog */}
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Editar Conexão</DialogTitle>
+              <DialogDescription>
+                Atualize os dados da sua conexão de banco de dados.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="edit-name">Nome da Conexão</Label>
+                <Input
+                  id="edit-name"
+                  value={newConnection.name}
+                  onChange={(e) => setNewConnection({...newConnection, name: e.target.value})}
+                  placeholder="Minha Conexão"
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="edit-type">Tipo de Banco</Label>
+                <Select 
+                  value={newConnection.connection_type} 
+                  onValueChange={(value) => setNewConnection({...newConnection, connection_type: value})}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="postgresql">PostgreSQL</SelectItem>
+                    <SelectItem value="supabase">Supabase (PostgreSQL)</SelectItem>
+                    <SelectItem value="mysql">MySQL</SelectItem>
+                    <SelectItem value="mongodb">MongoDB</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="edit-host">Host</Label>
+                <Input
+                  id="edit-host"
+                  value={newConnection.host}
+                  onChange={(e) => setNewConnection({...newConnection, host: e.target.value})}
+                  placeholder="localhost"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-port">Porta</Label>
+                  <Input
+                    id="edit-port"
+                    type="number"
+                    value={newConnection.port}
+                    onChange={(e) => setNewConnection({...newConnection, port: parseInt(e.target.value) || 5432})}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-database">Banco de Dados</Label>
+                  <Input
+                    id="edit-database"
+                    value={newConnection.database_name}
+                    onChange={(e) => setNewConnection({...newConnection, database_name: e.target.value})}
+                    placeholder="meu_banco"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-username">Usuário</Label>
+                  <Input
+                    id="edit-username"
+                    value={newConnection.username}
+                    onChange={(e) => setNewConnection({...newConnection, username: e.target.value})}
+                    placeholder="usuario"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-password">Senha (deixe vazio para manter atual)</Label>
+                  <Input
+                    id="edit-password"
+                    type="password"
+                    value={newConnection.password}
+                    onChange={(e) => setNewConnection({...newConnection, password: e.target.value})}
+                    placeholder="Deixe vazio para manter senha atual"
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="edit-ssl_mode">Modo SSL</Label>
+                <Select 
+                  value={newConnection.ssl_mode} 
+                  onValueChange={(value) => setNewConnection({...newConnection, ssl_mode: value})}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="require">Require (Recomendado)</SelectItem>
+                    <SelectItem value="disable">Disable</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleUpdateConnection}>
+                Atualizar Conexão
+              </Button>
+            </div>
+          </DialogContent>
         </Dialog>
       </div>
     </div>

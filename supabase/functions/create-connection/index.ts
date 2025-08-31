@@ -17,6 +17,7 @@ interface CreateConnectionRequest {
   user: string;
   password: string;
   ssl_mode: 'require' | 'disable';
+  update_id?: string; // For updating existing connections
 }
 
 // Simple encryption for demo - in production use proper key management
@@ -71,7 +72,8 @@ serve(async (req) => {
     }
 
     const requestData: CreateConnectionRequest = await req.json();
-    console.log(`🔧 Creating ${requestData.type} connection for user ${user.id} in org ${requestData.org_id}`);
+    const isUpdate = !!requestData.update_id;
+    console.log(`🔧 ${isUpdate ? 'Updating' : 'Creating'} ${requestData.type} connection for user ${user.id} in org ${requestData.org_id}`);
 
     // Validate org membership and permissions
     const { data: profile } = await supabaseClient
@@ -114,10 +116,23 @@ serve(async (req) => {
     const normalizedType = normalizeConnectionType(requestData.type);
     console.log(`🔧 Normalized type from ${requestData.type} to ${normalizedType}`);
 
-    // Encrypt password
-    const encryptedPassword = await encryptPassword(requestData.password);
+    // Handle password encryption
+    let encryptedPassword;
+    if (isUpdate && requestData.password === 'unchanged') {
+      // For updates, keep existing password if not changed
+      const { data: existingConnection } = await supabaseClient
+        .from('data_connections')
+        .select('encrypted_password')
+        .eq('id', requestData.update_id)
+        .single();
+      
+      encryptedPassword = existingConnection?.encrypted_password;
+    } else {
+      // Encrypt new password
+      encryptedPassword = await encryptPassword(requestData.password);
+    }
 
-    // Create connection record
+    // Prepare connection data
     const connectionData = {
       account_id: requestData.org_id,
       name: requestData.name,
@@ -136,55 +151,82 @@ serve(async (req) => {
       created_by: user.id
     };
 
-    console.log('🔧 Creating connection with data:', {
+    console.log('🔧 Connection data:', {
       ...connectionData,
       encrypted_password: '[HIDDEN]'
     });
 
-    const { data: connection, error: createError } = await supabaseClient
-      .from('data_connections')
-      .insert(connectionData)
-      .select()
-      .single();
+    let connection;
+    let operationType;
 
-    if (createError) {
-      console.error('Failed to create connection:', createError);
-      
-      let message = 'Erro ao criar conexão';
-      if (createError.code === '23505') {
-        message = 'Já existe uma conexão com este nome';
+    if (isUpdate) {
+      // Update existing connection
+      const { data: updatedConnection, error: updateError } = await supabaseClient
+        .from('data_connections')
+        .update(connectionData)
+        .eq('id', requestData.update_id)
+        .eq('account_id', requestData.org_id)
+        .select()
+        .single();
+
+      if (updateError) {
+        console.error('Failed to update connection:', updateError);
+        throw new Error('Falha ao atualizar conexão');
       }
-      
-      return new Response(
-        JSON.stringify({ 
-          success: false,
-          error_code: 'CREATE_FAILED',
-          message: message
-        }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 400,
+
+      connection = updatedConnection;
+      operationType = 'updated';
+    } else {
+      // Create new connection
+      const { data: newConnection, error: createError } = await supabaseClient
+        .from('data_connections')
+        .insert(connectionData)
+        .select()
+        .single();
+
+      if (createError) {
+        console.error('Failed to create connection:', createError);
+        
+        let message = 'Erro ao criar conexão';
+        if (createError.code === '23505') {
+          message = 'Já existe uma conexão com este nome';
         }
-      );
+        
+        return new Response(
+          JSON.stringify({ 
+            success: false,
+            error_code: 'CREATE_FAILED',
+            message: message
+          }),
+          {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 400,
+          }
+        );
+      }
+
+      connection = newConnection;
+      operationType = 'created';
     }
 
-    // Log the creation for audit
+    // Log the operation for audit
     await supabaseClient
       .from('audit_logs')
       .insert({
         org_id: requestData.org_id,
         user_id: user.id,
-        action: 'connection_created',
+        action: `connection_${operationType}`,
         resource_type: 'data_connection',
         resource_id: connection.id,
         metadata: {
           connection_name: requestData.name,
           connection_type: normalizedType,
-          host: requestData.host
+          host: requestData.host,
+          is_update: isUpdate
         }
       });
 
-    console.log(`✅ Connection created successfully: ${connection.id}`);
+    console.log(`✅ Connection ${operationType} successfully: ${connection.id}`);
 
     // Return connection without sensitive data
     const responseConnection = {
@@ -204,7 +246,7 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         connection: responseConnection,
-        message: 'Conexão criada com sucesso'
+        message: isUpdate ? 'Conexão atualizada com sucesso' : 'Conexão criada com sucesso'
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
