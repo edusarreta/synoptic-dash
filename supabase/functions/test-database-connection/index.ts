@@ -10,7 +10,7 @@ const corsHeaders = {
 interface TestConnectionRequest {
   org_id: string;
   workspace_id?: string;
-  type: 'postgres' | 'mysql' | 'mongodb';
+  type: 'postgres' | 'postgresql' | 'supabase' | 'mysql' | 'mongodb';
   host: string;
   port: number;
   database: string;
@@ -92,7 +92,10 @@ serve(async (req) => {
     let serverVersion = '';
 
     try {
-      if (type === 'postgres') {
+      // Normalize connection type
+      const normalizedType = type === 'postgresql' || type === 'supabase' ? 'postgres' : type;
+      
+      if (normalizedType === 'postgres') {
         // Test PostgreSQL connection
         const { Client } = await import("https://deno.land/x/postgres@v0.17.0/mod.ts");
         

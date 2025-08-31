@@ -209,6 +209,7 @@ export default function ConnectionsPage() {
           });
         }
       } else {
+        console.log('Testing connection with type:', formData.rawType);
         const { data, error } = await supabase.functions.invoke('test-database-connection', {
           body: {
             org_id: userProfile.org_id,
