@@ -1,6 +1,6 @@
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
-import { useAuth } from "@/hooks/useAuth";
+import { useSession } from "@/providers/SessionProvider";
 import { Navigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 

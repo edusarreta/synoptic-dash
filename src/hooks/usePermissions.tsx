@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from './useAuth';
+import { useSession } from '@/providers/SessionProvider';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface UserPermissions {

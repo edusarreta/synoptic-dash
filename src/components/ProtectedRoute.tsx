@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/hooks/useAuth";
+import { useSession } from "@/providers/SessionProvider";
 import { Loader2 } from "lucide-react";
 
 interface ProtectedRouteProps {
