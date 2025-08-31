@@ -1534,6 +1534,10 @@ export type Database = {
           trial_days_left: number
         }[]
       }
+      get_current_user_org_id: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
       get_user_account_id: {
         Args: { user_uuid: string }
         Returns: string

@@ -8,22 +8,27 @@ const corsHeaders = {
 }
 
 interface TestConnectionRequest {
-  connectionType: 'postgresql' | 'supabase' | 'rest_api';
-  config: {
-    host?: string;
-    port?: number;
-    database_name?: string;
-    username?: string;
-    password?: string;
-    ssl_enabled?: boolean;
-    supabase_url?: string;
-    anon_key?: string;
-    service_key?: string;
-    base_url?: string;
-    bearer_token?: string;
-    api_key?: string;
-    header_name?: string;
-  };
+  connection_id: string;
+}
+
+async function decryptPassword(encryptedPassword: string): Promise<string> {
+  const key = Deno.env.get('DB_ENCRYPTION_KEY') || 'demo-key-change-in-production';
+  const encoder = new TextEncoder();
+  const keyData = encoder.encode(key);
+  
+  try {
+    const encrypted = new Uint8Array(atob(encryptedPassword).split('').map(c => c.charCodeAt(0)));
+    const decrypted = new Uint8Array(encrypted.length);
+    
+    for (let i = 0; i < encrypted.length; i++) {
+      decrypted[i] = encrypted[i] ^ keyData[i % keyData.length];
+    }
+    
+    return new TextDecoder().decode(decrypted);
+  } catch (error) {
+    console.error('Password decryption failed:', error);
+    throw new Error('Failed to decrypt password');
+  }
 }
 
 serve(async (req) => {
@@ -73,115 +78,77 @@ serve(async (req) => {
     }
 
     // Parse request body
-    const { connectionType, config }: TestConnectionRequest = await req.json();
+    const { connection_id }: TestConnectionRequest = await req.json();
 
-    console.log(`🔧 Testing ${connectionType} connection for user ${user.id}`);
+    console.log(`🔧 Testing connection ${connection_id} for user ${user.id}`);
+
+    // Get connection details
+    const { data: connection, error: connectionError } = await supabaseClient
+      .from('data_connections')
+      .select('*')
+      .eq('id', connection_id)
+      .eq('is_active', true)
+      .single();
+
+    if (connectionError || !connection) {
+      return new Response(
+        JSON.stringify({ 
+          success: false,
+          message: 'Connection not found or inactive'
+        }),
+        { 
+          status: 404, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+
+    // Decrypt password
+    const password = await decryptPassword(connection.encrypted_password);
 
     let testResult = false;
     let errorMessage = '';
+    let serverVersion = '';
 
     try {
-      if (connectionType === 'postgresql') {
+      if (connection.connection_type === 'postgresql' || connection.connection_type === 'supabase') {
         // Test PostgreSQL connection
         const { Client } = await import("https://deno.land/x/postgres@v0.17.0/mod.ts");
         
         console.log('🔧 Testing PostgreSQL connection...');
         
         const client = new Client({
-          user: config.username,
-          database: config.database_name,
-          hostname: config.host,
-          port: config.port || 5432,
-          password: config.password,
-          tls: config.ssl_enabled ? 'require' : 'disable',
+          user: connection.username,
+          database: connection.database_name,
+          hostname: connection.host,
+          port: connection.port || 5432,
+          password: password,
+          tls: {
+            enabled: connection.ssl_enabled,
+            enforce: false,
+            caCertificates: []
+          }
         });
 
         try {
           await client.connect();
           console.log('✅ PostgreSQL connection successful');
           
-          // Test with a simple query
-          const result = await client.queryObject('SELECT 1 as test');
-          testResult = result.rows.length > 0;
+          // Get server version
+          const versionResult = await client.queryObject('SELECT version()');
+          if (versionResult.rows.length > 0) {
+            serverVersion = (versionResult.rows[0] as any).version;
+          }
           
+          testResult = true;
           await client.end();
         } catch (pgError) {
           console.error('❌ PostgreSQL connection failed:', pgError);
           errorMessage = pgError.message;
         }
         
-      } else if (connectionType === 'supabase') {
-        // Test Supabase connection
-        console.log('🔧 Testing Supabase connection...');
-        
-        if (!config.supabase_url || !config.anon_key) {
-          throw new Error('Supabase URL and Anon Key are required');
-        }
-        
-        const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2.56.1");
-        
-        const testClient = createClient(config.supabase_url, config.anon_key);
-        
-        try {
-          // Test connection by getting database metadata
-          const response = await fetch(`${config.supabase_url}/rest/v1/`, {
-            headers: {
-              'apikey': config.anon_key,
-              'Authorization': `Bearer ${config.anon_key}`,
-              'Accept': 'application/json'
-            }
-          });
-          
-          testResult = response.ok;
-          if (!testResult) {
-            errorMessage = `Supabase API error: ${response.status} ${response.statusText}`;
-          } else {
-            console.log('✅ Supabase connection successful');
-          }
-        } catch (supabaseError) {
-          console.error('❌ Supabase connection failed:', supabaseError);
-          errorMessage = supabaseError.message;
-        }
-        
-      } else if (connectionType === 'rest_api') {
-        // Test REST API connection
-        console.log('🔧 Testing REST API connection...');
-        
-        if (!config.base_url) {
-          throw new Error('Base URL is required for REST API');
-        }
-        
-        try {
-          const headers: Record<string, string> = {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-          };
-          
-          // Add authentication headers based on type
-          if (config.bearer_token) {
-            headers['Authorization'] = `Bearer ${config.bearer_token}`;
-          } else if (config.api_key && config.header_name) {
-            headers[config.header_name] = config.api_key;
-          }
-          
-          const response = await fetch(config.base_url, {
-            method: 'GET',
-            headers
-          });
-          
-          testResult = response.ok;
-          if (!testResult) {
-            errorMessage = `REST API error: ${response.status} ${response.statusText}`;
-          } else {
-            console.log('✅ REST API connection successful');
-          }
-        } catch (restError) {
-          console.error('❌ REST API connection failed:', restError);
-          errorMessage = restError.message;
-        }
-        
       } else {
-        throw new Error(`Unsupported connection type: ${connectionType}`);
+        throw new Error(`Unsupported connection type: ${connection.connection_type}`);
       }
 
     } catch (testError) {
@@ -194,7 +161,8 @@ serve(async (req) => {
       JSON.stringify({
         success: testResult,
         message: testResult ? 'Connection successful' : 'Connection failed',
-        error: testResult ? null : errorMessage
+        error: testResult ? null : errorMessage,
+        server_version: serverVersion
       }),
       { 
         status: 200, 
