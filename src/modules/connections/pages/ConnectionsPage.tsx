@@ -66,6 +66,7 @@ export function ConnectionsPage() {
       const { data, error } = await supabase
         .from('data_connections')
         .select('*')
+        .eq('is_active', true)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
