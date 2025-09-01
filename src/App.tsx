@@ -28,6 +28,7 @@ import SQLEditor from "./pages/SQLEditor";
 import Catalog from "./pages/Catalog";
 import OrgPermissions from "./pages/OrgPermissions";
 import DashboardList from "./pages/DashboardList";
+import DashboardWizard from "./pages/DashboardWizard";
 
 const queryClient = new QueryClient();
 
@@ -111,7 +112,7 @@ export default function App() {
                 <AuthenticatedRoute>
                   <RequirePermission perms={["dashboards:create"]}>
                     <AppLayout>
-                      <EditorPage />
+                      <DashboardWizard />
                     </AppLayout>
                   </RequirePermission>
                 </AuthenticatedRoute>

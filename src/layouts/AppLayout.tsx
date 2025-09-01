@@ -20,32 +20,31 @@ export function AppLayout({ children }: AppLayoutProps) {
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
           <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-primary" />
-          <p className="text-muted-foreground">Loading your workspace...</p>
+          <p className="text-muted-foreground">Carregando workspace...</p>
         </div>
       </div>
     );
   }
 
   if (!userProfile) {
-    return <Navigate to="/auth/callback" replace />;
+    return <Navigate to="/login" replace />;
   }
 
   // Create breadcrumbs based on current path
   const getBreadcrumbs = () => {
     const path = location.pathname;
-    const segments = path.split('/').filter(Boolean);
     
     if (path === '/app') return 'Home';
-    if (path === '/connections') return 'Home / Conexões';
-    if (path === '/catalog') return 'Home / Catálogo';
-    if (path === '/sql') return 'Home / Editor SQL';
-    if (path === '/dashboards') return 'Home / Dashboards';
-    if (path === '/dashboards/new') return 'Home / Dashboards / Novo';
-    if (path === '/settings') return 'Home / Configurações';
-    if (path === '/org/permissions') return 'Home / Administração / Permissões';
-    if (path.startsWith('/editor/')) return 'Home / Dashboards / Editor';
+    if (path === '/connections') return 'Home > Conexões';
+    if (path === '/catalog') return 'Home > Catálogo';
+    if (path === '/sql') return 'Home > Editor SQL';
+    if (path === '/dashboards') return 'Home > Dashboards';
+    if (path === '/dashboards/new') return 'Home > Dashboards > Novo';
+    if (path === '/settings') return 'Home > Configurações';
+    if (path === '/org/permissions') return 'Home > Admin > Permissões';
+    if (path.startsWith('/dashboards/') && path.includes('/edit')) return 'Home > Dashboards > Editor';
     
-    return 'Home';
+    return 'ConnectaDados';
   };
 
   return (
@@ -73,13 +72,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           </header>
           
           {/* Main Content */}
-          <main className="flex-1 overflow-auto p-6">
-            {/* Back Link for non-home pages */}
-            {location.pathname !== '/app' && (
-              <div className="mb-6">
-                <BackLink />
-              </div>
-            )}
+          <main className="flex-1 overflow-auto">
             {children}
           </main>
         </div>
