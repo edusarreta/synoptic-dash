@@ -9,32 +9,89 @@ const corsHeaders = {
 };
 
 async function handleSqlCatalog(config: any) {
-  console.log('🔌 DB Config prepared:', {
+  console.log('🔌 Starting SQL catalog with config:', {
     host: config.host,
     port: config.port,
     database: config.database,
     user: config.user,
-    ssl: config.ssl_mode === 'require'
+    hasPassword: !!config.password,
+    ssl_mode: config.ssl_mode,
+    connection_type: config.connection_type
   });
 
-  const client = new Client({
-    user: config.user,
-    database: config.database,
-    hostname: config.host,
-    port: config.port,
-    password: config.password,
-    tls: config.ssl_mode === 'require' ? {
-      enabled: true,
-      enforce: false,
-      caCertificates: []
-    } : {
-      enabled: false
+  // Try multiple connection configurations
+  const connectionConfigs = [
+    // Primary config
+    {
+      user: config.user,
+      database: config.database,
+      hostname: config.host,
+      port: config.port,
+      password: config.password,
+      tls: config.ssl_mode === 'require' ? {
+        enabled: true,
+        enforce: false,
+        caCertificates: []
+      } : {
+        enabled: false
+      }
+    },
+    // Fallback config with different SSL settings
+    {
+      user: config.user,
+      database: config.database,
+      hostname: config.host,
+      port: config.port,
+      password: config.password,
+      tls: {
+        enabled: true,
+        enforce: false,
+        caCertificates: []
+      }
+    },
+    // Fallback config without SSL
+    {
+      user: config.user,
+      database: config.database,
+      hostname: config.host,
+      port: config.port,
+      password: config.password,
+      tls: {
+        enabled: false
+      }
     }
-  });
+  ];
+
+  let client: Client | null = null;
+  let lastError: any = null;
+
+  // Try each configuration
+  for (let i = 0; i < connectionConfigs.length; i++) {
+    try {
+      console.log(`🔄 Trying connection config ${i + 1}/${connectionConfigs.length}`);
+      client = new Client(connectionConfigs[i]);
+      await client.connect();
+      console.log('🔗 PostgreSQL connected successfully');
+      break;
+    } catch (error: any) {
+      lastError = error;
+      console.log(`❌ Connection attempt ${i + 1} failed:`, error.message);
+      if (client) {
+        try {
+          await client.end();
+        } catch (e) {
+          // Ignore cleanup errors
+        }
+        client = null;
+      }
+    }
+  }
+
+  if (!client) {
+    throw lastError || new Error('All connection attempts failed');
+  }
 
   try {
-    await client.connect();
-    console.log('🔗 PostgreSQL connected successfully');
 
     // Query to get schemas and tables with column info
     const result = await client.queryObject(`
@@ -97,10 +154,12 @@ async function handleSqlCatalog(config: any) {
       { status: 500, headers: corsHeaders }
     );
   } finally {
-    try {
-      await client.end();
-    } catch (closeError) {
-      console.warn('Warning closing DB connection:', closeError);
+    if (client) {
+      try {
+        await client.end();
+      } catch (closeError) {
+        console.warn('Warning closing DB connection:', closeError);
+      }
     }
   }
 }
@@ -218,7 +277,10 @@ export async function handler(req: Request) {
   try {
     const { org_id, connection_id } = await req.json();
     
+    console.log('📥 Raw request params:', { org_id, connection_id });
+    
     if (!org_id || !connection_id) {
+      console.log('❌ Missing required params');
       return new Response(
         JSON.stringify({ error: 'org_id and connection_id are required' }),
         { status: 400, headers: corsHeaders }

@@ -6,24 +6,32 @@ const corsHeaders = {
 };
 
 export async function assertMembershipAndPerm(req: Request, org_id: string, perm: string) {
+  console.log('🔐 Auth validation started:', { org_id, perm });
+  
   const authHeader = req.headers.get('Authorization');
+  console.log('🔐 Auth header present:', !!authHeader);
+  
   if (!authHeader) {
+    console.log('❌ No auth header found');
     return new Response(
       JSON.stringify({ error_code: 'UNAUTHORIZED', message: 'Token de autenticação necessário' }),
       { status: 401, headers: corsHeaders }
     );
   }
 
-  // For now, we'll do basic validation
-  // In production, you'd validate the JWT and check permissions properly
+  // Temporarily simplified - just check if header exists
+  console.log('✅ Auth validation passed (simplified)');
   return null; // null means success
 }
 
 export async function getSqlConnectionConfig(connection_id: string, org_id: string) {
+  console.log('📊 Getting SQL connection config:', { connection_id, org_id });
+  
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   
   if (!supabaseUrl || !supabaseServiceKey) {
+    console.log('❌ Missing Supabase env vars');
     throw new Error('Configuração Supabase não encontrada');
   }
 
@@ -36,7 +44,14 @@ export async function getSqlConnectionConfig(connection_id: string, org_id: stri
     .eq('account_id', org_id)
     .single();
 
+  console.log('🔍 Connection query result:', { 
+    found: !!connection, 
+    error: error?.message,
+    connection_type: connection?.connection_type 
+  });
+
   if (error || !connection) {
+    console.log('❌ Connection not found:', error?.message);
     throw new Error('Conexão não encontrada');
   }
 
