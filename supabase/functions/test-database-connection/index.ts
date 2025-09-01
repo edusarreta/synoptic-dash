@@ -95,25 +95,47 @@ serve(async (req) => {
         );
       }
 
-      // Decrypt password directly
+      // Decrypt password with improved handling
       console.log('🔧 Decrypting password...');
+      console.log('🔧 Raw encrypted password length:', connection.encrypted_password?.length || 0);
       
       const decryptPassword = (encryptedPassword: string): string => {
-        const key = Deno.env.get('DB_ENCRYPTION_KEY') || 'demo-key-change-in-production';
-        const encoder = new TextEncoder();
-        const keyData = encoder.encode(key);
+        if (!encryptedPassword || encryptedPassword.trim() === '') {
+          throw new Error('Empty encrypted password');
+        }
+        
+        const key = Deno.env.get('DB_ENCRYPTION_KEY');
+        if (!key) {
+          throw new Error('DB_ENCRYPTION_KEY not found in environment');
+        }
+        
+        console.log('🔧 Using encryption key (first 10 chars):', key.substring(0, 10) + '...');
         
         try {
-          const encrypted = new Uint8Array(atob(encryptedPassword).split('').map(c => c.charCodeAt(0)));
+          // Handle different encryption formats
+          let encryptedData: string;
+          if (encryptedPassword.startsWith('KEY:')) {
+            encryptedData = encryptedPassword.substring(4);
+          } else {
+            encryptedData = encryptedPassword;
+          }
+          
+          const encoder = new TextEncoder();
+          const keyData = encoder.encode(key);
+          
+          const encrypted = new Uint8Array(atob(encryptedData).split('').map(c => c.charCodeAt(0)));
           const decrypted = new Uint8Array(encrypted.length);
           
           for (let i = 0; i < encrypted.length; i++) {
             decrypted[i] = encrypted[i] ^ keyData[i % keyData.length];
           }
           
-          return new TextDecoder().decode(decrypted);
+          const result = new TextDecoder().decode(decrypted);
+          console.log('🔧 Decrypted password length:', result.length);
+          return result;
         } catch (error) {
-          throw new Error('Failed to decrypt password');
+          console.error('🔧 Decryption error details:', error);
+          throw new Error(`Failed to decrypt password: ${error.message}`);
         }
       };
 
@@ -124,10 +146,18 @@ serve(async (req) => {
       } catch (decryptError) {
         console.error('❌ Password decryption failed:', decryptError);
         return new Response(
-          JSON.stringify({ ok: false, success: false, message: 'Erro ao descriptografar senha' }),
+          JSON.stringify({ 
+            ok: false, 
+            success: false, 
+            message: `Erro ao descriptografar senha: ${decryptError.message}` 
+          }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
+
+      // Get SSL mode from connection config
+      const sslMode = connection.connection_config?.ssl_mode || 'require';
+      console.log('🔧 SSL Mode from config:', sslMode);
 
       connectionConfig = {
         type: connection.connection_type,
@@ -136,7 +166,7 @@ serve(async (req) => {
         database: connection.database_name,
         user: connection.username,
         password: decryptedPassword,
-        ssl_mode: connection.connection_config?.ssl_mode || 'require'
+        ssl_mode: sslMode
       };
     } else {
       // Use provided parameters for new connection test
@@ -165,31 +195,55 @@ serve(async (req) => {
         
         const { Client } = await import("https://deno.land/x/postgres@v0.17.0/mod.ts");
         
-        // Try multiple connection approaches to handle SCRAM issues
-        const connectionConfigs = [
-          // 1. Standard connection with SSL
-          {
-            user: connectionConfig.user,
-            database: connectionConfig.database,
-            hostname: connectionConfig.host,
-            port: connectionConfig.port || 5432,
-            password: connectionConfig.password,
-            tls: { enabled: true, enforce: false }
-          },
-          // 2. Connection string format to bypass SCRAM issues
-          {
-            connectionString: `postgresql://${encodeURIComponent(connectionConfig.user)}:${encodeURIComponent(connectionConfig.password)}@${connectionConfig.host}:${connectionConfig.port || 5432}/${connectionConfig.database}?sslmode=require`,
-          },
-          // 3. Without SSL for local connections
-          {
-            user: connectionConfig.user,
-            database: connectionConfig.database,
-            hostname: connectionConfig.host,
-            port: connectionConfig.port || 5432,
-            password: connectionConfig.password,
-            tls: { enabled: false }
-          }
-        ];
+        // Build connection configs based on SSL mode from database
+        const connectionConfigs = [];
+        
+        console.log('🔧 Building connection configs for SSL mode:', connectionConfig.ssl_mode);
+        
+        if (connectionConfig.ssl_mode === 'disable') {
+          // For disabled SSL, try non-SSL first
+          connectionConfigs.push(
+            // 1. Without SSL (primary for ssl_mode=disable)
+            {
+              user: connectionConfig.user,
+              database: connectionConfig.database,
+              hostname: connectionConfig.host,
+              port: connectionConfig.port || 5432,
+              password: connectionConfig.password,
+              tls: { enabled: false }
+            },
+            // 2. Connection string without SSL
+            {
+              connectionString: `postgresql://${encodeURIComponent(connectionConfig.user)}:${encodeURIComponent(connectionConfig.password)}@${connectionConfig.host}:${connectionConfig.port || 5432}/${connectionConfig.database}?sslmode=disable`,
+            }
+          );
+        } else {
+          // For require/prefer SSL, try SSL first
+          connectionConfigs.push(
+            // 1. Standard connection with SSL
+            {
+              user: connectionConfig.user,
+              database: connectionConfig.database,
+              hostname: connectionConfig.host,
+              port: connectionConfig.port || 5432,
+              password: connectionConfig.password,
+              tls: { enabled: true, enforce: false }
+            },
+            // 2. Connection string format with SSL
+            {
+              connectionString: `postgresql://${encodeURIComponent(connectionConfig.user)}:${encodeURIComponent(connectionConfig.password)}@${connectionConfig.host}:${connectionConfig.port || 5432}/${connectionConfig.database}?sslmode=${connectionConfig.ssl_mode}`,
+            },
+            // 3. Fallback without SSL if SSL fails
+            {
+              user: connectionConfig.user,
+              database: connectionConfig.database,
+              hostname: connectionConfig.host,
+              port: connectionConfig.port || 5432,
+              password: connectionConfig.password,
+              tls: { enabled: false }
+            }
+          );
+        }
 
         let lastError = null;
 
