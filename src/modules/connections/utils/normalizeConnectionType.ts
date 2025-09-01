@@ -4,7 +4,9 @@ export const normalizeConnectionType = (type: string): string => {
   
   switch (normalized) {
     case 'supabase':
+    case 'supabase_postgres':
     case 'supabase (postgres db)':
+    case 'supabase (postgresql)':
     case 'postgres':
     case 'postgresql':
       return 'postgresql';
@@ -37,14 +39,13 @@ export const getConnectionTypeDisplayName = (type: string): string => {
   }
 };
 
-// Get type label for UI
+// Get type label for UI (no more duplicates)
 export const getTypeLabel = (type: string): string => {
   const normalized = type.toLowerCase();
   switch (normalized) {
     case 'postgres':
-    case 'postgresql':
       return 'PostgreSQL';
-    case 'supabase':
+    case 'postgresql':
       return 'Supabase (PostgreSQL)';
     case 'mysql':
       return 'MySQL';

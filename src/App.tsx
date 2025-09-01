@@ -94,12 +94,11 @@ export default function App() {
               <Route path="/sql" element={
                 <AuthenticatedRoute>
                   <RequirePermission perms={["sql:run"]}>
-                    <AppLayout>
-                      <SQLEditor />
-                    </AppLayout>
+                    <SQLEditor />
                   </RequirePermission>
                 </AuthenticatedRoute>
               } />
+              
               
               <Route path="/dashboards" element={
                 <AuthenticatedRoute>

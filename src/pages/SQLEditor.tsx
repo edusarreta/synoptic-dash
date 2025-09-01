@@ -1,23 +1,22 @@
 import React, { useState, useEffect } from "react";
-import { AppLayout } from "@/components/layout/AppLayout";
+import { useForm } from "react-hook-form";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Play, Square, Save, Download, Database, Clock, Loader2, AlertCircle } from "lucide-react";
+import { Play, Save, Database, Download, Loader2, Clock, BarChart } from "lucide-react";
 import { BackLink } from "@/components/BackLink";
 import { useSession } from "@/providers/SessionProvider";
 import { usePermissions } from "@/modules/auth/PermissionsProvider";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { getTypeLabel } from "@/modules/connections/utils/normalizeConnectionType";
+import { AppLayout } from "@/components/layout/AppLayout";
 
-interface Connection {
+interface DataConnection {
   id: string;
   name: string;
   connection_type: string;
@@ -26,14 +25,16 @@ interface Connection {
 
 interface QueryResult {
   columns: string[];
-  rows: any[][];
-  truncated?: boolean;
-  elapsed_ms?: number;
-  total_rows?: number;
+  rows: any[];
+  total_rows: number;
+  truncated: boolean;
+  elapsed_ms: number;
 }
 
-interface QueryParams {
-  [key: string]: string | number | boolean;
+interface QueryFormData {
+  name: string;
+  description: string;
+  ttl_seconds: number;
 }
 
 export default function SQLEditor() {
@@ -41,37 +42,44 @@ export default function SQLEditor() {
   const { can } = usePermissions();
   const { toast } = useToast();
   
-  const [connections, setConnections] = useState<Connection[]>([]);
-  const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
-  const [sql, setSql] = useState("SELECT 1 as id, 'Exemplo' as name, NOW() as timestamp;");
-  const [queryParams, setQueryParams] = useState<QueryParams>({});
+  const [connections, setConnections] = useState<DataConnection[]>([]);
+  const [selectedConnectionId, setSelectedConnectionId] = useState<string>('');
+  const [sqlQuery, setSqlQuery] = useState('SELECT now() AS current_timestamp;');
+  const [queryParams, setQueryParams] = useState<Record<string, any>>({});
   const [queryResult, setQueryResult] = useState<QueryResult | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [loadingConnections, setLoadingConnections] = useState(true);
-  const [rowLimit, setRowLimit] = useState(1000);
-  const [timeout, setTimeout] = useState(15);
+  const [executing, setExecuting] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
-  const [queryName, setQueryName] = useState("");
-  const [queryDescription, setQueryDescription] = useState("");
-
-  // Detect parameters in SQL
-  const detectParameters = (sql: string) => {
-    const paramRegex = /:(\w+)\b/g;
-    const params = new Set<string>();
-    let match;
-    
-    while ((match = paramRegex.exec(sql)) !== null) {
-      params.add(match[1]);
+  const [showDatasetDialog, setShowDatasetDialog] = useState(false);
+  
+  const saveForm = useForm<QueryFormData>({
+    defaultValues: {
+      name: '',
+      description: '',
+      ttl_seconds: 300
     }
-    
-    return Array.from(params);
-  };
-
-  const detectedParams = detectParameters(sql);
+  });
 
   useEffect(() => {
     loadConnections();
   }, []);
+
+  // Extract parameters from SQL query
+  useEffect(() => {
+    const paramMatches = sqlQuery.match(/:(\w+)/g);
+    if (paramMatches) {
+      const newParams: Record<string, any> = {};
+      paramMatches.forEach(match => {
+        const paramName = match.substring(1);
+        if (!queryParams[paramName]) {
+          newParams[paramName] = '';
+        } else {
+          newParams[paramName] = queryParams[paramName];
+        }
+      });
+      setQueryParams(newParams);
+    }
+  }, [sqlQuery]);
 
   const loadConnections = async () => {
     if (!userProfile?.org_id) return;
@@ -100,53 +108,42 @@ export default function SQLEditor() {
       }
     } catch (error) {
       console.error('Error loading connections:', error);
-      toast({
-        title: "Erro",
-        description: "Falha ao carregar conexões",
-        variant: "destructive",
-      });
-    } finally {
-      setLoadingConnections(false);
     }
   };
 
-  const executeQuery = async (mode: 'preview' | 'dataset' = 'preview') => {
-    if (!userProfile?.org_id || !selectedConnectionId || !sql.trim()) {
+  const executeQuery = async () => {
+    if (!selectedConnectionId || !sqlQuery.trim()) {
       toast({
         title: "Dados incompletos",
-        description: "Selecione uma conexão e insira uma consulta SQL",
+        description: "Selecione uma conexão e escreva uma consulta SQL",
         variant: "destructive",
       });
       return;
     }
 
-    setLoading(true);
+    setExecuting(true);
+    setQueryResult(null);
+
     try {
       const { data, error } = await supabase.functions.invoke('run-sql-query', {
         body: {
-          org_id: userProfile.org_id,
+          org_id: userProfile?.org_id,
           connection_id: selectedConnectionId,
-          sql: sql.trim(),
+          sql: sqlQuery,
           params: queryParams,
-          row_limit: rowLimit,
-          timeout_ms: timeout * 1000,
-          mode
+          row_limit: 1000,
+          timeout_ms: 15000,
+          mode: 'preview'
         }
       });
 
       if (error) {
-        console.error('SQL execution error:', error);
-        toast({
-          title: "Erro na execução",
-          description: "Falha ao executar consulta SQL",
-          variant: "destructive",
-        });
-        return;
+        throw error;
       }
 
       if (data.error_code) {
         toast({
-          title: `❌ ${data.error_code}`,
+          title: "Erro na consulta",
           description: data.message,
           variant: "destructive",
         });
@@ -154,171 +151,159 @@ export default function SQLEditor() {
       }
 
       setQueryResult(data);
-      
-      if (mode === 'dataset') {
-        // Try to create dataset record
-        try {
-          const { data: datasetData, error: datasetError } = await supabase
-            .from('datasets')
-            .insert({
-              org_id: userProfile.org_id,
-              name: `Dataset ${new Date().toLocaleString('pt-BR')}`,
-              description: `Dataset criado a partir da consulta SQL`,
-              cache_ttl_seconds: 300,
-              data_schema: {
-                columns: data.columns,
-                row_count: data.rows?.length || 0
-              },
-              last_updated: new Date().toISOString(),
-              created_by: userProfile.id
-            })
-            .select()
-            .single();
-
-          if (datasetError) {
-            console.error('Dataset creation error:', datasetError);
-            toast({
-              title: "⚠️ Query executada",
-              description: `Query executada com ${data.rows?.length || 0} linhas, mas dataset não foi criado`,
-              variant: "destructive",
-            });
-          } else {
-            toast({
-              title: "✅ Dataset criado",
-              description: `Dataset criado com ID: ${datasetData.id} (${data.rows?.length || 0} linhas)`,
-            });
-          }
-        } catch (datasetError) {
-          console.error('Dataset creation error:', datasetError);
-          toast({
-            title: "⚠️ Query executada",
-            description: `Query executada com ${data.rows?.length || 0} linhas, mas dataset não foi criado`,
-            variant: "destructive",
-          });
-        }
-      } else {
-        toast({
-          title: "✅ Query executada",
-          description: `${data.rows?.length || 0} linhas retornadas em ${data.elapsed_ms}ms`,
-        });
-      }
-    } catch (error) {
-      console.error('SQL execution error:', error);
       toast({
-        title: "Erro na execução",
-        description: "Falha ao executar consulta SQL",
+        title: "✅ Consulta executada",
+        description: `${data.total_rows} linhas em ${data.elapsed_ms}ms`,
+      });
+
+    } catch (error) {
+      console.error('Query execution error:', error);
+      toast({
+        title: "Falha ao executar consulta SQL",
+        description: error.message || "Erro desconhecido",
         variant: "destructive",
       });
     } finally {
-      setLoading(false);
+      setExecuting(false);
     }
   };
 
   const saveQuery = async () => {
-    if (!sql.trim()) {
+    const formData = saveForm.getValues();
+    if (!formData.name.trim()) {
       toast({
-        title: "Consulta vazia",
-        description: "Digite uma consulta SQL primeiro",
+        title: "Nome obrigatório",
+        description: "Digite um nome para a consulta",
         variant: "destructive",
       });
       return;
     }
 
-    if (!userProfile?.org_id || !userProfile?.id) {
-      toast({
-        title: "Erro de autenticação",
-        description: "Usuário não identificado",
-        variant: "destructive",
-      });
-      return;
-    }
-
+    setSaving(true);
     try {
       const { data, error } = await supabase
         .from('saved_queries')
         .insert({
-          org_id: userProfile.org_id,
-          name: queryName || `Consulta ${new Date().toLocaleString('pt-BR')}`,
-          description: queryDescription || null,
-          sql_query: sql,
+          org_id: userProfile?.org_id,
           connection_id: selectedConnectionId,
-          parameters: Object.keys(queryParams).length > 0 ? queryParams : {},
-          created_by: userProfile.id
+          name: formData.name,
+          description: formData.description,
+          sql_query: sqlQuery,
+          parameters: queryParams,
+          created_by: userProfile?.id
         })
         .select()
         .single();
 
       if (error) {
-        console.error('Save query error:', error);
         throw error;
       }
 
       toast({
         title: "✅ Consulta salva",
-        description: `Consulta salva com ID: ${data.id}`,
+        description: `ID: ${data.id}`,
       });
 
       setShowSaveDialog(false);
-      setQueryName("");
-      setQueryDescription("");
-    } catch (error: any) {
-      console.error('Error saving query:', error);
+      saveForm.reset();
+    } catch (error) {
+      console.error('Save query error:', error);
       toast({
-        title: "Erro ao salvar",
-        description: error.message || "Falha ao salvar consulta",
+        title: "Erro ao salvar consulta",
+        description: error.message || "Erro desconhecido",
         variant: "destructive",
       });
+    } finally {
+      setSaving(false);
     }
   };
 
-  const exportData = (format: 'csv' | 'json') => {
-    if (!queryResult?.rows?.length) {
+  const createDataset = async () => {
+    const formData = saveForm.getValues();
+    if (!formData.name.trim()) {
       toast({
-        title: "Sem dados",
-        description: "Execute uma consulta primeiro",
+        title: "Nome obrigatório",
+        description: "Digite um nome para o dataset",
         variant: "destructive",
       });
       return;
     }
 
-    const data = queryResult.rows;
-    const columns = queryResult.columns;
+    setSaving(true);
+    try {
+      // First, save the query
+      const { data: savedQuery, error: queryError } = await supabase
+        .from('saved_queries')
+        .insert({
+          org_id: userProfile?.org_id,
+          connection_id: selectedConnectionId,
+          name: `${formData.name} (Query)`,
+          description: formData.description,
+          sql_query: sqlQuery,
+          parameters: queryParams,
+          created_by: userProfile?.id
+        })
+        .select()
+        .single();
 
-    if (format === 'csv') {
-      const csvContent = [
-        columns.join(','),
-        ...data.map(row => row.map(cell => `"${cell}"`).join(','))
-      ].join('\n');
-      
-      const blob = new Blob([csvContent], { type: 'text/csv' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'query-result.csv';
-      link.click();
-      URL.revokeObjectURL(url);
-    } else {
-      const jsonData = data.map(row => {
-        const obj: Record<string, any> = {};
-        columns.forEach((col, index) => {
-          obj[col] = row[index];
-        });
-        return obj;
+      if (queryError) {
+        throw queryError;
+      }
+
+      // Then create the dataset
+      const { data: dataset, error: datasetError } = await supabase
+        .from('datasets')
+        .insert({
+          org_id: userProfile?.org_id,
+          saved_query_id: savedQuery.id,
+          name: formData.name,
+          description: formData.description,
+          cache_ttl_seconds: formData.ttl_seconds,
+          created_by: userProfile?.id
+        })
+        .select()
+        .single();
+
+      if (datasetError) {
+        throw datasetError;
+      }
+
+      toast({
+        title: "✅ Dataset criado",
+        description: `ID: ${dataset.id} com TTL de ${formData.ttl_seconds}s`,
       });
-      
-      const blob = new Blob([JSON.stringify(jsonData, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'query-result.json';
-      link.click();
-      URL.revokeObjectURL(url);
-    }
 
-    toast({
-      title: "✅ Dados exportados",
-      description: `Dados exportados em formato ${format.toUpperCase()}`,
-    });
+      setShowDatasetDialog(false);
+      saveForm.reset();
+    } catch (error) {
+      console.error('Create dataset error:', error);
+      toast({
+        title: "Erro ao criar dataset",
+        description: error.message || "Erro desconhecido",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const exportCSV = () => {
+    if (!queryResult) return;
+
+    const csvContent = [
+      queryResult.columns.join(','),
+      ...queryResult.rows.map(row => row.map((cell: any) => 
+        typeof cell === 'string' ? `"${cell.replace(/"/g, '""')}"` : cell
+      ).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'query_result.csv';
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   if (!can('sql:run')) {
@@ -345,56 +330,76 @@ export default function SQLEditor() {
             <div>
               <h1 className="text-3xl font-bold">Editor SQL</h1>
               <p className="text-muted-foreground mt-2">
-                Execute consultas SELECT e crie datasets a partir dos resultados
+                Execute consultas SQL e crie datasets personalizados
               </p>
             </div>
           </div>
-          <Badge variant="outline" className="flex items-center gap-1">
-            <AlertCircle className="w-3 h-3" />
-            SELECT Only
-          </Badge>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Editor de Consultas</CardTitle>
-            <CardDescription>Escreva consultas SELECT para explorar seus dados</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
+        <div className="grid gap-6 lg:grid-cols-2">
+          {/* Query Editor */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Database className="w-5 h-5" />
+                Editor de Consulta
+              </CardTitle>
+              <CardDescription>
+                Escreva e execute consultas SQL seguras (apenas SELECT)
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Connection Selector */}
               <div className="space-y-2">
-                <Label>Conexão</Label>
-                <Select value={selectedConnectionId || ''} onValueChange={setSelectedConnectionId}>
+                <Label>Conexão de Dados</Label>
+                <Select value={selectedConnectionId} onValueChange={setSelectedConnectionId}>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione uma conexão" />
                   </SelectTrigger>
                   <SelectContent>
-                    {connections.map((connection) => (
-                      <SelectItem key={connection.id} value={connection.id}>
-                        {connection.name} - {getTypeLabel(connection.connection_type)}
+                    {connections.map(conn => (
+                      <SelectItem key={conn.id} value={conn.id}>
+                        <div className="flex items-center gap-2">
+                          <Database className="w-4 h-4" />
+                          {conn.name}
+                          <Badge variant="outline" className="text-xs">
+                            {conn.connection_type}
+                          </Badge>
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
 
-              {/* Parameters Panel */}
-              {detectedParams.length > 0 && (
-                <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
-                  <Label className="text-sm font-medium">Parâmetros Detectados</Label>
-                  <div className="grid grid-cols-2 gap-4">
-                    {detectedParams.map((param) => (
-                      <div key={param} className="space-y-2">
-                        <Label htmlFor={param} className="text-xs">:{param}</Label>
+              {/* SQL Editor */}
+              <div className="space-y-2">
+                <Label>Consulta SQL</Label>
+                <Textarea
+                  value={sqlQuery}
+                  onChange={(e) => setSqlQuery(e.target.value)}
+                  placeholder="SELECT * FROM public.users WHERE created_at > :desde LIMIT 100;"
+                  className="font-mono text-sm min-h-[120px]"
+                />
+              </div>
+
+              {/* Parameters */}
+              {Object.keys(queryParams).length > 0 && (
+                <div className="space-y-2">
+                  <Label>Parâmetros</Label>
+                  <div className="grid gap-2">
+                    {Object.keys(queryParams).map(paramName => (
+                      <div key={paramName} className="flex items-center gap-2">
+                        <Label className="text-xs text-muted-foreground min-w-16">
+                          :{paramName}
+                        </Label>
                         <Input
-                          id={param}
-                          value={String(queryParams[param] || '')}
+                          value={queryParams[paramName]}
                           onChange={(e) => setQueryParams(prev => ({
                             ...prev,
-                            [param]: e.target.value
+                            [paramName]: e.target.value
                           }))}
-                          placeholder={`Valor para ${param}`}
-                          className="text-sm"
+                          placeholder="Valor do parâmetro"
                         />
                       </div>
                     ))}
@@ -402,143 +407,173 @@ export default function SQLEditor() {
                 </div>
               )}
 
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>Consulta SQL</Label>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Clock className="w-3 h-3" />
-                    Timeout: {timeout}s | Limite: {rowLimit} linhas
-                  </div>
-                </div>
-                <Textarea
-                  value={sql}
-                  onChange={(e) => setSql(e.target.value)}
-                  placeholder="SELECT * FROM tabela WHERE data >= :data_inicio LIMIT 100;"
-                  className="font-mono text-sm min-h-[200px]"
-                />
-              </div>
-
+              {/* Action Buttons */}
               <div className="flex gap-2">
-                <Button
-                  onClick={() => executeQuery('preview')}
-                  disabled={loading || !selectedConnectionId}
+                <Button 
+                  onClick={executeQuery} 
+                  disabled={executing || !selectedConnectionId}
+                  className="flex-1"
                 >
-                  {loading ? (
+                  {executing ? (
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   ) : (
                     <Play className="w-4 h-4 mr-2" />
                   )}
                   Executar Preview
                 </Button>
-
-                <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" disabled={!sql.trim()}>
-                      <Save className="w-4 h-4 mr-2" />
-                      Salvar Consulta
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Salvar Consulta</DialogTitle>
-                      <DialogDescription>
-                        Salve sua consulta para reutilização futura
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="query-name">Nome da Consulta</Label>
-                        <Input
-                          id="query-name"
-                          value={queryName}
-                          onChange={(e) => setQueryName(e.target.value)}
-                          placeholder="Minha consulta"
-                        />
+                
+                {can('sql:save') && (
+                  <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline">
+                        <Save className="w-4 h-4 mr-2" />
+                        Salvar
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Salvar Consulta</DialogTitle>
+                        <DialogDescription>
+                          Salve esta consulta para reutilização futura
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label>Nome da Consulta</Label>
+                          <Input {...saveForm.register('name')} placeholder="Relatório de vendas mensais" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Descrição (opcional)</Label>
+                          <Textarea {...saveForm.register('description')} placeholder="Consulta para análise..." />
+                        </div>
+                        <div className="flex gap-2">
+                          <Button onClick={saveQuery} disabled={saving} className="flex-1">
+                            {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                            Salvar Consulta
+                          </Button>
+                        </div>
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="query-description">Descrição (opcional)</Label>
-                        <Textarea
-                          id="query-description"
-                          value={queryDescription}
-                          onChange={(e) => setQueryDescription(e.target.value)}
-                          placeholder="Descrição da consulta..."
-                          rows={3}
-                        />
-                      </div>
-                      <div className="flex gap-2">
-                        <Button onClick={saveQuery} className="flex-1">
-                          Salvar
-                        </Button>
-                        <Button variant="outline" onClick={() => setShowSaveDialog(false)}>
-                          Cancelar
-                        </Button>
-                      </div>
-                    </div>
-                  </DialogContent>
-                </Dialog>
+                    </DialogContent>
+                  </Dialog>
+                )}
 
                 {can('datasets:create') && (
-                  <Button
-                    variant="outline"
-                    onClick={() => executeQuery('dataset')}
-                    disabled={loading || !selectedConnectionId}
-                  >
-                    <Database className="w-4 h-4 mr-2" />
-                    Criar Dataset
-                  </Button>
+                  <Dialog open={showDatasetDialog} onOpenChange={setShowDatasetDialog}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline">
+                        <BarChart className="w-4 h-4 mr-2" />
+                        Dataset
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Criar Dataset</DialogTitle>
+                        <DialogDescription>
+                          Transforme esta consulta em um dataset reutilizável para dashboards
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label>Nome do Dataset</Label>
+                          <Input {...saveForm.register('name')} placeholder="Vendas por região" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Descrição (opcional)</Label>
+                          <Textarea {...saveForm.register('description')} placeholder="Dataset para análise..." />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>TTL do Cache (segundos)</Label>
+                          <Select 
+                            value={saveForm.watch('ttl_seconds')?.toString()} 
+                            onValueChange={(value) => saveForm.setValue('ttl_seconds', parseInt(value))}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="300">5 minutos</SelectItem>
+                              <SelectItem value="900">15 minutos</SelectItem>
+                              <SelectItem value="3600">1 hora</SelectItem>
+                              <SelectItem value="14400">4 horas</SelectItem>
+                              <SelectItem value="86400">1 dia</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button onClick={createDataset} disabled={saving} className="flex-1">
+                            {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <BarChart className="w-4 h-4 mr-2" />}
+                            Criar Dataset
+                          </Button>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
                 )}
               </div>
+            </CardContent>
+          </Card>
 
-              {queryResult && (
-                <div className="mt-6 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-lg font-semibold">Resultados</h3>
-                      <p className="text-sm text-muted-foreground">
-                        {queryResult.rows?.length || 0} linhas
-                        {queryResult.truncated && " (limitado)"}
-                        {queryResult.elapsed_ms && ` • ${queryResult.elapsed_ms}ms`}
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => exportData('csv')}
-                        disabled={!queryResult.rows?.length}
-                      >
-                        <Download className="w-4 h-4 mr-2" />
-                        CSV
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => exportData('json')}
-                        disabled={!queryResult.rows?.length}
-                      >
-                        <Download className="w-4 h-4 mr-2" />
-                        JSON
-                      </Button>
-                    </div>
+          {/* Query Results */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <BarChart className="w-5 h-5" />
+                  Resultado
+                </span>
+                {queryResult && (
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs">
+                      <Clock className="w-3 h-3 mr-1" />
+                      {queryResult.elapsed_ms}ms
+                    </Badge>
+                    <Button variant="outline" size="sm" onClick={exportCSV}>
+                      <Download className="w-4 h-4 mr-2" />
+                      CSV
+                    </Button>
+                  </div>
+                )}
+              </CardTitle>
+              <CardDescription>
+                Resultados da consulta SQL executada
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {!queryResult ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Database className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>Execute uma consulta para ver os resultados</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between text-sm text-muted-foreground">
+                    <span>{queryResult.total_rows} linhas</span>
+                    {queryResult.truncated && (
+                      <Badge variant="secondary">Truncado (limite 1000)</Badge>
+                    )}
                   </div>
                   
-                  <div className="border rounded overflow-auto max-h-96">
+                  <div className="border rounded-lg overflow-auto max-h-96">
                     <table className="w-full text-sm">
-                      <thead className="bg-muted sticky top-0">
+                      <thead className="bg-muted">
                         <tr>
-                          {queryResult.columns.map((column) => (
-                            <th key={column} className="p-2 text-left font-medium">
-                              {column}
+                          {queryResult.columns.map(col => (
+                            <th key={col} className="px-3 py-2 text-left font-medium">
+                              {col}
                             </th>
                           ))}
                         </tr>
                       </thead>
                       <tbody>
-                        {queryResult.rows.map((row, index) => (
-                          <tr key={index} className="border-t hover:bg-muted/50">
-                            {row.map((cell, cellIndex) => (
-                              <td key={cellIndex} className="p-2 max-w-xs truncate">
-                                {cell?.toString() || ''}
+                        {queryResult.rows.map((row, idx) => (
+                          <tr key={idx} className="border-t">
+                            {row.map((cell: any, cellIdx: number) => (
+                              <td key={cellIdx} className="px-3 py-2">
+                                {cell === null ? (
+                                  <span className="text-muted-foreground italic">null</span>
+                                ) : (
+                                  String(cell)
+                                )}
                               </td>
                             ))}
                           </tr>
@@ -548,9 +583,9 @@ export default function SQLEditor() {
                   </div>
                 </div>
               )}
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </AppLayout>
   );

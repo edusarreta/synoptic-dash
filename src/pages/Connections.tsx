@@ -456,12 +456,12 @@ export default function ConnectionsPage() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="postgres">
-                            <div className="flex items-center gap-2">
-                              <Database className="w-4 h-4" />
-                              PostgreSQL
-                            </div>
-                          </SelectItem>
+                           <SelectItem value="postgres">
+                             <div className="flex items-center gap-2">
+                               <Database className="w-4 h-4" />
+                               PostgreSQL
+                             </div>
+                           </SelectItem>
                            <SelectItem value="postgresql">
                              <div className="flex items-center gap-2">
                                <Database className="w-4 h-4" />
