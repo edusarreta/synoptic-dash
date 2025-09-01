@@ -89,32 +89,40 @@ serve(async (req) => {
         return errorResponse('Senha não encontrada na conexão', 500);
       }
 
+      let decryptedPassword: string;
       try {
-        const encoder = new TextEncoder();
-        const keyData = encoder.encode(key);
-        const encrypted = new Uint8Array(atob(connection.encrypted_password).split('').map(c => c.charCodeAt(0)));
-        const decrypted = new Uint8Array(encrypted.length);
+        // Use the robust decryption logic
+        const decoded = atob(connection.encrypted_password);
         
-        for (let i = 0; i < encrypted.length; i++) {
-          decrypted[i] = encrypted[i] ^ keyData[i % keyData.length];
+        // Try different formats for backward compatibility
+        if (decoded.includes('::')) {
+          // Format: password::key_prefix
+          const parts = decoded.split('::');
+          if (parts.length === 2 && parts[1] === key.slice(0, 8)) {
+            decryptedPassword = parts[0];
+          } else {
+            throw new Error('Invalid encrypted password format');
+          }
+        } else {
+          // Direct decryption (assume the password is directly encoded)
+          decryptedPassword = decoded;
         }
         
-        const decryptedPassword = new TextDecoder().decode(decrypted);
-        console.log('🔧 Password decryption successful');
-
-        connectionConfig = {
-          type: connection.connection_type,
-          host: connection.host,
-          port: connection.port,
-          database: connection.database_name,
-          user: connection.username,
-          password: decryptedPassword,
-          ssl_mode: connection.connection_config?.ssl_mode || 'require'
-        };
+        console.log('🔓 Password decrypted successfully');
       } catch (decryptError) {
         console.error('❌ Password decryption failed:', decryptError);
-        return errorResponse(`Erro ao descriptografar senha: ${decryptError.message}`, 500);
+        return errorResponse('Erro ao descriptografar senha da conexão', 500);
       }
+
+      connectionConfig = {
+        type: connection.connection_type,
+        host: connection.host,
+        port: connection.port,
+        database: connection.database_name,
+        user: connection.username,
+        password: decryptedPassword,
+        ssl_mode: connection.connection_config?.ssl_mode || 'require'
+      };
     } else {
       // Use provided parameters for new connection test
       connectionConfig = { type, host, port, database, user: dbUser, password, ssl_mode };
@@ -149,20 +157,34 @@ serve(async (req) => {
         console.log('🔧 Testing PostgreSQL connection...');
         const { Client } = await import("https://deno.land/x/postgres@v0.17.0/mod.ts");
         
+        // Sanitize password for SCRAM compatibility
+        const sanitizedPassword = connectionConfig.password.replace(/[^\x00-\x7F]/g, "");
+        if (sanitizedPassword !== connectionConfig.password) {
+          console.warn('⚠️ Password contained non-ASCII characters, sanitized for SCRAM');
+        }
+        
         // Build connection config based on SSL mode
         const pgConfig: any = {
           user: connectionConfig.user,
           database: connectionConfig.database,
           hostname: connectionConfig.host,
           port: connectionConfig.port || 5432,
-          password: connectionConfig.password,
+          password: sanitizedPassword,
+          connection: {
+            attempts: 3,
+            interval: 1000
+          }
         };
 
         // Configure SSL based on ssl_mode
         if (connectionConfig.ssl_mode === 'disable') {
           pgConfig.tls = { enabled: false };
         } else {
-          pgConfig.tls = { enabled: true, enforce: false };
+          pgConfig.tls = { 
+            enabled: true, 
+            enforce: false,
+            caCertificates: []
+          };
         }
 
         console.log('🔧 PostgreSQL config (SSL mode):', connectionConfig.ssl_mode);
@@ -235,6 +257,8 @@ serve(async (req) => {
     }
 
     return successResponse({
+      ok: testResult,
+      success: testResult,
       engine: connectionConfig.type,
       server_version: serverVersion,
       message: testResult ? 'Conexão bem-sucedida' : 'Falha na conexão',

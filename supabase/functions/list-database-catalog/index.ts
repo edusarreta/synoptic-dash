@@ -64,7 +64,7 @@ serve(async (req) => {
       );
     }
 
-    // Decrypt password
+    // Decrypt password using the same logic as decrypt-password function
     const key = Deno.env.get('DB_ENCRYPTION_KEY');
     if (!key) {
       return errorResponse('Chave de criptografia não configurada', 500);
@@ -72,27 +72,41 @@ serve(async (req) => {
 
     let decryptedPassword: string;
     try {
-      const encoder = new TextEncoder();
-      const keyData = encoder.encode(key);
-      const encrypted = new Uint8Array(atob(connection.encrypted_password).split('').map(c => c.charCodeAt(0)));
-      const decrypted = new Uint8Array(encrypted.length);
+      // Use the robust decryption logic
+      const decoded = atob(connection.encrypted_password);
       
-      for (let i = 0; i < encrypted.length; i++) {
-        decrypted[i] = encrypted[i] ^ keyData[i % keyData.length];
+      // Try different formats for backward compatibility
+      if (decoded.includes('::')) {
+        // Format: password::key_prefix
+        const parts = decoded.split('::');
+        if (parts.length === 2 && parts[1] === key.slice(0, 8)) {
+          decryptedPassword = parts[0];
+        } else {
+          throw new Error('Invalid encrypted password format');
+        }
+      } else {
+        // Direct decryption (assume the password is directly encoded)
+        decryptedPassword = decoded;
       }
       
-      decryptedPassword = new TextDecoder().decode(decrypted);
+      console.log('🔓 Password decrypted successfully');
     } catch (decryptError) {
       console.error('❌ Password decryption failed:', decryptError);
-      return errorResponse('Erro ao descriptografar senha', 500);
+      return errorResponse('Erro ao descriptografar senha da conexão', 500);
+    }
+
+    // Validate decrypted password
+    if (!decryptedPassword) {
+      console.error('❌ Decrypted password is empty');
+      return errorResponse('Senha descriptografada está vazia', 500);
     }
 
     const catalogData = await generateCatalog(connection, decryptedPassword);
     return successResponse(catalogData);
 
   } catch (error: any) {
-    console.error('Function error:', error);
-    return errorResponse('Erro interno do servidor', 500);
+    console.error('❌ Function error:', error);
+    return errorResponse(`Erro interno do servidor: ${error.message}`, 500);
   }
 });
 
@@ -109,41 +123,78 @@ async function generateCatalog(connection: any, password: string) {
 async function generatePostgreSQLCatalog(connection: any, password: string) {
   const { Client } = await import("https://deno.land/x/postgres@v0.17.0/mod.ts");
   
+  console.log('🔌 Attempting PostgreSQL connection to:', connection.host, 'database:', connection.database_name);
+  
+  // Sanitize and validate password for SCRAM
+  const sanitizedPassword = password.replace(/[^\x00-\x7F]/g, ""); // Remove non-ASCII characters
+  if (sanitizedPassword !== password) {
+    console.warn('⚠️ Password contained non-ASCII characters, sanitized for SCRAM');
+  }
+  
   const pgConfig: any = {
     user: connection.username,
     database: connection.database_name,
     hostname: connection.host,
     port: connection.port || 5432,
-    password: password,
+    password: sanitizedPassword,
+    connection: {
+      attempts: 3,
+      interval: 1000
+    }
   };
 
-  // Configure SSL
-  const sslMode = connection.connection_config?.ssl_mode || 'require';
-  if (sslMode === 'disable') {
+  // Configure SSL based on connection config
+  const sslMode = connection.connection_config?.ssl_mode || (connection.ssl_enabled ? 'require' : 'disable');
+  console.log('🔒 SSL Mode:', sslMode);
+  
+  if (sslMode === 'disable' || sslMode === false) {
     pgConfig.tls = { enabled: false };
+  } else if (sslMode === 'require') {
+    pgConfig.tls = { 
+      enabled: true, 
+      enforce: false,
+      caCertificates: []
+    };
   } else {
-    pgConfig.tls = { enabled: true, enforce: false };
+    pgConfig.tls = { 
+      enabled: true, 
+      enforce: true,
+      caCertificates: []
+    };
   }
 
   const client = new Client(pgConfig);
   
   try {
+    console.log('🔌 Connecting to PostgreSQL...');
     await client.connect();
+    console.log('✅ PostgreSQL connection successful');
+
+    // Test basic query first
+    console.log('🧪 Testing basic query...');
+    await client.queryObject('SELECT 1 as test');
+    console.log('✅ Basic query successful');
 
     // Get schemas and tables
+    console.log('📋 Fetching tables...');
     const tablesResult = await client.queryObject(`
       SELECT table_schema, table_name
       FROM information_schema.tables
       WHERE table_type = 'BASE TABLE'
+        AND table_schema NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
       ORDER BY table_schema, table_name
     `);
+    console.log(`📋 Found ${tablesResult.rows.length} tables`);
 
     // Get columns
+    console.log('📋 Fetching columns...');
     const columnsResult = await client.queryObject(`
       SELECT table_schema, table_name, column_name, data_type
       FROM information_schema.columns
+      WHERE table_schema NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
       ORDER BY table_schema, table_name, ordinal_position
     `);
+    console.log(`📋 Found ${columnsResult.rows.length} columns`);
 
     await client.end();
 
@@ -190,14 +241,29 @@ async function generatePostgreSQLCatalog(connection: any, password: string) {
       }
     }
 
-    return {
+    const result = {
       db: connection.database_name,
       schemas: Array.from(schemasMap.values())
     };
+    
+    console.log(`✅ Successfully generated catalog with ${result.schemas.length} schemas`);
+    return result;
 
   } catch (error) {
-    console.error('PostgreSQL catalog error:', error);
-    throw error;
+    console.error('❌ PostgreSQL catalog error:', error);
+    
+    // Provide more specific error messages
+    if (error.message.includes('scram')) {
+      throw new Error(`Erro de autenticação SCRAM: Verifique usuário e senha. O usuário/senha pode conter caracteres especiais não suportados.`);
+    } else if (error.message.includes('password')) {
+      throw new Error(`Erro de autenticação: Verifique as credenciais da conexão.`);
+    } else if (error.message.includes('ENOTFOUND') || error.message.includes('ECONNREFUSED')) {
+      throw new Error(`Erro de conexão: Não foi possível conectar ao servidor ${connection.host}:${connection.port}. Verifique se o servidor está online e as configurações de rede.`);
+    } else if (error.message.includes('database') && error.message.includes('does not exist')) {
+      throw new Error(`Banco de dados "${connection.database_name}" não encontrado.`);
+    } else {
+      throw new Error(`Erro ao conectar no PostgreSQL: ${error.message}`);
+    }
   }
 }
 
