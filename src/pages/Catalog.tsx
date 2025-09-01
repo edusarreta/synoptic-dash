@@ -118,6 +118,17 @@ export default function Catalog() {
 
     setLoadingCatalog(true);
     try {
+      // Test with the new function first
+      console.log('🧪 Testing with test-catalog function');
+      const testResult = await supabase.functions.invoke('test-catalog', {
+        body: {
+          org_id: userProfile.org_id,
+          connection_id: selectedConnectionId
+        }
+      });
+
+      console.log('🧪 Test result:', testResult);
+
       const { data, error } = await supabase.functions.invoke('list-database-catalog', {
         body: {
           org_id: userProfile.org_id,
