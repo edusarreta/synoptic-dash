@@ -57,13 +57,16 @@ serve(async (req) => {
     console.log('Deleting connection:', { org_id, connection_id, user_id: user.id });
 
     // Verify user has permission to delete connections
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('org_id, role')
       .eq('id', user.id)
       .single();
 
-    if (!profile || profile.org_id !== org_id) {
+    console.log('Profile data:', profile, 'Profile error:', profileError);
+
+    if (profileError || !profile || profile.org_id !== org_id) {
+      console.log('Access denied:', { profile, expected_org_id: org_id });
       return new Response(
         JSON.stringify({ success: false, message: 'Acesso negado' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -71,6 +74,7 @@ serve(async (req) => {
     }
 
     // Check if user has delete permission (MASTER/ADMIN roles can delete)
+    console.log('Checking role:', profile.role);
     if (!['MASTER', 'ADMIN'].includes(profile.role)) {
       return new Response(
         JSON.stringify({ success: false, message: 'Permissão insuficiente para excluir conexões' }),
@@ -79,12 +83,15 @@ serve(async (req) => {
     }
 
     // Verify connection belongs to the organization
+    console.log('Looking for connection:', { connection_id, account_id: org_id });
     const { data: connection, error: fetchError } = await supabase
       .from('data_connections')
       .select('id, name, account_id')
       .eq('id', connection_id)
       .eq('account_id', org_id)
       .single();
+
+    console.log('Connection found:', connection, 'Fetch error:', fetchError);
 
     if (fetchError || !connection) {
       console.error('Connection fetch error:', fetchError);
@@ -95,6 +102,7 @@ serve(async (req) => {
     }
 
     // Soft delete: set deleted_at timestamp
+    console.log('Attempting to delete connection:', connection_id);
     const { error: deleteError } = await supabase
       .from('data_connections')
       .update({ 
@@ -102,6 +110,8 @@ serve(async (req) => {
         updated_at: new Date().toISOString()
       })
       .eq('id', connection_id);
+
+    console.log('Delete result:', { deleteError });
 
     if (deleteError) {
       console.error('Delete error:', deleteError);
