@@ -1,16 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Responsive, WidthProvider } from 'react-grid-layout';
-import { DndContext, DragEndEvent, DragOverlay, closestCenter } from '@dnd-kit/core';
+import { DndContext, DragEndEvent, closestCenter } from '@dnd-kit/core';
 import { 
-  Plus, 
   Save, 
   Eye, 
   BarChart3, 
@@ -18,7 +15,6 @@ import {
   PieChart, 
   Table, 
   LineChart,
-  AreaChart,
   Hash,
   Calendar,
   Type,
@@ -29,47 +25,34 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useSession } from '@/providers/SessionProvider';
 import { useToast } from '@/hooks/use-toast';
-import { BackLink } from '@/components/BackLink';
+import { useEditorStore } from '@/modules/dashboards/editor/state/editorStore';
+import { WidgetRenderer } from '@/modules/dashboards/editor/components/WidgetRenderer';
+import type { ChartType, Agg } from '@/modules/dashboards/editor/state/editorStore';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
-interface ChartWidget {
-  i: string;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  minW?: number;
-  minH?: number;
-  type: 'bar' | 'line' | 'area' | 'pie' | 'table' | 'kpi';
-  title: string;
-  dataConfig: {
-    dimensions: string[];
-    metrics: string[];
-    aggregation: 'sum' | 'avg' | 'count' | 'count_distinct';
-  };
-}
-
-interface Dashboard {
+interface Dataset {
   id: string;
   name: string;
   description?: string;
-  layout_config: any;
   org_id: string;
-  created_by: string;
-  created_at: string;
-  updated_at: string;
+  saved_query_id?: string;
+  data_schema?: any;
+}
+
+interface DataField {
+  name: string;
+  type: 'dimension' | 'metric';
+  dataType: 'text' | 'number' | 'date' | 'datetime';
 }
 
 const chartTypes = [
   { value: 'table', label: 'Tabela', icon: Table },
   { value: 'bar', label: 'Barra', icon: BarChart3 },
   { value: 'line', label: 'Linha', icon: LineChart },
-  { value: 'area', label: 'Área', icon: AreaChart },
   { value: 'pie', label: 'Pizza', icon: PieChart },
-  { value: 'kpi', label: 'KPI', icon: Hash },
 ];
 
 const aggregationTypes = [
@@ -85,35 +68,47 @@ export default function DashboardEditor() {
   const { userProfile } = useSession();
   const { toast } = useToast();
 
-  const [dashboard, setDashboard] = useState<Dashboard | null>(null);
-  const [widgets, setWidgets] = useState<ChartWidget[]>([]);
-  const [selectedWidget, setSelectedWidget] = useState<string | null>(null);
+  // Use the new editor store
+  const { 
+    id: dashboardId,
+    name, 
+    widgets, 
+    selectedWidgetId, 
+    loadDashboard, 
+    saveDashboard, 
+    addWidget, 
+    removeWidget, 
+    updateWidget, 
+    selectWidget, 
+    updateLayout,
+  } = useEditorStore();
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [dataFields, setDataFields] = useState<any[]>([]);
+  const [datasets, setDatasets] = useState<Dataset[]>([]);
+  const [selectedDatasetId, setSelectedDatasetId] = useState<string>('');
+  const [dataFields, setDataFields] = useState<DataField[]>([]);
 
   useEffect(() => {
     if (id) {
-      loadDashboard();
+      initializeDashboard();
     }
   }, [id]);
 
-  const loadDashboard = async () => {
+  const initializeDashboard = async () => {
     try {
-      const { data, error } = await supabase
-        .from('dashboards')
-        .select('*')
-        .eq('id', id)
-        .single();
+      // Load dashboard and datasets in parallel
+      const [dashboardData, datasetsData] = await Promise.all([
+        supabase.from('dashboards').select('*').eq('id', id).single(),
+        supabase.from('datasets').select('id, name, description, org_id, saved_query_id, data_schema').eq('org_id', userProfile?.org_id)
+      ]);
 
-      if (error) throw error;
+      if (dashboardData.error) throw dashboardData.error;
 
-      setDashboard(data);
+      setDatasets(datasetsData.data || []);
       
-      // Load existing widgets from layout_config
-      if (data.layout_config && typeof data.layout_config === 'object' && 'widgets' in data.layout_config) {
-        setWidgets((data.layout_config as any).widgets || []);
-      }
+      // Load dashboard into store
+      loadDashboard({ ...dashboardData.data, id: id! });
 
       // Mock data fields - in real implementation, load from datasource
       setDataFields([
@@ -136,24 +131,12 @@ export default function DashboardEditor() {
     }
   };
 
-  const saveDashboard = async () => {
-    if (!dashboard) return;
+  const handleSave = async () => {
+    if (!dashboardId) return;
 
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from('dashboards')
-        .update({
-          layout_config: {
-            ...dashboard.layout_config,
-            widgets: widgets
-          },
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', dashboard.id);
-
-      if (error) throw error;
-
+      await saveDashboard();
       toast({
         title: "✅ Dashboard salvo",
         description: "Layout atualizado com sucesso",
@@ -170,46 +153,40 @@ export default function DashboardEditor() {
     }
   };
 
-  const addWidget = (type: ChartWidget['type']) => {
-    const newWidget: ChartWidget = {
-      i: `widget-${Date.now()}`,
-      x: 0,
-      y: 0,
-      w: type === 'kpi' ? 2 : 4,
-      h: type === 'table' ? 6 : 4,
-      minW: 2,
-      minH: 2,
-      type,
-      title: `Novo ${chartTypes.find(t => t.value === type)?.label}`,
-      dataConfig: {
-        dimensions: [],
-        metrics: [],
-        aggregation: 'sum'
-      }
-    };
-
-    setWidgets(prev => [...prev, newWidget]);
-    setSelectedWidget(newWidget.i);
+  const handleAddWidget = (type: ChartType) => {
+    if (!selectedDatasetId) {
+      toast({
+        title: "Selecione um dataset",
+        description: "Escolha um dataset antes de adicionar widgets",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    addWidget(type);
   };
 
-  const removeWidget = (widgetId: string) => {
-    setWidgets(prev => prev.filter(w => w.i !== widgetId));
-    if (selectedWidget === widgetId) {
-      setSelectedWidget(null);
+  const handleSelectDataset = async (datasetId: string) => {
+    setSelectedDatasetId(datasetId);
+    const dataset = datasets.find(d => d.id === datasetId);
+    
+    if (dataset) {
+      // Get connection info and source from saved query
+      const { data: queryData } = await supabase
+        .from('saved_queries')
+        .select('connection_id, sql_query')
+        .eq('id', dataset.saved_query_id)
+        .single();
+
+      if (queryData) {
+        // Store dataset info for widgets
+        console.log('Dataset selected:', dataset.name);
+      }
     }
   };
 
-  const updateWidget = (widgetId: string, updates: Partial<ChartWidget>) => {
-    setWidgets(prev => prev.map(w => 
-      w.i === widgetId ? { ...w, ...updates } : w
-    ));
-  };
-
-  const onLayoutChange = (layout: any) => {
-    setWidgets(prev => prev.map(widget => {
-      const layoutItem = layout.find((l: any) => l.i === widget.i);
-      return layoutItem ? { ...widget, ...layoutItem } : widget;
-    }));
+  const handleLayoutChange = (layout: any) => {
+    updateLayout('lg', layout);
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -218,30 +195,22 @@ export default function DashboardEditor() {
     if (over && active.data.current?.field) {
       const field = active.data.current.field;
       const widgetId = over.id as string;
-      const dropZone = over.data.current?.dropZone;
       
-      if (dropZone && selectedWidget === widgetId) {
-        const widget = widgets.find(w => w.i === widgetId);
-        if (widget) {
-          const updatedConfig = { ...widget.dataConfig };
-          
-          if (dropZone === 'dimensions') {
-            if (!updatedConfig.dimensions.includes(field.name)) {
-              updatedConfig.dimensions = [...updatedConfig.dimensions, field.name];
-            }
-          } else if (dropZone === 'metrics') {
-            if (!updatedConfig.metrics.includes(field.name)) {
-              updatedConfig.metrics = [...updatedConfig.metrics, field.name];
-            }
-          }
-          
-          updateWidget(widgetId, { dataConfig: updatedConfig });
+      if (selectedWidgetId === widgetId) {
+        selectWidget(widgetId);
+        if (field.type === 'dimension') {
+          const { addDimension } = useEditorStore.getState();
+          addDimension(field.name, field.dataType);
+        } else if (field.type === 'metric') {
+          const { addMetric } = useEditorStore.getState();
+          const agg: Agg = field.dataType === 'number' ? 'sum' : 'count';
+          addMetric(field.name, agg);
         }
       }
     }
   };
 
-  const selectedWidgetData = selectedWidget ? widgets.find(w => w.i === selectedWidget) : null;
+  const selectedWidgetData = selectedWidgetId ? widgets.find(w => w.id === selectedWidgetId) : null;
 
   if (loading) {
     return (
@@ -256,12 +225,15 @@ export default function DashboardEditor() {
     );
   }
 
-  if (!dashboard) {
+  if (!dashboardId) {
     return (
       <div className="container mx-auto py-6">
         <div className="text-center">
           <h3 className="text-lg font-semibold mb-2">Dashboard não encontrado</h3>
-          <BackLink to="/dashboards" />
+          <Button variant="outline" onClick={() => navigate('/dashboards')}>
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Voltar
+          </Button>
         </div>
       </div>
     );
@@ -279,7 +251,7 @@ export default function DashboardEditor() {
                 Voltar
               </Button>
               <div>
-                <h1 className="text-xl font-bold">{dashboard.name}</h1>
+                <h1 className="text-xl font-bold">{name}</h1>
                 <p className="text-sm text-muted-foreground">Editor de Dashboard</p>
               </div>
             </div>
@@ -289,7 +261,7 @@ export default function DashboardEditor() {
                 <Eye className="w-4 h-4 mr-2" />
                 Visualizar
               </Button>
-              <Button onClick={saveDashboard} disabled={saving}>
+              <Button onClick={handleSave} disabled={saving}>
                 <Save className="w-4 h-4 mr-2" />
                 {saving ? 'Salvando...' : 'Salvar'}
               </Button>
@@ -301,6 +273,23 @@ export default function DashboardEditor() {
           {/* Sidebar */}
           <div className="w-80 border-r bg-muted/10 p-4 overflow-y-auto">
             <div className="space-y-6">
+              {/* Dataset Selection */}
+              <div>
+                <Label>Dataset</Label>
+                <Select value={selectedDatasetId} onValueChange={handleSelectDataset}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um dataset" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {datasets.map((dataset) => (
+                      <SelectItem key={dataset.id} value={dataset.id}>
+                        {dataset.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               {/* Chart Types */}
               <div>
                 <h3 className="font-semibold mb-3">Tipos de Gráfico</h3>
@@ -311,7 +300,8 @@ export default function DashboardEditor() {
                       variant="outline"
                       size="sm"
                       className="h-auto p-3 flex flex-col gap-1"
-                      onClick={() => addWidget(type.value as any)}
+                      onClick={() => handleAddWidget(type.value as ChartType)}
+                      disabled={!selectedDatasetId}
                     >
                       <type.icon className="w-4 h-4" />
                       <span className="text-xs">{type.label}</span>
@@ -360,62 +350,28 @@ export default function DashboardEditor() {
                       <Label>Título</Label>
                       <Input
                         value={selectedWidgetData.title}
-                        onChange={(e) => updateWidget(selectedWidget!, { title: e.target.value })}
+                        onChange={(e) => updateWidget(selectedWidgetId!, { title: e.target.value })}
                         placeholder="Nome do gráfico"
                       />
                     </div>
 
                     <div>
-                      <Label>Agregação</Label>
-                      <Select
-                        value={selectedWidgetData.dataConfig.aggregation}
-                        onValueChange={(value: any) => 
-                          updateWidget(selectedWidget!, {
-                            dataConfig: { ...selectedWidgetData.dataConfig, aggregation: value }
-                          })
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {aggregationTypes.map(agg => (
-                            <SelectItem key={agg.value} value={agg.value}>
-                              {agg.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div>
                       <Label>Dimensões</Label>
-                      <div className="p-2 border rounded min-h-[60px] bg-muted/20"
-                           onDrop={(e) => {
-                             e.preventDefault();
-                             const field = JSON.parse(e.dataTransfer.getData('field'));
-                             if (field.type === 'dimension') {
-                               const updatedConfig = { ...selectedWidgetData.dataConfig };
-                               if (!updatedConfig.dimensions.includes(field.name)) {
-                                 updatedConfig.dimensions = [...updatedConfig.dimensions, field.name];
-                                 updateWidget(selectedWidget!, { dataConfig: updatedConfig });
-                               }
-                             }
-                           }}
-                           onDragOver={(e) => e.preventDefault()}>
-                        {selectedWidgetData.dataConfig.dimensions.length === 0 ? (
+                      <div className="p-2 border rounded min-h-[60px] bg-muted/20">
+                        {selectedWidgetData.query.dims.length === 0 ? (
                           <p className="text-xs text-muted-foreground">Arraste dimensões aqui</p>
                         ) : (
                           <div className="flex flex-wrap gap-1">
-                            {selectedWidgetData.dataConfig.dimensions.map(dim => (
-                              <Badge key={dim} variant="secondary" className="text-xs">
-                                {dim}
+                            {selectedWidgetData.query.dims.map(dim => (
+                              <Badge key={dim.field} variant="secondary" className="text-xs">
+                                {dim.field}
                                 <button
                                   className="ml-1 hover:text-destructive"
                                   onClick={() => {
-                                    const updatedConfig = { ...selectedWidgetData.dataConfig };
-                                    updatedConfig.dimensions = updatedConfig.dimensions.filter(d => d !== dim);
-                                    updateWidget(selectedWidget!, { dataConfig: updatedConfig });
+                                    const newDims = selectedWidgetData.query.dims.filter(d => d.field !== dim.field);
+                                    const { removeDimension } = useEditorStore.getState();
+                                    selectWidget(selectedWidgetId!);
+                                    removeDimension(dim.field);
                                   }}
                                 >
                                   ×
@@ -429,32 +385,21 @@ export default function DashboardEditor() {
 
                     <div>
                       <Label>Métricas</Label>
-                      <div className="p-2 border rounded min-h-[60px] bg-muted/20"
-                           onDrop={(e) => {
-                             e.preventDefault();
-                             const field = JSON.parse(e.dataTransfer.getData('field'));
-                             if (field.type === 'metric') {
-                               const updatedConfig = { ...selectedWidgetData.dataConfig };
-                               if (!updatedConfig.metrics.includes(field.name)) {
-                                 updatedConfig.metrics = [...updatedConfig.metrics, field.name];
-                                 updateWidget(selectedWidget!, { dataConfig: updatedConfig });
-                               }
-                             }
-                           }}
-                           onDragOver={(e) => e.preventDefault()}>
-                        {selectedWidgetData.dataConfig.metrics.length === 0 ? (
+                      <div className="p-2 border rounded min-h-[60px] bg-muted/20">
+                        {selectedWidgetData.query.mets.length === 0 ? (
                           <p className="text-xs text-muted-foreground">Arraste métricas aqui</p>
                         ) : (
                           <div className="flex flex-wrap gap-1">
-                            {selectedWidgetData.dataConfig.metrics.map(metric => (
-                              <Badge key={metric} variant="secondary" className="text-xs">
-                                {metric}
+                            {selectedWidgetData.query.mets.map(met => (
+                              <Badge key={met.field} variant="secondary" className="text-xs">
+                                {met.field} ({met.agg})
                                 <button
                                   className="ml-1 hover:text-destructive"
                                   onClick={() => {
-                                    const updatedConfig = { ...selectedWidgetData.dataConfig };
-                                    updatedConfig.metrics = updatedConfig.metrics.filter(m => m !== metric);
-                                    updateWidget(selectedWidget!, { dataConfig: updatedConfig });
+                                    const newMets = selectedWidgetData.query.mets.filter(m => m.field !== met.field);
+                                    const { removeMetric } = useEditorStore.getState();
+                                    selectWidget(selectedWidgetId!);
+                                    removeMetric(met.field);
                                   }}
                                 >
                                   ×
@@ -469,7 +414,7 @@ export default function DashboardEditor() {
                     <Button
                       variant="destructive"
                       size="sm"
-                      onClick={() => removeWidget(selectedWidget!)}
+                      onClick={() => removeWidget(selectedWidgetId!)}
                       className="w-full"
                     >
                       <Trash2 className="w-4 h-4 mr-2" />
@@ -483,7 +428,17 @@ export default function DashboardEditor() {
 
           {/* Main Canvas */}
           <div className="flex-1 p-4 bg-muted/5 overflow-auto">
-            {widgets.length === 0 ? (
+            {!selectedDatasetId ? (
+              <div className="h-full flex items-center justify-center">
+                <div className="text-center">
+                  <BarChart3 className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">Selecione um Dataset</h3>
+                  <p className="text-muted-foreground mb-4">
+                    Escolha um dataset na barra lateral para começar a criar gráficos
+                  </p>
+                </div>
+              </div>
+            ) : widgets.length === 0 ? (
               <div className="h-full flex items-center justify-center">
                 <div className="text-center">
                   <BarChart3 className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
@@ -496,21 +451,21 @@ export default function DashboardEditor() {
             ) : (
               <ResponsiveGridLayout
                 className="layout"
-                layouts={{ lg: widgets }}
+                layouts={{ lg: widgets.map(w => ({ i: w.id, x: w.x, y: w.y, w: w.w, h: w.h })) }}
                 breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
                 cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
                 rowHeight={60}
-                onLayoutChange={onLayoutChange}
+                onLayoutChange={handleLayoutChange}
                 margin={[16, 16]}
                 containerPadding={[0, 0]}
               >
                 {widgets.map((widget) => (
                   <div 
-                    key={widget.i} 
+                    key={widget.id} 
                     className={`bg-background border rounded-lg shadow-sm ${
-                      selectedWidget === widget.i ? 'ring-2 ring-primary' : ''
+                      selectedWidgetId === widget.id ? 'ring-2 ring-primary' : ''
                     }`}
-                    onClick={() => setSelectedWidget(widget.i)}
+                    onClick={() => selectWidget(widget.id)}
                   >
                     <div className="p-3 h-full flex flex-col">
                       <div className="flex items-center justify-between mb-2">
@@ -525,7 +480,7 @@ export default function DashboardEditor() {
                             className="h-6 w-6 p-0"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setSelectedWidget(widget.i);
+                              selectWidget(widget.id);
                             }}
                           >
                             <Settings className="w-3 h-3" />
@@ -533,18 +488,8 @@ export default function DashboardEditor() {
                         </div>
                       </div>
                       
-                      <div className="flex-1 border rounded p-2 bg-muted/20 flex items-center justify-center">
-                        <div className="text-center text-muted-foreground">
-                          {widget.type === 'bar' && <BarChart3 className="w-8 h-8 mx-auto mb-1" />}
-                          {widget.type === 'line' && <LineChart className="w-8 h-8 mx-auto mb-1" />}
-                          {widget.type === 'area' && <AreaChart className="w-8 h-8 mx-auto mb-1" />}
-                          {widget.type === 'pie' && <PieChart className="w-8 h-8 mx-auto mb-1" />}
-                          {widget.type === 'table' && <Table className="w-8 h-8 mx-auto mb-1" />}
-                          {widget.type === 'kpi' && <Hash className="w-8 h-8 mx-auto mb-1" />}
-                          <p className="text-xs">
-                            {widget.dataConfig.dimensions.length} dim, {widget.dataConfig.metrics.length} métr
-                          </p>
-                        </div>
+                      <div className="flex-1 min-h-[220px]">
+                        <WidgetRenderer widget={widget} />
                       </div>
                     </div>
                   </div>

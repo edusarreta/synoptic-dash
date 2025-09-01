@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
+import { supabase } from '@/integrations/supabase/client';
 
 export type Agg = 'sum' | 'avg' | 'count' | 'count_distinct';
 export type ChartType = 'table' | 'bar' | 'line' | 'pie';
