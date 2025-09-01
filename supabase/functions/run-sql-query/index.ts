@@ -130,7 +130,7 @@ serve(async (req) => {
       cleanSql.includes(keyword)
     );
 
-    if (containsForbidden || !cleanSql.startsWith('select')) {
+    if (containsForbidden || !cleanSql.match(/^select\s/)) {
       return new Response(JSON.stringify({ 
         error_code: 'ONLY_SELECT_ALLOWED',
         message: 'Only SELECT queries are allowed for security reasons' 

@@ -49,6 +49,7 @@ export default function AdminUsers() {
 
     setLoading(true);
     try {
+      // Load users from the same organization
       const { data, error } = await supabase
         .from('profiles')
         .select(`
@@ -59,7 +60,7 @@ export default function AdminUsers() {
           org_id,
           is_active,
           created_at,
-          organizations:org_id (
+          organizations!inner(
             id,
             name,
             slug

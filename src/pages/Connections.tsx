@@ -462,12 +462,12 @@ export default function ConnectionsPage() {
                               PostgreSQL
                             </div>
                           </SelectItem>
-                          <SelectItem value="supabase">
-                            <div className="flex items-center gap-2">
-                              <Database className="w-4 h-4" />
-                              Supabase (PostgreSQL)
-                            </div>
-                          </SelectItem>
+                           <SelectItem value="postgresql">
+                             <div className="flex items-center gap-2">
+                               <Database className="w-4 h-4" />
+                               Supabase (PostgreSQL)
+                             </div>
+                           </SelectItem>
                           <SelectItem value="mysql" disabled>
                             <div className="flex items-center gap-2">
                               <Database className="w-4 h-4" />

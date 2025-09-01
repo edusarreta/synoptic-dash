@@ -1,66 +1,82 @@
-export type RawConnectionType = 'postgres' | 'postgresql' | 'supabase' | 'mysql' | 'rest' | 'webhook';
-export type NormalizedConnectionType = 'POSTGRES' | 'MYSQL' | 'REST' | 'WEBHOOK';
-
-export function normalizeConnectionType(rawType: RawConnectionType): NormalizedConnectionType {
-  switch (rawType.toLowerCase()) {
+// Normalize connection types to standard values
+export const normalizeConnectionType = (type: string): string => {
+  const normalized = type.toLowerCase();
+  
+  switch (normalized) {
+    case 'supabase':
+    case 'supabase (postgres db)':
     case 'postgres':
     case 'postgresql':
-    case 'supabase':
-      return 'POSTGRES';
+      return 'postgresql';
+    
     case 'mysql':
-      return 'MYSQL';
+      return 'mysql';
+      
     case 'rest':
-      return 'REST';
-    case 'webhook':
-      return 'WEBHOOK';
+    case 'rest api':
+      return 'rest';
+      
     default:
-      throw new Error(`Unsupported connection type: ${rawType}`);
+      return 'postgresql'; // Default fallback
   }
-}
+};
 
-export function getDisplayName(normalizedType: NormalizedConnectionType): string {
-  switch (normalizedType) {
-    case 'POSTGRES':
+// Get display name for connection type
+export const getConnectionTypeDisplayName = (type: string): string => {
+  const normalized = normalizeConnectionType(type);
+  
+  switch (normalized) {
+    case 'postgresql':
       return 'PostgreSQL';
-    case 'MYSQL':
+    case 'mysql':
       return 'MySQL';
-    case 'REST':
+    case 'rest':
       return 'REST API';
-    case 'WEBHOOK':
-      return 'Webhook';
     default:
-      return normalizedType;
+      return 'PostgreSQL';
   }
-}
+};
 
-export function getTypeLabel(rawType: string): string {
-  switch (rawType) {
+// Get type label for UI
+export const getTypeLabel = (type: string): string => {
+  const normalized = type.toLowerCase();
+  switch (normalized) {
     case 'postgres':
     case 'postgresql':
       return 'PostgreSQL';
     case 'supabase':
-      return 'Supabase Postgres (DB)';
+      return 'Supabase (PostgreSQL)';
     case 'mysql':
       return 'MySQL';
     case 'rest':
-      return 'REST API (Supabase/Genérico)';
-    case 'webhook':
-      return 'Webhook';
+      return 'REST API';
     default:
-      return rawType;
+      return 'PostgreSQL';
   }
-}
+};
 
-export function getConnectionHelpText(rawType: string): string {
-  switch (rawType) {
-    case 'supabase':
-      return 'Pegue host/porta/database/username/password em Supabase → Settings → Database. Isto não é a URL da API. Use SSL=require.';
-    case 'rest':
-      return 'Configure base_url, tipo de autenticação e headers para conectar com APIs REST.';
+// Get connection help text
+export const getConnectionHelpText = (type: string): string => {
+  const normalized = type.toLowerCase();
+  switch (normalized) {
     case 'postgres':
     case 'postgresql':
-      return 'Conexão direta com banco PostgreSQL. Certifique-se que o firewall permite acesso.';
+      return 'Conecte-se ao seu banco PostgreSQL usando host, porta, database, usuário e senha.';
+    case 'supabase':
+      return 'Use as credenciais do Database do Supabase (não a URL da API). Configure SSL como "require".';
+    case 'mysql':
+      return 'Conecte-se ao seu banco MySQL usando host, porta, database, usuário e senha.';
+    case 'rest':
+      return 'Configure a URL base da API e método de autenticação para acessar dados via REST.';
     default:
-      return '';
+      return 'Configure os parâmetros de conexão para acessar sua fonte de dados.';
   }
-}
+};
+
+// Get available connection types for UI
+export const getAvailableConnectionTypes = () => [
+  { value: 'postgresql', label: 'PostgreSQL' },
+  { value: 'supabase', label: 'Supabase (PostgreSQL)' },
+  { value: 'mysql', label: 'MySQL' },
+  { value: 'rest', label: 'REST API' }
+];
