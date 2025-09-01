@@ -175,16 +175,29 @@ async function generatePostgreSQLCatalog(connection: any, password: string) {
     await client.queryObject('SELECT 1 as test');
     console.log('✅ Basic query successful');
 
-    // Get schemas, tables and views
-    console.log('📋 Fetching tables and views...');
+    // Get schemas, tables, views and materialized views
+    console.log('📋 Fetching tables, views and materialized views...');
+    
+    // First get regular tables and views
     const tablesResult = await client.queryObject(`
       SELECT table_schema, table_name, table_type
       FROM information_schema.tables
-      WHERE table_type IN ('BASE TABLE', 'VIEW')
-        AND table_schema NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
+      WHERE table_schema NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
+        AND table_type IN ('BASE TABLE', 'VIEW', 'FOREIGN TABLE', 'LOCAL TEMPORARY')
       ORDER BY table_schema, table_name
     `);
-    console.log(`📋 Found ${tablesResult.rows.length} tables and views`);
+    
+    // Get materialized views (they don't appear in information_schema.tables)
+    const matViewsResult = await client.queryObject(`
+      SELECT schemaname as table_schema, matviewname as table_name, 'MATERIALIZED VIEW' as table_type
+      FROM pg_matviews
+      WHERE schemaname NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
+      ORDER BY schemaname, matviewname
+    `);
+    
+    // Combine results
+    const allTables = [...(tablesResult.rows || []), ...(matViewsResult.rows || [])];
+    console.log(`📋 Found ${allTables.length} tables, views and materialized views`);
 
     // Get columns
     console.log('📋 Fetching columns...');
@@ -201,18 +214,25 @@ async function generatePostgreSQLCatalog(connection: any, password: string) {
     // Organize data
     const schemasMap = new Map();
     
-    // Group tables by schema
-    for (const row of tablesResult.rows as any[]) {
+    // Group tables by schema (using combined results)
+    for (const row of allTables as any[]) {
       const schemaName = row.table_schema;
       const tableName = row.table_name;
+      const tableType = row.table_type;
       
       if (!schemasMap.has(schemaName)) {
         schemasMap.set(schemaName, { name: schemaName, tables: [] });
       }
       
+      // Map table types to our internal format
+      let kind = 'table';
+      if (tableType === 'VIEW') kind = 'view';
+      else if (tableType === 'MATERIALIZED VIEW') kind = 'materialized_view';
+      else if (tableType === 'FOREIGN TABLE') kind = 'foreign_table';
+      
       schemasMap.get(schemaName).tables.push({
         name: tableName,
-        type: row.table_type,
+        kind: kind,
         columns: [],
         column_count: 0
       });
@@ -280,11 +300,11 @@ async function generateMySQLCatalog(connection: any, password: string) {
   });
 
   try {
-    // Get tables
+    // Get tables and views
     const tablesResult = await client.execute(`
-      SELECT TABLE_SCHEMA, TABLE_NAME
+      SELECT TABLE_SCHEMA, TABLE_NAME, TABLE_TYPE
       FROM information_schema.TABLES
-      WHERE TABLE_TYPE = 'BASE TABLE'
+      WHERE TABLE_TYPE IN ('BASE TABLE', 'VIEW')
       ORDER BY TABLE_SCHEMA, TABLE_NAME
     `);
 
@@ -304,13 +324,17 @@ async function generateMySQLCatalog(connection: any, password: string) {
     for (const row of tablesResult.rows || []) {
       const schemaName = row[0];
       const tableName = row[1];
+      const tableType = row[2];
       
       if (!schemasMap.has(schemaName)) {
         schemasMap.set(schemaName, { name: schemaName, tables: [] });
       }
       
+      const kind = tableType === 'VIEW' ? 'view' : 'table';
+      
       schemasMap.get(schemaName).tables.push({
         name: tableName,
+        kind: kind,
         columns: [],
         column_count: 0
       });

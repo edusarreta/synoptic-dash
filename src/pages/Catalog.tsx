@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { ChevronDown, ChevronRight, Database, Table, Columns, Globe, Eye, Loader2, X, ArrowLeft, ArrowRight, RefreshCw } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Database, Table as TableIcon, Eye, FileText, Layers, ExternalLink, Download, ChevronRight, ChevronDown } from "lucide-react";
 import { BackLink } from "@/components/BackLink";
 import { useSession } from "@/providers/SessionProvider";
 import { usePermissions } from "@/modules/auth/PermissionsProvider";
@@ -21,33 +22,21 @@ interface Connection {
   is_active: boolean;
 }
 
+interface TableInfo {
+  name: string;
+  kind: 'table' | 'view' | 'materialized_view' | 'foreign_table';
+  columns: Array<{ name: string; type: string }>;
+  column_count: number;
+}
+
 interface Schema {
   name: string;
-  tables: Table[];
-}
-
-interface Table {
-  name: string;
-  columns?: Column[];
-  column_count?: number;
-}
-
-interface Column {
-  name: string;
-  type: string;
-  nullable?: boolean;
+  tables: TableInfo[];
 }
 
 interface CatalogData {
   db?: string;
   schemas?: Schema[];
-  resources?: any[];
-}
-
-interface PreviewData {
-  columns: string[];
-  rows: any[][];
-  total_rows?: number;
 }
 
 export default function Catalog() {
@@ -58,13 +47,13 @@ export default function Catalog() {
   const [connections, setConnections] = useState<Connection[]>([]);
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
   const [catalogData, setCatalogData] = useState<CatalogData | null>(null);
-  const [previewData, setPreviewData] = useState<PreviewData | null>(null);
+  const [previewData, setPreviewData] = useState<{ columns: any[], rows: any[], truncated?: boolean } | null>(null);
+  const [previewOffset, setPreviewOffset] = useState(0);
+  const [expandedSchemas, setExpandedSchemas] = useState<Set<string>>(new Set());
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+  const [selectedTable, setSelectedTable] = useState<{ schema: string; name: string } | null>(null);
   const [loadingConnections, setLoadingConnections] = useState(true);
   const [loadingCatalog, setLoadingCatalog] = useState(false);
-  const [loadingPreview, setLoadingPreview] = useState(false);
-  const [expandedSchemas, setExpandedSchemas] = useState<Set<string>>(new Set());
-  const [selectedTable, setSelectedTable] = useState<{ schema: string; table: string } | null>(null);
-  const [previewOffset, setPreviewOffset] = useState(0);
 
   useEffect(() => {
     loadConnections();
@@ -85,6 +74,7 @@ export default function Catalog() {
         .select('id, name, connection_type, is_active')
         .eq('account_id', userProfile.org_id)
         .eq('is_active', true)
+        .in('connection_type', ['postgresql', 'mysql'])
         .order('name');
 
       if (error) {
@@ -148,21 +138,21 @@ export default function Catalog() {
     }
   };
 
-  const loadTablePreview = async (schemaName: string, tableName: string, offset: number = 0) => {
-    if (!userProfile?.org_id || !selectedConnectionId) return;
-
-    setLoadingPreview(true);
-    setSelectedTable({ schema: schemaName, table: tableName });
+  const handlePreview = async (schema: string, table: string, offset: number = 0) => {
+    if (!selectedConnectionId) return;
+    
+    setIsLoadingPreview(true);
     setPreviewOffset(offset);
+    setSelectedTable({ schema, name: table });
 
     try {
       const { data, error } = await supabase.functions.invoke('preview-table', {
         body: {
-          org_id: userProfile.org_id,
+          org_id: userProfile?.org_id,
           connection_id: selectedConnectionId,
-          schema: schemaName,
-          table: tableName,
-          limit: 50,
+          schema,
+          table,
+          limit: 100,
           offset
         }
       });
@@ -171,74 +161,22 @@ export default function Catalog() {
         console.error('Error loading preview:', error);
         toast({
           title: "Erro",
-          description: "Falha ao carregar preview da tabela",
+          description: error.message || "Falha ao carregar preview da tabela",
           variant: "destructive",
         });
         return;
       }
 
-      if (data && data.success) {
-        setPreviewData({
-          columns: data.columns?.map((col: any) => col.name || col.column_name) || [],
-          rows: data.rows || [],
-          total_rows: data.total || data.total_count || 0
-        });
-      } else {
-        toast({
-          title: "Erro",
-          description: data?.message || "Falha ao carregar preview da tabela",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
+      setPreviewData(data);
+    } catch (error: any) {
       console.error('Error loading preview:', error);
       toast({
         title: "Erro",
-        description: "Falha ao carregar preview da tabela",
+        description: error.message || "Falha ao carregar preview da tabela",
         variant: "destructive",
       });
     } finally {
-      setLoadingPreview(false);
-    }
-  };
-
-  const saveAsDataSource = async () => {
-    if (!selectedTable || !userProfile?.org_id || !selectedConnectionId) return;
-
-    try {
-      // Create a saved query for the table
-      const { error: queryError } = await supabase
-        .from('saved_queries')
-        .insert({
-          org_id: userProfile.org_id,
-          name: `${selectedTable.schema}.${selectedTable.table}`,
-          description: `Tabela ${selectedTable.table} do schema ${selectedTable.schema}`,
-          sql_query: `SELECT * FROM ${selectedTable.schema}.${selectedTable.table}`,
-          connection_id: selectedConnectionId,
-          created_by: userProfile.id
-        });
-
-      if (queryError) {
-        console.error('Error saving query:', queryError);
-        toast({
-          title: "Erro", 
-          description: "Falha ao salvar como fonte de dados",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      toast({
-        title: "Sucesso",
-        description: "Tabela salva como fonte de dados",
-      });
-    } catch (error) {
-      console.error('Error saving as data source:', error);
-      toast({
-        title: "Erro",
-        description: "Falha ao salvar como fonte de dados", 
-        variant: "destructive",
-      });
+      setIsLoadingPreview(false);
     }
   };
 
@@ -250,6 +188,19 @@ export default function Catalog() {
       newExpanded.add(schemaName);
     }
     setExpandedSchemas(newExpanded);
+  };
+
+  const getTableIcon = (kind: string) => {
+    switch (kind) {
+      case 'view':
+        return <Eye className="h-4 w-4 text-blue-500" />;
+      case 'materialized_view':
+        return <Layers className="h-4 w-4 text-purple-500" />;
+      case 'foreign_table':
+        return <ExternalLink className="h-4 w-4 text-orange-500" />;
+      default:
+        return <TableIcon className="h-4 w-4 text-gray-500" />;
+    }
   };
 
   const selectedConnection = connections.find(c => c.id === selectedConnectionId);
@@ -278,28 +229,28 @@ export default function Catalog() {
             <div>
               <h1 className="text-3xl font-bold">Catálogo de Dados</h1>
               <p className="text-muted-foreground mt-2">
-                Explore schemas, tabelas e colunas das suas fontes de dados
+                Explore schemas, tabelas, views e colunas das suas fontes de dados
               </p>
             </div>
           </div>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
-          {/* Left Panel - Catalog Tree */}
+          {/* Left Panel - Connections & Catalog Tree */}
           <div className="lg:col-span-1 space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Conexões</CardTitle>
+                <CardTitle className="text-lg">Conexões SQL</CardTitle>
                 <CardDescription>Selecione uma fonte de dados</CardDescription>
               </CardHeader>
               <CardContent>
                 {loadingConnections ? (
                   <div className="flex items-center justify-center h-20">
-                    <Loader2 className="w-6 h-6 animate-spin" />
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                   </div>
                 ) : connections.length === 0 ? (
                   <p className="text-muted-foreground text-center py-4">
-                    Nenhuma conexão ativa encontrada
+                    Nenhuma conexão SQL ativa encontrada
                   </p>
                 ) : (
                   <Select value={selectedConnectionId || ''} onValueChange={setSelectedConnectionId}>
@@ -310,11 +261,7 @@ export default function Catalog() {
                       {connections.map((connection) => (
                         <SelectItem key={connection.id} value={connection.id}>
                           <div className="flex items-center gap-2">
-                            {connection.connection_type === 'rest' ? (
-                              <Globe className="w-4 h-4" />
-                            ) : (
-                              <Database className="w-4 h-4" />
-                            )}
+                            <Database className="w-4 h-4" />
                             <span>{connection.name}</span>
                             <Badge variant="outline" className="ml-auto">
                               {getConnectionTypeLabel(connection.connection_type)}
@@ -331,94 +278,59 @@ export default function Catalog() {
             {selectedConnection && (
               <Card>
                 <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="text-lg">Estrutura</CardTitle>
-                      <CardDescription>
-                        {selectedConnection.connection_type === 'rest' ? 'APIs e Recursos' : 'Schemas e Tabelas'}
-                      </CardDescription>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={loadCatalog}
-                      disabled={loadingCatalog}
-                      className="gap-2"
-                    >
-                      <RefreshCw className={`w-4 h-4 ${loadingCatalog ? 'animate-spin' : ''}`} />
-                      Atualizar
-                    </Button>
-                  </div>
+                  <CardTitle className="text-lg">Estrutura</CardTitle>
+                  <CardDescription>Schemas, tabelas e views</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {loadingCatalog ? (
                     <div className="flex items-center justify-center h-32">
-                      <Loader2 className="w-6 h-6 animate-spin" />
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                     </div>
-                  ) : catalogData ? (
+                  ) : catalogData?.schemas && catalogData.schemas.length > 0 ? (
                     <div className="space-y-2">
-                      {selectedConnection.connection_type === 'rest' ? (
-                        // REST Resources
-                        <div className="space-y-2">
-                          {catalogData.resources?.map((resource, index) => (
-                            <div
-                              key={index}
-                              className="flex items-center gap-2 p-2 rounded hover:bg-muted cursor-pointer"
-                              onClick={() => loadTablePreview('api', resource.name)}
-                            >
-                              <Globe className="w-4 h-4 text-blue-500" />
-                              <span className="text-sm">{resource.name}</span>
-                              <Badge variant="outline" className="ml-auto text-xs">
-                                {resource.method || 'GET'}
-                              </Badge>
-                            </div>
-                          )) || (
-                            <p className="text-muted-foreground text-sm">Nenhum recurso configurado</p>
-                          )}
-                        </div>
-                      ) : (
-                        // Database Schemas
-                        catalogData.schemas?.map((schema) => (
-                          <Collapsible
-                            key={schema.name}
-                            open={expandedSchemas.has(schema.name)}
-                            onOpenChange={() => toggleSchema(schema.name)}
-                          >
-                            <CollapsibleTrigger className="flex items-center gap-2 w-full p-2 rounded hover:bg-muted">
-                              {expandedSchemas.has(schema.name) ? (
-                                <ChevronDown className="w-4 h-4" />
-                              ) : (
-                                <ChevronRight className="w-4 h-4" />
-                              )}
-                              <Database className="w-4 h-4 text-blue-500" />
-                              <span className="text-sm font-medium">{schema.name}</span>
-                              <Badge variant="outline" className="ml-auto text-xs">
-                                {schema.tables?.length || 0} tabelas
-                              </Badge>
-                            </CollapsibleTrigger>
-                            <CollapsibleContent className="ml-6 space-y-1">
-                              {schema.tables?.map((table) => (
-                                <div
-                                  key={table.name}
-                                  className="flex items-center gap-2 p-2 rounded hover:bg-muted cursor-pointer"
-                                  onClick={() => loadTablePreview(schema.name, table.name)}
-                                >
-                                  <Table className="w-4 h-4 text-green-500" />
-                                  <span className="text-sm">{table.name}</span>
-                                   <Badge variant="outline" className="ml-auto text-xs">
-                                     {table.column_count || 0} colunas
-                                   </Badge>
+                      {catalogData.schemas.map((schema) => (
+                        <Collapsible
+                          key={schema.name}
+                          open={expandedSchemas.has(schema.name)}
+                          onOpenChange={() => toggleSchema(schema.name)}
+                        >
+                          <CollapsibleTrigger className="flex items-center gap-2 w-full p-2 rounded hover:bg-muted">
+                            {expandedSchemas.has(schema.name) ? (
+                              <ChevronDown className="w-4 h-4" />
+                            ) : (
+                              <ChevronRight className="w-4 h-4" />
+                            )}
+                            <Database className="w-4 h-4 text-blue-500" />
+                            <span className="text-sm font-medium">{schema.name}</span>
+                            <Badge variant="outline" className="ml-auto text-xs">
+                              {schema.tables?.length || 0}
+                            </Badge>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent className="ml-6 space-y-1">
+                            {schema.tables?.map((table) => (
+                              <div
+                                key={table.name}
+                                className="flex items-center gap-2 p-2 rounded hover:bg-muted cursor-pointer"
+                                onClick={() => {
+                                  setSelectedTable({ schema: schema.name, name: table.name });
+                                }}
+                              >
+                                {getTableIcon(table.kind)}
+                                <div className="flex-1">
+                                  <div className="text-sm font-medium">{table.name}</div>
+                                  <span className="text-sm capitalize text-muted-foreground">{table.kind}</span>
                                 </div>
-                              ))}
-                            </CollapsibleContent>
-                          </Collapsible>
-                        )) || (
-                          <p className="text-muted-foreground text-sm">Nenhum schema encontrado</p>
-                        )
-                      )}
+                                <Badge variant="outline" className="text-xs">
+                                  {table.column_count}
+                                </Badge>
+                              </div>
+                            ))}
+                          </CollapsibleContent>
+                        </Collapsible>
+                      ))}
                     </div>
                   ) : (
-                    <p className="text-muted-foreground text-sm">Carregue uma conexão para ver a estrutura</p>
+                    <p className="text-muted-foreground text-sm">Nenhum schema encontrado</p>
                   )}
                 </CardContent>
               </Card>
@@ -428,164 +340,155 @@ export default function Catalog() {
           {/* Right Panel - Table Details & Preview */}
           <div className="lg:col-span-2 space-y-4">
             {selectedTable ? (
-              <>
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">
-                      {selectedTable.schema}.{selectedTable.table}
-                    </CardTitle>
-                    <CardDescription>
-                      Estrutura da tabela e preview dos dados
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {/* Column Information */}
-                    <div className="space-y-4">
-                      <div>
-                        <h4 className="font-semibold mb-2 flex items-center gap-2">
-                          <Columns className="w-4 h-4" />
-                          Colunas
-                        </h4>
-                        <div className="grid gap-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">
+                    {selectedTable.schema}.{selectedTable.name}
+                  </CardTitle>
+                  <CardDescription>
+                    Detalhes e preview dos dados
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Table Info & Actions */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-medium">Informações da Tabela</h4>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handlePreview(selectedTable.schema, selectedTable.name, 0)}
+                        disabled={isLoadingPreview}
+                      >
+                        <Eye className="h-4 w-4 mr-2" />
+                        {isLoadingPreview ? "Carregando..." : "Preview (100)"}
+                      </Button>
+                      
+                      <Button 
+                        variant="default" 
+                        size="sm"
+                        onClick={() => handleSaveAsDataset(selectedTable.schema, selectedTable.name)}
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Salvar como Fonte de Dados
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Columns */}
+                  <div>
+                    <h4 className="font-medium mb-3">Colunas</h4>
+                    <div className="border rounded">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Nome</TableHead>
+                            <TableHead>Tipo</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
                           {catalogData?.schemas
                             ?.find(s => s.name === selectedTable.schema)
-                            ?.tables?.find(t => t.name === selectedTable.table)
+                            ?.tables?.find(t => t.name === selectedTable.name)
                             ?.columns?.map((column) => (
-                              <div key={column.name} className="flex items-center justify-between p-2 bg-muted rounded">
-                                <div>
-                                  <span className="font-medium">{column.name}</span>
-                                  <Badge variant="outline" className="ml-2 text-xs">
+                              <TableRow key={column.name}>
+                                <TableCell className="font-medium">{column.name}</TableCell>
+                                <TableCell>
+                                  <Badge variant="outline" className="text-xs">
                                     {column.type}
                                   </Badge>
-                                </div>
-                                {column.nullable && (
-                                  <Badge variant="secondary" className="text-xs">nullable</Badge>
-                                )}
-                              </div>
+                                </TableCell>
+                              </TableRow>
                             )) || (
-                            <p className="text-muted-foreground text-sm">Informações de coluna não disponíveis</p>
+                            <TableRow>
+                              <TableCell colSpan={2} className="text-center text-muted-foreground">
+                                Nenhuma coluna encontrada
+                              </TableCell>
+                            </TableRow>
                           )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+
+                  {/* Preview Data */}
+                  {previewData && (
+                    <div className="mt-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <h4 className="font-medium">Dados de Preview</h4>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handlePreview(selectedTable?.schema || '', selectedTable?.name || '', Math.max(0, previewOffset - 100))}
+                            disabled={previewOffset === 0 || isLoadingPreview}
+                          >
+                            Anterior
+                          </Button>
+                          <span className="text-sm text-muted-foreground">
+                            {previewOffset + 1} - {previewOffset + previewData.rows.length}
+                            {previewData.truncated && ' (mais dados disponíveis)'}
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handlePreview(selectedTable?.schema || '', selectedTable?.name || '', previewOffset + 100)}
+                            disabled={!previewData.truncated || isLoadingPreview}
+                          >
+                            Próximo
+                          </Button>
                         </div>
                       </div>
-
-                      <Separator />
-
-                      {/* Data Preview */}
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <h4 className="font-semibold flex items-center gap-2">
-                            <Eye className="w-4 h-4" />
-                            Preview dos Dados
-                          </h4>
-                           <div className="flex items-center gap-2">
-                             {previewData?.total_rows && (
-                               <Badge variant="outline">
-                                 {previewData.total_rows} linhas total
-                               </Badge>
-                             )}
-                             {selectedConnection && (
-                               <Badge variant="secondary" className="text-xs">
-                                 Fonte: {selectedConnection.name}
-                               </Badge>
-                             )}
-                             <Button 
-                               size="sm" 
-                               onClick={saveAsDataSource}
-                               disabled={!selectedTable}
-                             >
-                               Salvar como Fonte de Dados
-                             </Button>
-                           </div>
-                        </div>
-                        
-                        {loadingPreview ? (
-                          <div className="flex items-center justify-center h-32">
-                            <Loader2 className="w-6 h-6 animate-spin" />
-                          </div>
-                        ) : previewData ? (
-                          <>
-                            <div className="border rounded overflow-x-auto max-h-96">
-                              <table className="w-full text-sm">
-                                <thead className="bg-muted sticky top-0">
-                                  <tr>
-                                    {previewData.columns.map((column) => (
-                                      <th key={column} className="p-2 text-left font-medium">
-                                        {column}
-                                      </th>
-                                    ))}
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {previewData.rows.map((row, index) => (
-                                    <tr key={index} className="border-t hover:bg-muted/50">
-                                      {row.map((cell, cellIndex) => (
-                                        <td key={cellIndex} className="p-2">
-                                          {typeof cell === 'object' && cell !== null ? JSON.stringify(cell) : String(cell || '')}
-                                        </td>
-                                      ))}
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                            
-                            {/* Pagination controls */}
-                            <div className="flex items-center justify-between mt-4">
-                              <div className="text-sm text-muted-foreground">
-                                Mostrando {previewData.rows.length} de {previewData.total_rows} linhas
-                              </div>
-                              <div className="flex gap-2">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => {
-                                    if (selectedTable) {
-                                      loadTablePreview(selectedTable.schema, selectedTable.table, 0);
+                      
+                      <div className="border rounded overflow-x-auto max-h-96">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              {previewData.columns.map((col, index) => (
+                                <TableHead key={index} className="text-xs">
+                                  <div>
+                                    <div className="font-medium">{col.name}</div>
+                                    <div className="text-muted-foreground font-normal">{col.type}</div>
+                                  </div>
+                                </TableHead>
+                              ))}
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {previewData.rows.map((row, rowIndex) => (
+                              <TableRow key={rowIndex}>
+                                {Object.values(row).map((cell, cellIndex) => (
+                                  <TableCell key={cellIndex} className="text-xs max-w-xs truncate" title={String(cell || '')}>
+                                    {typeof cell === 'object' && cell !== null 
+                                      ? JSON.stringify(cell) 
+                                      : String(cell || '')
                                     }
-                                  }}
-                                  disabled={loadingPreview || previewOffset === 0}
-                                >
-                                  <ArrowLeft className="w-3 h-3 mr-1" />
-                                  Primeira
-                                </Button>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => {
-                                    if (selectedTable) {
-                                      const nextOffset = previewOffset + 50;
-                                      if (nextOffset < (previewData.total_rows || 0)) {
-                                        loadTablePreview(selectedTable.schema, selectedTable.table, nextOffset);
-                                      }
-                                    }
-                                  }}
-                                  disabled={
-                                    loadingPreview || 
-                                    !previewData || 
-                                    previewOffset + previewData.rows.length >= (previewData.total_rows || 0)
-                                  }
-                                >
-                                  Próxima
-                                  <ArrowRight className="w-3 h-3 ml-1" />
-                                </Button>
-                              </div>
-                            </div>
-                          </>
-                        ) : (
-                          <p className="text-muted-foreground text-sm">Selecione uma tabela para ver o preview</p>
-                        )}
+                                  </TableCell>
+                                ))}
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
-              </>
+                  )}
+
+                  {isLoadingPreview && (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             ) : (
               <Card>
                 <CardContent className="flex flex-col items-center justify-center py-12">
                   <Database className="w-12 h-12 text-muted-foreground mb-4" />
                   <h3 className="text-lg font-semibold mb-2">Selecione uma Tabela</h3>
                   <p className="text-muted-foreground text-center">
-                    Escolha uma tabela ou recurso da árvore à esquerda para ver detalhes e preview
+                    Escolha uma tabela ou view da estrutura à esquerda para ver detalhes e preview
                   </p>
                 </CardContent>
               </Card>
@@ -595,4 +498,60 @@ export default function Catalog() {
       </div>
     </AppLayout>
   );
+
+  const handleSaveAsDataset = async (schema: string, tableName: string) => {
+    if (!selectedConnectionId || !userProfile?.org_id) return;
+
+    // Generate SQL based on connection type  
+    const connectionType = selectedConnection.connection_type;
+    let sql: string;
+    
+    if (connectionType === 'mysql') {
+      sql = `SELECT * FROM \`${schema}\`.\`${tableName}\` LIMIT 1000`;
+    } else {
+      // PostgreSQL (default)
+      sql = `SELECT * FROM "${schema}"."${tableName}" LIMIT 1000`;
+    }
+
+    try {
+      const { data, error } = await supabase.functions.invoke('run-sql-query', {
+        body: {
+          org_id: userProfile.org_id,
+          connection_id: selectedConnectionId,
+          sql,
+          mode: 'dataset',
+          name: `${schema}.${tableName}`,
+          params: [],
+          row_limit: 1000,
+          timeout_ms: 30000,
+          description: `Dataset criado a partir da ${
+            catalogData?.schemas
+              ?.find(s => s.name === schema)
+              ?.tables?.find(t => t.name === tableName)?.kind || 'tabela'
+          } ${schema}.${tableName}`,
+        }
+      });
+
+      if (error) {
+        toast({
+          title: "Erro",
+          description: error.message || "Falha ao criar dataset",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Sucesso",
+        description: "Dataset criado com sucesso",
+      });
+    } catch (error: any) {
+      console.error('Error creating dataset:', error);
+      toast({
+        title: "Erro",
+        description: error.message || "Falha ao criar dataset",
+        variant: "destructive",
+      });
+    }
+  };
 }

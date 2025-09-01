@@ -36,6 +36,11 @@ serve(async (req) => {
 
     const { org_id, connection_id, schema, table, limit = 100, offset = 0 }: PreviewRequest = await req.json();
     console.log('👁️ Preview request:', { connection_id, schema, table, limit, offset });
+    
+    // Validate limit
+    if (limit > 1000) {
+      return errorResponse('Limite máximo é 1000 registros', 400);
+    }
 
     // Validate membership
     const { data: profile } = await admin
@@ -91,8 +96,14 @@ serve(async (req) => {
       return errorResponse('Erro ao descriptografar senha da conexão', 500);
     }
 
+    const startTime = Date.now();
     const previewData = await generatePreview(connection, decryptedPassword, schema, table, limit, offset);
-    return successResponse(previewData);
+    const elapsed = Date.now() - startTime;
+    
+    return successResponse({
+      ...previewData,
+      elapsed_ms: elapsed
+    });
 
   } catch (error: any) {
     console.error('Function error:', error);
@@ -161,7 +172,12 @@ async function previewPostgreSQL(connection: any, password: string, schema: stri
     console.log('✅ PostgreSQL connection successful');
 
     console.log(`📋 Querying ${schema}.${table} with limit ${limit}, offset ${offset}`);
-    const sql = `SELECT * FROM "${schema}"."${table}" LIMIT $1 OFFSET $2`;
+    
+    // Safe identifier quoting
+    const quotedSchema = `"${schema.replaceAll('"', '""')}"`;
+    const quotedTable = `"${table.replaceAll('"', '""')}"`;
+    const sql = `SELECT * FROM ${quotedSchema}.${quotedTable} LIMIT $1 OFFSET $2`;
+    
     const result = await client.queryObject(sql, [limit, offset]);
 
     await client.end();
@@ -173,10 +189,23 @@ async function previewPostgreSQL(connection: any, password: string, schema: stri
     })) : [];
 
     console.log(`✅ Preview successful: ${result.rows.length} rows, ${columns.length} columns`);
+    
+    // Check if results were truncated by running a count query with limit+1
+    let truncated = false;
+    try {
+      const countResult = await client.queryObject(
+        `SELECT COUNT(*) as total FROM ${quotedSchema}.${quotedTable}`
+      );
+      const total = parseInt(countResult.rows[0]?.total || '0');
+      truncated = (offset + result.rows.length) < total;
+    } catch (countError) {
+      console.warn('Could not determine if results were truncated:', countError);
+    }
 
     return {
       columns,
-      rows: result.rows
+      rows: result.rows,
+      truncated
     };
 
   } catch (error) {
@@ -209,8 +238,10 @@ async function previewMySQL(connection: any, password: string, schema: string, t
   });
 
   try {
-    // Safe query with parameters
-    const sql = `SELECT * FROM \`${schema}\`.\`${table}\` LIMIT ? OFFSET ?`;
+    // Safe identifier quoting for MySQL
+    const quotedSchema = `\`${schema.replaceAll('`', '``')}\``;
+    const quotedTable = `\`${table.replaceAll('`', '``')}\``;
+    const sql = `SELECT * FROM ${quotedSchema}.${quotedTable} LIMIT ? OFFSET ?`;
     const result = await client.execute(sql, [limit, offset]);
 
     await client.close();
@@ -221,9 +252,22 @@ async function previewMySQL(connection: any, password: string, schema: string, t
       type: field.type || 'unknown'
     }));
 
+    // Check if results were truncated
+    let truncated = false;
+    try {
+      const countResult = await client.execute(
+        `SELECT COUNT(*) as total FROM ${quotedSchema}.${quotedTable}`
+      );
+      const total = parseInt(countResult.rows?.[0]?.[0] || '0');
+      truncated = (offset + (result.rows?.length || 0)) < total;
+    } catch (countError) {
+      console.warn('Could not determine if results were truncated:', countError);
+    }
+
     return {
       columns,
-      rows: result.rows || []
+      rows: result.rows || [],
+      truncated
     };
 
   } catch (error) {
