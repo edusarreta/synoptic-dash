@@ -83,34 +83,43 @@ export function ConnectionFormFields({ type, values, onChange }: FormFieldsProps
   const renderSupabaseApiFields = () => (
     <>
       <div className="grid gap-2">
-        <Label htmlFor="supabase_url">URL do Supabase</Label>
+        <Label htmlFor="api_url">API URL</Label>
         <Input
-          id="supabase_url"
-          value={values.supabase_url || ''}
-          onChange={(e) => onChange('supabase_url', e.target.value)}
-          placeholder="https://xyz.supabase.co"
+          id="api_url"
+          value={values.api_url || ''}
+          onChange={(e) => onChange('api_url', e.target.value)}
+          placeholder="https://xxxx.supabase.co/rest/v1"
         />
+        <p className="text-xs text-muted-foreground">
+          URL da API REST do Supabase (termina com /rest/v1)
+        </p>
       </div>
       
       <div className="grid gap-2">
-        <Label htmlFor="supabase_key">Chave do Supabase</Label>
+        <Label htmlFor="api_key">API Key</Label>
         <Input
-          id="supabase_key"
+          id="api_key"
           type="password"
-          value={values.supabase_key || ''}
-          onChange={(e) => onChange('supabase_key', e.target.value)}
+          value={values.api_key || ''}
+          onChange={(e) => onChange('api_key', e.target.value)}
           placeholder="Chave anon ou service_role"
         />
+        <p className="text-xs text-muted-foreground">
+          Chave de API para autenticação (apikey + Authorization Bearer)
+        </p>
       </div>
       
       <div className="grid gap-2">
-        <Label htmlFor="schema_default">Schema Padrão</Label>
+        <Label htmlFor="schema">Schema</Label>
         <Input
-          id="schema_default"
-          value={values.schema_default || 'public'}
-          onChange={(e) => onChange('schema_default', e.target.value)}
+          id="schema"
+          value={values.schema || 'public'}
+          onChange={(e) => onChange('schema', e.target.value)}
           placeholder="public"
         />
+        <p className="text-xs text-muted-foreground">
+          Schema do PostgreSQL a ser acessado via API
+        </p>
       </div>
     </>
   );

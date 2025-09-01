@@ -9,9 +9,11 @@ const corsHeaders = {
 interface TestRestConnectionRequest {
   org_id: string;
   base_url: string;
-  auth_type: 'anon' | 'service' | 'bearer' | 'header';
+  auth_type?: 'anon' | 'service' | 'bearer' | 'header' | 'supabase_api';
   auth_token?: string;
   headers?: string;
+  headers_json?: Record<string, string>;
+  schema?: string;
   test_path?: string;
 }
 
@@ -55,7 +57,7 @@ serve(async (req) => {
 
     // Parse request body
     const requestBody: TestRestConnectionRequest = await req.json();
-    const { org_id, base_url, auth_type, auth_token, headers, test_path } = requestBody;
+    const { org_id, base_url, auth_type = 'bearer', auth_token, headers, headers_json, schema, test_path } = requestBody;
 
     // Validate user's organization membership
     const { data: profile, error: profileError } = await supabase
@@ -83,9 +85,14 @@ serve(async (req) => {
     switch (auth_type) {
       case 'anon':
       case 'service':
+      case 'supabase_api':
         if (auth_token) {
           requestHeaders['apikey'] = auth_token;
           requestHeaders['Authorization'] = `Bearer ${auth_token}`;
+        }
+        if (schema) {
+          requestHeaders['Accept-Profile'] = schema;
+          requestHeaders['Content-Profile'] = schema;
         }
         break;
       case 'bearer':
@@ -109,6 +116,11 @@ serve(async (req) => {
           }
         }
         break;
+    }
+
+    // Apply headers_json if provided (for supabase_api)
+    if (headers_json) {
+      Object.assign(requestHeaders, headers_json);
     }
 
     // Build test URL

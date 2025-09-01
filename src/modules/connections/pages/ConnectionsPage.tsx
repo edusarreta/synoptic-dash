@@ -42,6 +42,10 @@ export function ConnectionsPage() {
     port: 5432,
     ssl_mode: 'require',
     // Supabase API fields
+    api_url: '',
+    api_key: '',
+    schema: 'public',
+    // REST API fields
     supabase_url: '',
     base_url: '',
     auth_type: 'none',
@@ -138,6 +142,11 @@ export function ConnectionsPage() {
         password: '',
         port: 5432,
         ssl_mode: 'require',
+        // Supabase API fields
+        api_url: '',
+        api_key: '',
+        schema: 'public',
+        // REST API fields
         supabase_url: '',
         base_url: '',
         auth_type: 'none',
@@ -176,16 +185,21 @@ export function ConnectionsPage() {
         type: newConnection.connection_type,
       };
 
-      // For REST API connections, use different endpoint and params
-      if (newConnection.connection_type === 'rest_api') {
+      // For Supabase API connections, use REST endpoint
+      if (newConnection.connection_type === 'supabase_api') {
         functionName = 'test-rest-connection';
         requestBody = {
           org_id: userProfile.org_id,
-          base_url: newConnection.base_url,
-          auth_type: newConnection.auth_type,
-          auth_token: newConnection.auth_token,
-          headers: newConnection.headers_json ? JSON.parse(newConnection.headers_json) : {},
-          test_path: newConnection.test_path || '/'
+          base_url: newConnection.api_url,
+          auth_type: 'supabase_api',
+          auth_token: newConnection.api_key,
+          schema: newConnection.schema || 'public',
+          headers_json: {
+            'apikey': newConnection.api_key,
+            'Authorization': `Bearer ${newConnection.api_key}`,
+            'Accept-Profile': newConnection.schema || 'public',
+            'Content-Profile': newConnection.schema || 'public'
+          }
         };
       } else {
         // Database connection params
@@ -281,6 +295,11 @@ export function ConnectionsPage() {
       password: '', // Don't populate password for security
       port: connection.port,
       ssl_mode: 'require', // Default since we don't store this separately
+      // Supabase API fields
+      api_url: '',
+      api_key: '',
+      schema: 'public',
+      // REST API fields
       supabase_url: '',
       base_url: '',
       auth_type: 'none',
@@ -336,6 +355,11 @@ export function ConnectionsPage() {
           password: '',
           port: 5432,
           ssl_mode: 'require',
+          // Supabase API fields
+          api_url: '',
+          api_key: '',
+          schema: 'public',
+          // REST API fields
           supabase_url: '',
           base_url: '',
           auth_type: 'none',
@@ -372,28 +396,21 @@ export function ConnectionsPage() {
     }
 
     try {
-      const { data, error } = await supabase.functions.invoke('delete-connection', {
-        body: {
-          org_id: userProfile.org_id,
-          connection_id: connectionId,
-        }
-      });
+      const { error } = await supabase
+        .from('data_connections')
+        .delete()
+        .eq('id', connectionId)
+        .eq('account_id', userProfile.org_id);
 
       if (error) throw error;
 
-      if (data?.success) {
-        toast({
-          title: "Sucesso",
-          description: data.message || "Conexão excluída com sucesso",
-        });
-        fetchConnections();
-      } else {
-        toast({
-          title: "Erro",
-          description: data?.message || "Falha ao excluir conexão",
-          variant: "destructive",
-        });
-      }
+      toast({
+        title: "Sucesso",
+        description: "Conexão excluída com sucesso",
+      });
+      
+      // Refresh the connections list
+      fetchConnections();
     } catch (error) {
       console.error('Erro ao excluir conexão:', error);
       toast({
@@ -506,6 +523,51 @@ export function ConnectionsPage() {
                   </div>
                 )}
               </div>
+
+              {/* Supabase API connection fields */}
+              {newConnection.connection_type === 'supabase_api' && (
+                <>
+                  <div className="grid gap-2">
+                    <Label htmlFor="api_url">API URL</Label>
+                    <Input
+                      id="api_url"
+                      value={newConnection.api_url || ''}
+                      onChange={(e) => setNewConnection({...newConnection, api_url: e.target.value})}
+                      placeholder="https://xxxx.supabase.co/rest/v1"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      URL da API REST do Supabase (termina com /rest/v1)
+                    </p>
+                  </div>
+                  
+                  <div className="grid gap-2">
+                    <Label htmlFor="api_key">API Key</Label>
+                    <Input
+                      id="api_key"
+                      type="password"
+                      value={newConnection.api_key || ''}
+                      onChange={(e) => setNewConnection({...newConnection, api_key: e.target.value})}
+                      placeholder="Chave anon ou service_role"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Chave de API para autenticação (apikey + Authorization Bearer)
+                    </p>
+                  </div>
+                  
+                  <div className="grid gap-2">
+                    <Label htmlFor="schema">Schema</Label>
+                    <Input
+                      id="schema"
+                      value={newConnection.schema || 'public'}
+                      onChange={(e) => setNewConnection({...newConnection, schema: e.target.value})}
+                      placeholder="public"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Schema do PostgreSQL a ser acessado via API
+                    </p>
+                  </div>
+                </>
+              )}
 
               {/* Database connection fields */}
               {['postgresql', 'supabase_postgres', 'mysql'].includes(newConnection.connection_type) && (

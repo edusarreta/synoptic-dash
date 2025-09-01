@@ -3,11 +3,13 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Database, Table as TableIcon, Eye, FileText, Layers, ExternalLink, Download, ChevronRight, ChevronDown } from "lucide-react";
+import { Database, Table as TableIcon, Eye, FileText, Layers, ExternalLink, Download, ChevronRight, ChevronDown, Search } from "lucide-react";
 import { BackLink } from "@/components/BackLink";
 import { useSession } from "@/providers/SessionProvider";
 import { usePermissions } from "@/modules/auth/PermissionsProvider";
@@ -54,6 +56,7 @@ export default function Catalog() {
   const [selectedTable, setSelectedTable] = useState<{ schema: string; name: string } | null>(null);
   const [loadingConnections, setLoadingConnections] = useState(true);
   const [loadingCatalog, setLoadingCatalog] = useState(false);
+  const [columnSearchQuery, setColumnSearchQuery] = useState("");
 
   useEffect(() => {
     loadConnections();
@@ -138,12 +141,12 @@ export default function Catalog() {
     }
   };
 
-  const handlePreview = async (schema: string, table: string, offset: number = 0) => {
+  const handlePreview = async (schema: string, name: string, offset: number = 0) => {
     if (!selectedConnectionId) return;
     
     setIsLoadingPreview(true);
     setPreviewOffset(offset);
-    setSelectedTable({ schema, name: table });
+    setSelectedTable({ schema, name });
 
     try {
       const { data, error } = await supabase.functions.invoke('preview-table', {
@@ -151,7 +154,7 @@ export default function Catalog() {
           org_id: userProfile?.org_id,
           connection_id: selectedConnectionId,
           schema,
-          table,
+          table: name,
           limit: 100,
           offset
         }
@@ -180,6 +183,55 @@ export default function Catalog() {
     }
   };
 
+  const handleSaveAsDataset = async (schema: string, name: string) => {
+    if (!selectedConnectionId) return;
+
+    try {
+      const selectedConnection = connections.find(c => c.id === selectedConnectionId);
+      if (!selectedConnection) return;
+
+      let sql = '';
+      if (selectedConnection.connection_type === 'postgresql') {
+        sql = `SELECT * FROM "${schema}"."${name}" LIMIT 1000`;
+      } else if (selectedConnection.connection_type === 'mysql') {
+        sql = `SELECT * FROM \`${schema}\`.\`${name}\` LIMIT 1000`;
+      }
+
+      const { data, error } = await supabase.functions.invoke('run-sql-query', {
+        body: {
+          org_id: userProfile?.org_id,
+          connection_id: selectedConnectionId,
+          sql_query: sql,
+          mode: 'dataset',
+          dataset_name: `${schema}_${name}`,
+          description: `Dataset gerado a partir de ${schema}.${name}`
+        }
+      });
+
+      if (error) {
+        console.error('Error saving dataset:', error);
+        toast({
+          title: "Erro",
+          description: "Falha ao salvar fonte de dados",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Sucesso",
+        description: `Fonte de dados "${schema}_${name}" salva com sucesso`,
+      });
+    } catch (error: any) {
+      console.error('Error saving dataset:', error);
+      toast({
+        title: "Erro",
+        description: "Falha ao salvar fonte de dados",
+        variant: "destructive",
+      });
+    }
+  };
+
   const toggleSchema = (schemaName: string) => {
     const newExpanded = new Set(expandedSchemas);
     if (newExpanded.has(schemaName)) {
@@ -203,7 +255,28 @@ export default function Catalog() {
     }
   };
 
+  const getTableTypeLabel = (kind: string) => {
+    switch (kind) {
+      case 'view':
+        return 'View';
+      case 'materialized_view':
+        return 'Materialized View';
+      case 'foreign_table':
+        return 'Foreign Table';
+      default:
+        return 'Table';
+    }
+  };
+
   const selectedConnection = connections.find(c => c.id === selectedConnectionId);
+  const selectedTableInfo = selectedTable && catalogData?.schemas
+    ?.find(s => s.name === selectedTable.schema)
+    ?.tables?.find(t => t.name === selectedTable.name);
+
+  const filteredColumns = selectedTableInfo?.columns?.filter(column =>
+    column.name.toLowerCase().includes(columnSearchQuery.toLowerCase()) ||
+    column.type.toLowerCase().includes(columnSearchQuery.toLowerCase())
+  ) || [];
 
   if (!can('catalog:read')) {
     return (
@@ -318,7 +391,7 @@ export default function Catalog() {
                                 {getTableIcon(table.kind)}
                                 <div className="flex-1">
                                   <div className="text-sm font-medium">{table.name}</div>
-                                  <span className="text-sm capitalize text-muted-foreground">{table.kind}</span>
+                                  <span className="text-xs text-muted-foreground">{getTableTypeLabel(table.kind)}</span>
                                 </div>
                                 <Badge variant="outline" className="text-xs">
                                   {table.column_count}
@@ -339,7 +412,7 @@ export default function Catalog() {
 
           {/* Right Panel - Table Details & Preview */}
           <div className="lg:col-span-2 space-y-4">
-            {selectedTable ? (
+            {selectedTable && selectedTableInfo ? (
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg">
@@ -349,50 +422,77 @@ export default function Catalog() {
                     Detalhes e preview dos dados
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6">
-                  {/* Table Info & Actions */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-medium">Informações da Tabela</h4>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => handlePreview(selectedTable.schema, selectedTable.name, 0)}
-                        disabled={isLoadingPreview}
-                      >
-                        <Eye className="h-4 w-4 mr-2" />
-                        {isLoadingPreview ? "Carregando..." : "Preview (100)"}
-                      </Button>
+                <CardContent>
+                  <Tabs defaultValue="resumo" className="w-full">
+                    <TabsList className="grid w-full grid-cols-3">
+                      <TabsTrigger value="resumo">Resumo</TabsTrigger>
+                      <TabsTrigger value="colunas">Colunas</TabsTrigger>
+                      <TabsTrigger value="dados">Dados (Preview)</TabsTrigger>
+                    </TabsList>
+                    
+                    <TabsContent value="resumo" className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <h4 className="font-medium text-sm text-muted-foreground">Caminho</h4>
+                          <p className="font-mono text-sm">{selectedTable.schema}.{selectedTable.name}</p>
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-sm text-muted-foreground">Tipo</h4>
+                          <Badge variant="outline" className="text-xs">
+                            {getTableTypeLabel(selectedTableInfo.kind)}
+                          </Badge>
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-sm text-muted-foreground">Total de Colunas</h4>
+                          <p className="text-sm">{selectedTableInfo.column_count}</p>
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-sm text-muted-foreground">Ações</h4>
+                          <div className="flex gap-2">
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => handlePreview(selectedTable.schema, selectedTable.name, 0)}
+                              disabled={isLoadingPreview}
+                            >
+                              <Eye className="h-4 w-4 mr-2" />
+                              {isLoadingPreview ? "Carregando..." : "Preview"}
+                            </Button>
+                            
+                            <Button 
+                              variant="default" 
+                              size="sm"
+                              onClick={() => handleSaveAsDataset(selectedTable.schema, selectedTable.name)}
+                            >
+                              <Download className="h-4 w-4 mr-2" />
+                              Salvar como Fonte de Dados
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </TabsContent>
+                    
+                    <TabsContent value="colunas" className="space-y-4">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                        <Input
+                          placeholder="Buscar colunas..."
+                          value={columnSearchQuery}
+                          onChange={(e) => setColumnSearchQuery(e.target.value)}
+                          className="pl-10"
+                        />
+                      </div>
                       
-                      <Button 
-                        variant="default" 
-                        size="sm"
-                        onClick={() => handleSaveAsDataset(selectedTable.schema, selectedTable.name)}
-                      >
-                        <Download className="h-4 w-4 mr-2" />
-                        Salvar como Fonte de Dados
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Columns */}
-                  <div>
-                    <h4 className="font-medium mb-3">Colunas</h4>
-                    <div className="border rounded">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Nome</TableHead>
-                            <TableHead>Tipo</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {catalogData?.schemas
-                            ?.find(s => s.name === selectedTable.schema)
-                            ?.tables?.find(t => t.name === selectedTable.name)
-                            ?.columns?.map((column) => (
+                      <div className="border rounded">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Nome</TableHead>
+                              <TableHead>Tipo</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {filteredColumns.map((column) => (
                               <TableRow key={column.name}>
                                 <TableCell className="font-medium">{column.name}</TableCell>
                                 <TableCell>
@@ -401,94 +501,99 @@ export default function Catalog() {
                                   </Badge>
                                 </TableCell>
                               </TableRow>
-                            )) || (
-                            <TableRow>
-                              <TableCell colSpan={2} className="text-center text-muted-foreground">
-                                Nenhuma coluna encontrada
-                              </TableCell>
-                            </TableRow>
-                          )}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </div>
-
-                  {/* Preview Data */}
-                  {previewData && (
-                    <div className="mt-6">
-                      <div className="flex items-center justify-between mb-4">
-                        <h4 className="font-medium">Dados de Preview</h4>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handlePreview(selectedTable?.schema || '', selectedTable?.name || '', Math.max(0, previewOffset - 100))}
-                            disabled={previewOffset === 0 || isLoadingPreview}
-                          >
-                            Anterior
-                          </Button>
-                          <span className="text-sm text-muted-foreground">
-                            {previewOffset + 1} - {previewOffset + previewData.rows.length}
-                            {previewData.truncated && ' (mais dados disponíveis)'}
-                          </span>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handlePreview(selectedTable?.schema || '', selectedTable?.name || '', previewOffset + 100)}
-                            disabled={!previewData.truncated || isLoadingPreview}
-                          >
-                            Próximo
-                          </Button>
-                        </div>
-                      </div>
-                      
-                      <div className="border rounded overflow-x-auto max-h-96">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              {previewData.columns.map((col, index) => (
-                                <TableHead key={index} className="text-xs">
-                                  <div>
-                                    <div className="font-medium">{col.name}</div>
-                                    <div className="text-muted-foreground font-normal">{col.type}</div>
-                                  </div>
-                                </TableHead>
-                              ))}
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {previewData.rows.map((row, rowIndex) => (
-                              <TableRow key={rowIndex}>
-                                {Object.values(row).map((cell, cellIndex) => (
-                                  <TableCell key={cellIndex} className="text-xs max-w-xs truncate" title={String(cell || '')}>
-                                    {typeof cell === 'object' && cell !== null 
-                                      ? JSON.stringify(cell) 
-                                      : String(cell || '')
-                                    }
-                                  </TableCell>
-                                ))}
-                              </TableRow>
                             ))}
+                            {filteredColumns.length === 0 && (
+                              <TableRow>
+                                <TableCell colSpan={2} className="text-center text-muted-foreground">
+                                  {columnSearchQuery ? 'Nenhuma coluna encontrada' : 'Nenhuma coluna disponível'}
+                                </TableCell>
+                              </TableRow>
+                            )}
                           </TableBody>
                         </Table>
                       </div>
-                    </div>
-                  )}
-
-                  {isLoadingPreview && (
-                    <div className="flex items-center justify-center py-8">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                    </div>
-                  )}
+                    </TabsContent>
+                    
+                    <TabsContent value="dados" className="space-y-4">
+                      {!previewData ? (
+                        <div className="text-center py-8">
+                          <Button 
+                            variant="outline"
+                            onClick={() => handlePreview(selectedTable.schema, selectedTable.name, 0)}
+                            disabled={isLoadingPreview}
+                          >
+                            <Eye className="h-4 w-4 mr-2" />
+                            {isLoadingPreview ? "Carregando..." : "Carregar Preview (100)"}
+                          </Button>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-medium">Dados de Preview</h4>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handlePreview(selectedTable?.schema || '', selectedTable?.name || '', Math.max(0, previewOffset - 100))}
+                                disabled={previewOffset === 0 || isLoadingPreview}
+                              >
+                                Anterior
+                              </Button>
+                              <span className="text-sm text-muted-foreground">
+                                {previewOffset + 1} - {previewOffset + previewData.rows.length}
+                                {previewData.truncated && ' (mais dados disponíveis)'}
+                              </span>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handlePreview(selectedTable?.schema || '', selectedTable?.name || '', previewOffset + 100)}
+                                disabled={!previewData.truncated || isLoadingPreview}
+                              >
+                                Próximo
+                              </Button>
+                            </div>
+                          </div>
+                          
+                          <div className="border rounded overflow-auto">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  {previewData.columns.map((column, index) => (
+                                    <TableHead key={index} className="whitespace-nowrap">
+                                      <div>
+                                        <div className="font-medium">{column.name}</div>
+                                        <div className="text-xs text-muted-foreground">{column.type}</div>
+                                      </div>
+                                    </TableHead>
+                                  ))}
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {previewData.rows.map((row, rowIndex) => (
+                                  <TableRow key={rowIndex}>
+                                    {previewData.columns.map((column, colIndex) => (
+                                      <TableCell key={colIndex} className="max-w-[200px] truncate">
+                                        {row[column.name]?.toString() || ''}
+                                      </TableCell>
+                                    ))}
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        </>
+                      )}
+                    </TabsContent>
+                  </Tabs>
                 </CardContent>
               </Card>
             ) : (
               <Card>
-                <CardContent className="flex flex-col items-center justify-center py-12">
-                  <Database className="w-12 h-12 text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">Selecione uma Tabela</h3>
+                <CardContent className="flex flex-col items-center justify-center h-64">
+                  <TableIcon className="w-12 h-12 text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">Selecione uma tabela</h3>
                   <p className="text-muted-foreground text-center">
-                    Escolha uma tabela ou view da estrutura à esquerda para ver detalhes e preview
+                    Escolha uma tabela ou view na estrutura à esquerda para ver os detalhes
                   </p>
                 </CardContent>
               </Card>
@@ -498,60 +603,4 @@ export default function Catalog() {
       </div>
     </AppLayout>
   );
-
-  const handleSaveAsDataset = async (schema: string, tableName: string) => {
-    if (!selectedConnectionId || !userProfile?.org_id) return;
-
-    // Generate SQL based on connection type  
-    const connectionType = selectedConnection.connection_type;
-    let sql: string;
-    
-    if (connectionType === 'mysql') {
-      sql = `SELECT * FROM \`${schema}\`.\`${tableName}\` LIMIT 1000`;
-    } else {
-      // PostgreSQL (default)
-      sql = `SELECT * FROM "${schema}"."${tableName}" LIMIT 1000`;
-    }
-
-    try {
-      const { data, error } = await supabase.functions.invoke('run-sql-query', {
-        body: {
-          org_id: userProfile.org_id,
-          connection_id: selectedConnectionId,
-          sql,
-          mode: 'dataset',
-          name: `${schema}.${tableName}`,
-          params: [],
-          row_limit: 1000,
-          timeout_ms: 30000,
-          description: `Dataset criado a partir da ${
-            catalogData?.schemas
-              ?.find(s => s.name === schema)
-              ?.tables?.find(t => t.name === tableName)?.kind || 'tabela'
-          } ${schema}.${tableName}`,
-        }
-      });
-
-      if (error) {
-        toast({
-          title: "Erro",
-          description: error.message || "Falha ao criar dataset",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      toast({
-        title: "Sucesso",
-        description: "Dataset criado com sucesso",
-      });
-    } catch (error: any) {
-      console.error('Error creating dataset:', error);
-      toast({
-        title: "Erro",
-        description: error.message || "Falha ao criar dataset",
-        variant: "destructive",
-      });
-    }
-  };
 }

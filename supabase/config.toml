@@ -50,6 +50,15 @@ verify_jwt = true
 [functions.customer-portal]
 verify_jwt = true
 
+[functions.list-database-catalog]
+verify_jwt = true
+
+[functions.preview-table]
+verify_jwt = true
+
+[functions.test-rest-connection]
+verify_jwt = true
+
 [functions.ai-data-chat]
 verify_jwt = true
 

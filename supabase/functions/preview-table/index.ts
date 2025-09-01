@@ -171,6 +171,21 @@ async function previewPostgreSQL(connection: any, password: string, schema: stri
     await client.connect();
     console.log('✅ PostgreSQL connection successful');
 
+    // First, get column information from information_schema
+    console.log(`📋 Getting column info for ${schema}.${table}`);
+    const columnsQuery = `
+      SELECT column_name, data_type 
+      FROM information_schema.columns 
+      WHERE table_schema = $1 AND table_name = $2 
+      ORDER BY ordinal_position
+    `;
+    const columnsResult = await client.queryObject(columnsQuery, [schema, table]);
+    
+    const columns = columnsResult.rows.map((row: any) => ({
+      name: row.column_name,
+      type: row.data_type
+    }));
+
     console.log(`📋 Querying ${schema}.${table} with limit ${limit}, offset ${offset}`);
     
     // Safe identifier quoting
@@ -180,17 +195,9 @@ async function previewPostgreSQL(connection: any, password: string, schema: stri
     
     const result = await client.queryObject(sql, [limit, offset]);
 
-    await client.end();
-
-    // Extract column information from the result
-    const columns = result.columns ? result.columns.map((col: any) => ({
-      name: col.name,
-      type: col.type || 'unknown'
-    })) : [];
-
     console.log(`✅ Preview successful: ${result.rows.length} rows, ${columns.length} columns`);
     
-    // Check if results were truncated by running a count query with limit+1
+    // Check if results were truncated by running a count query
     let truncated = false;
     try {
       const countResult = await client.queryObject(
@@ -201,6 +208,8 @@ async function previewPostgreSQL(connection: any, password: string, schema: stri
     } catch (countError) {
       console.warn('Could not determine if results were truncated:', countError);
     }
+
+    await client.end();
 
     return {
       columns,
@@ -238,19 +247,26 @@ async function previewMySQL(connection: any, password: string, schema: string, t
   });
 
   try {
+    // First, get column information from information_schema
+    console.log(`📋 Getting column info for ${schema}.${table}`);
+    const columnsQuery = `
+      SELECT column_name, data_type 
+      FROM information_schema.columns 
+      WHERE table_schema = ? AND table_name = ? 
+      ORDER BY ordinal_position
+    `;
+    const columnsResult = await client.execute(columnsQuery, [schema, table]);
+    
+    const columns = (columnsResult.rows || []).map((row: any) => ({
+      name: row[0] || row.column_name,
+      type: row[1] || row.data_type
+    }));
+
     // Safe identifier quoting for MySQL
     const quotedSchema = `\`${schema.replaceAll('`', '``')}\``;
     const quotedTable = `\`${table.replaceAll('`', '``')}\``;
     const sql = `SELECT * FROM ${quotedSchema}.${quotedTable} LIMIT ? OFFSET ?`;
     const result = await client.execute(sql, [limit, offset]);
-
-    await client.close();
-
-    // Extract column information from fields
-    const columns = (result.fields || []).map((field: any) => ({
-      name: field.name || field,
-      type: field.type || 'unknown'
-    }));
 
     // Check if results were truncated
     let truncated = false;
@@ -263,6 +279,8 @@ async function previewMySQL(connection: any, password: string, schema: string, t
     } catch (countError) {
       console.warn('Could not determine if results were truncated:', countError);
     }
+
+    await client.close();
 
     return {
       columns,
