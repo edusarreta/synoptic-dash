@@ -192,13 +192,13 @@ export function ConnectionsPage() {
         functionName = 'test-rest-connection';
         requestBody = {
           org_id: userProfile.org_id,
-          base_url: newConnection.api_url,
+          base_url: `${newConnection.project_url}/rest/v1/`,
           auth_type: 'supabase_api',
-          auth_token: newConnection.api_key,
+          auth_token: newConnection.service_role || newConnection.anon_key,
           schema: newConnection.schema || 'public',
           headers_json: {
-            'apikey': newConnection.api_key,
-            'Authorization': `Bearer ${newConnection.api_key}`,
+            'apikey': newConnection.anon_key,
+            'Authorization': `Bearer ${newConnection.service_role || newConnection.anon_key}`,
             'Accept-Profile': newConnection.schema || 'public',
             'Content-Profile': newConnection.schema || 'public'
           }
