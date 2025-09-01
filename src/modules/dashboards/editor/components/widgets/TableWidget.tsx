@@ -40,7 +40,7 @@ export default function TableWidget({ widget }: TableWidgetProps) {
     : Object.keys(widget.data.rows[0] ?? {});
 
   return (
-    <div className="overflow-auto h-full">
+    <div className="overflow-auto min-h-[220px] h-full">
       <Table>
         <TableHeader>
           <TableRow>

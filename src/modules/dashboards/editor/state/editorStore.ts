@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 
 export type Agg = 'sum' | 'avg' | 'count' | 'count_distinct';
-export type ChartType = 'table' | 'bar' | 'line';
+export type ChartType = 'table' | 'bar' | 'line' | 'pie';
 
 export interface QuerySpec {
   datasetId: string;

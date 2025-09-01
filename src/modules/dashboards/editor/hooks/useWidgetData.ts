@@ -11,7 +11,7 @@ export function useWidgetData(widgetId: string) {
     if (!widget?.query?.connectionId) return;
     if (!widget.query.dims.length && !widget.query.mets.length) return;
 
-    const { sql } = buildSqlFromSpec(widget.query);
+    const { sql } = buildSqlFromSpec(widget);
     
     updateWidget(widgetId, { loading: true, error: null });
 

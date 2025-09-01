@@ -4,11 +4,14 @@ import { adminClient, corsHeaders, handleCORS, errorResponse, successResponse } 
 interface QueryRequest {
   org_id: string;
   connection_id: string;
-  sql: string;
+  sql?: string;
+  sql_query?: string;
   params?: Record<string, any>;
   row_limit?: number;
   timeout_ms?: number;
   mode?: 'preview' | 'dataset';
+  dataset_name?: string;
+  description?: string;
 }
 
 serve(async (req) => {
@@ -38,14 +41,24 @@ serve(async (req) => {
     const { 
       org_id, 
       connection_id, 
-      sql, 
+      sql = null,
+      sql_query = null,
       params = {}, 
       row_limit = 1000, 
       timeout_ms = 15000,
-      mode = 'preview'
+      mode = 'preview',
+      dataset_name = null,
+      description = null
     }: QueryRequest = await req.json();
 
-    console.log('🏃 Query request:', { connection_id, mode, row_limit, params_count: Object.keys(params).length });
+    // Handle both sql and sql_query field names
+    const sqlQuery = sql || sql_query;
+
+    console.log('🏃 Query request:', { connection_id, mode, row_limit, has_sql: !!sqlQuery, params_count: Object.keys(params).length });
+
+    if (!sqlQuery) {
+      return errorResponse('SQL query é obrigatório', 400);
+    }
 
     // Validate membership
     const { data: profile } = await admin
@@ -76,7 +89,7 @@ serve(async (req) => {
     }
 
     // Validate SQL - only SELECT allowed
-    const sqlTrimmed = sql.trim();
+    const sqlTrimmed = sqlQuery.trim();
     const sqlNormalized = sqlTrimmed.toLowerCase();
     
     // Block DDL/DML operations

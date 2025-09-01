@@ -48,7 +48,7 @@ export default function LineWidget({ widget }: LineWidgetProps) {
   }
 
   return (
-    <div className="h-full p-2">
+    <div className="min-h-[260px] h-full p-2">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />

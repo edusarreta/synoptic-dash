@@ -1,8 +1,9 @@
-import { QuerySpec } from '../state/editorStore';
+import { QuerySpec, Widget } from '../state/editorStore';
 
 const q = (id: string) => `"${id.replace(/"/g, '""')}"`;
 
-export function buildSqlFromSpec(spec: QuerySpec): { sql: string; params: Record<string, any> } {
+export function buildSqlFromSpec(widget: Widget): { sql: string; params: Record<string, any> } {
+  const { query: spec } = widget;
   const dims = spec.dims.map(d => q(d.field));
   const mets = spec.mets.map((m) => {
     const col = q(m.field);
