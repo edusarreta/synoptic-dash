@@ -413,180 +413,190 @@ export default function Catalog() {
           {/* Right Panel - Table Details & Preview */}
           <div className="lg:col-span-2 space-y-4">
             {selectedTable && selectedTableInfo ? (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">
-                    {selectedTable.schema}.{selectedTable.name}
-                  </CardTitle>
-                  <CardDescription>
-                    Detalhes e preview dos dados
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Tabs defaultValue="resumo" className="w-full">
-                    <TabsList className="grid w-full grid-cols-3">
-                      <TabsTrigger value="resumo">Resumo</TabsTrigger>
-                      <TabsTrigger value="colunas">Colunas</TabsTrigger>
-                      <TabsTrigger value="dados">Dados (Preview)</TabsTrigger>
-                    </TabsList>
-                    
-                    <TabsContent value="resumo" className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <h4 className="font-medium text-sm text-muted-foreground">Caminho</h4>
-                          <p className="font-mono text-sm">{selectedTable.schema}.{selectedTable.name}</p>
-                        </div>
-                        <div>
-                          <h4 className="font-medium text-sm text-muted-foreground">Tipo</h4>
-                          <Badge variant="outline" className="text-xs">
-                            {getTableTypeLabel(selectedTableInfo.kind)}
-                          </Badge>
-                        </div>
-                        <div>
-                          <h4 className="font-medium text-sm text-muted-foreground">Total de Colunas</h4>
-                          <p className="text-sm">{selectedTableInfo.column_count}</p>
-                        </div>
-                        <div>
-                          <h4 className="font-medium text-sm text-muted-foreground">Ações</h4>
-                          <div className="flex gap-2">
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => handlePreview(selectedTable.schema, selectedTable.name, 0)}
-                              disabled={isLoadingPreview}
-                            >
-                              <Eye className="h-4 w-4 mr-2" />
-                              {isLoadingPreview ? "Carregando..." : "Preview"}
-                            </Button>
-                            
-                            <Button 
-                              variant="default" 
-                              size="sm"
-                              onClick={() => handleSaveAsDataset(selectedTable.schema, selectedTable.name)}
-                            >
-                              <Download className="h-4 w-4 mr-2" />
-                              Salvar como Fonte de Dados
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </TabsContent>
-                    
-                    <TabsContent value="colunas" className="space-y-4">
-                      <div className="relative">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                        <Input
-                          placeholder="Buscar colunas..."
-                          value={columnSearchQuery}
-                          onChange={(e) => setColumnSearchQuery(e.target.value)}
-                          className="pl-10"
-                        />
-                      </div>
+              <>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">
+                      {selectedTable.schema}.{selectedTable.name}
+                    </CardTitle>
+                    <CardDescription>
+                      Detalhes da tabela/view
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Tabs defaultValue="resumo" className="w-full">
+                      <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="resumo">Resumo</TabsTrigger>
+                        <TabsTrigger value="colunas">Colunas</TabsTrigger>
+                      </TabsList>
                       
-                      <div className="border rounded">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Nome</TableHead>
-                              <TableHead>Tipo</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {filteredColumns.map((column) => (
-                              <TableRow key={column.name}>
-                                <TableCell className="font-medium">{column.name}</TableCell>
-                                <TableCell>
-                                  <Badge variant="outline" className="text-xs">
-                                    {column.type}
-                                  </Badge>
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                            {filteredColumns.length === 0 && (
-                              <TableRow>
-                                <TableCell colSpan={2} className="text-center text-muted-foreground">
-                                  {columnSearchQuery ? 'Nenhuma coluna encontrada' : 'Nenhuma coluna disponível'}
-                                </TableCell>
-                              </TableRow>
-                            )}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    </TabsContent>
-                    
-                    <TabsContent value="dados" className="space-y-4">
-                      {!previewData ? (
-                        <div className="text-center py-8">
-                          <Button 
-                            variant="outline"
-                            onClick={() => handlePreview(selectedTable.schema, selectedTable.name, 0)}
-                            disabled={isLoadingPreview}
-                          >
-                            <Eye className="h-4 w-4 mr-2" />
-                            {isLoadingPreview ? "Carregando..." : "Carregar Preview (100)"}
-                          </Button>
-                        </div>
-                      ) : (
-                        <>
-                          <div className="flex items-center justify-between">
-                            <h4 className="font-medium">Dados de Preview</h4>
-                            <div className="flex items-center gap-2">
-                              <Button
-                                variant="outline"
+                      <TabsContent value="resumo" className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <h4 className="font-medium text-sm text-muted-foreground">Caminho</h4>
+                            <p className="font-mono text-sm">{selectedTable.schema}.{selectedTable.name}</p>
+                          </div>
+                          <div>
+                            <h4 className="font-medium text-sm text-muted-foreground">Tipo</h4>
+                            <Badge variant="outline" className="text-xs">
+                              {getTableTypeLabel(selectedTableInfo.kind)}
+                            </Badge>
+                          </div>
+                          <div>
+                            <h4 className="font-medium text-sm text-muted-foreground">Total de Colunas</h4>
+                            <p className="text-sm">{selectedTableInfo.column_count}</p>
+                          </div>
+                          <div>
+                            <h4 className="font-medium text-sm text-muted-foreground">Ações</h4>
+                            <div className="flex gap-2">
+                              <Button 
+                                variant="outline" 
                                 size="sm"
-                                onClick={() => handlePreview(selectedTable?.schema || '', selectedTable?.name || '', Math.max(0, previewOffset - 100))}
-                                disabled={previewOffset === 0 || isLoadingPreview}
+                                onClick={() => handlePreview(selectedTable.schema, selectedTable.name, 0)}
+                                disabled={isLoadingPreview}
                               >
-                                Anterior
+                                <Eye className="h-4 w-4 mr-2" />
+                                {isLoadingPreview ? "Carregando..." : "Preview"}
                               </Button>
-                              <span className="text-sm text-muted-foreground">
-                                {previewOffset + 1} - {previewOffset + previewData.rows.length}
-                                {previewData.truncated && ' (mais dados disponíveis)'}
-                              </span>
-                              <Button
-                                variant="outline"
+                              
+                              <Button 
+                                variant="default" 
                                 size="sm"
-                                onClick={() => handlePreview(selectedTable?.schema || '', selectedTable?.name || '', previewOffset + 100)}
-                                disabled={!previewData.truncated || isLoadingPreview}
+                                onClick={() => handleSaveAsDataset(selectedTable.schema, selectedTable.name)}
                               >
-                                Próximo
+                                <Download className="h-4 w-4 mr-2" />
+                                Salvar como Fonte de Dados
                               </Button>
                             </div>
                           </div>
-                          
-                          <div className="border rounded overflow-auto">
-                            <Table>
-                              <TableHeader>
+                        </div>
+                      </TabsContent>
+                      
+                      <TabsContent value="colunas" className="space-y-4">
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                          <Input
+                            placeholder="Buscar colunas..."
+                            value={columnSearchQuery}
+                            onChange={(e) => setColumnSearchQuery(e.target.value)}
+                            className="pl-10"
+                          />
+                        </div>
+                        
+                        <div className="border rounded">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Nome</TableHead>
+                                <TableHead>Tipo</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {filteredColumns.map((column) => (
+                                <TableRow key={column.name}>
+                                  <TableCell className="font-medium">{column.name}</TableCell>
+                                  <TableCell>
+                                    <Badge variant="outline" className="text-xs">
+                                      {column.type}
+                                    </Badge>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                              {filteredColumns.length === 0 && (
                                 <TableRow>
-                                  {previewData.columns.map((column, index) => (
-                                    <TableHead key={index} className="whitespace-nowrap">
-                                      <div>
-                                        <div className="font-medium">{column.name}</div>
-                                        <div className="text-xs text-muted-foreground">{column.type}</div>
-                                      </div>
-                                    </TableHead>
+                                  <TableCell colSpan={2} className="text-center text-muted-foreground">
+                                    {columnSearchQuery ? 'Nenhuma coluna encontrada' : 'Nenhuma coluna disponível'}
+                                  </TableCell>
+                                </TableRow>
+                              )}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </TabsContent>
+                    </Tabs>
+                  </CardContent>
+                </Card>
+
+                {/* Preview Section Below */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Preview dos Dados</CardTitle>
+                    <CardDescription>
+                      Visualização das primeiras 100 linhas da tabela/view
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {!previewData ? (
+                      <div className="text-center py-8">
+                        <Button 
+                          variant="outline"
+                          onClick={() => handlePreview(selectedTable.schema, selectedTable.name, 0)}
+                          disabled={isLoadingPreview}
+                        >
+                          <Eye className="h-4 w-4 mr-2" />
+                          {isLoadingPreview ? "Carregando..." : "Carregar Preview (100)"}
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-medium">Dados de Preview</h4>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handlePreview(selectedTable?.schema || '', selectedTable?.name || '', Math.max(0, previewOffset - 100))}
+                              disabled={previewOffset === 0 || isLoadingPreview}
+                            >
+                              Anterior
+                            </Button>
+                            <span className="text-sm text-muted-foreground">
+                              {previewOffset + 1} - {previewOffset + previewData.rows.length}
+                              {previewData.truncated && ' (mais dados disponíveis)'}
+                            </span>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handlePreview(selectedTable?.schema || '', selectedTable?.name || '', previewOffset + 100)}
+                              disabled={!previewData.truncated || isLoadingPreview}
+                            >
+                              Próximo
+                            </Button>
+                          </div>
+                        </div>
+                        
+                        <div className="border rounded overflow-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                {previewData.columns.map((column, index) => (
+                                  <TableHead key={index} className="whitespace-nowrap">
+                                    <div>
+                                      <div className="font-medium">{column.name}</div>
+                                      <div className="text-xs text-muted-foreground">{column.type}</div>
+                                    </div>
+                                  </TableHead>
+                                ))}
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {previewData.rows.map((row, rowIndex) => (
+                                <TableRow key={rowIndex}>
+                                  {previewData.columns.map((column, colIndex) => (
+                                    <TableCell key={colIndex} className="max-w-[200px] truncate">
+                                      {row[column.name]?.toString() || ''}
+                                    </TableCell>
                                   ))}
                                 </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {previewData.rows.map((row, rowIndex) => (
-                                  <TableRow key={rowIndex}>
-                                    {previewData.columns.map((column, colIndex) => (
-                                      <TableCell key={colIndex} className="max-w-[200px] truncate">
-                                        {row[column.name]?.toString() || ''}
-                                      </TableCell>
-                                    ))}
-                                  </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
-                          </div>
-                        </>
-                      )}
-                    </TabsContent>
-                  </Tabs>
-                </CardContent>
-              </Card>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </>
             ) : (
               <Card>
                 <CardContent className="flex flex-col items-center justify-center h-64">
