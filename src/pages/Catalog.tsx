@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { ChevronDown, ChevronRight, Database, Table, Columns, Globe, Eye, Loader2, X, ArrowLeft, ArrowRight } from "lucide-react";
+import { ChevronDown, ChevronRight, Database, Table, Columns, Globe, Eye, Loader2, X, ArrowLeft, ArrowRight, RefreshCw } from "lucide-react";
 import { BackLink } from "@/components/BackLink";
 import { useSession } from "@/providers/SessionProvider";
 import { usePermissions } from "@/modules/auth/PermissionsProvider";
@@ -331,10 +331,24 @@ export default function Catalog() {
             {selectedConnection && (
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">Estrutura</CardTitle>
-                  <CardDescription>
-                    {selectedConnection.connection_type === 'rest' ? 'APIs e Recursos' : 'Schemas e Tabelas'}
-                  </CardDescription>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-lg">Estrutura</CardTitle>
+                      <CardDescription>
+                        {selectedConnection.connection_type === 'rest' ? 'APIs e Recursos' : 'Schemas e Tabelas'}
+                      </CardDescription>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={loadCatalog}
+                      disabled={loadingCatalog}
+                      className="gap-2"
+                    >
+                      <RefreshCw className={`w-4 h-4 ${loadingCatalog ? 'animate-spin' : ''}`} />
+                      Atualizar
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   {loadingCatalog ? (
