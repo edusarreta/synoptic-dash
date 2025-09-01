@@ -186,8 +186,21 @@ serve(async (req) => {
       host: connectionConfig.host, 
       port: connectionConfig.port, 
       database: connectionConfig.database, 
-      user: connectionConfig.user 
+      user: connectionConfig.user,
+      ssl_mode: connectionConfig.ssl_mode
     });
+
+    // Validate required parameters
+    if (!connectionConfig.host || !connectionConfig.database || !connectionConfig.user || !connectionConfig.password) {
+      return new Response(
+        JSON.stringify({ 
+          ok: false, 
+          success: false, 
+          message: `Parâmetros obrigatórios ausentes: ${!connectionConfig.host ? 'host ' : ''}${!connectionConfig.database ? 'database ' : ''}${!connectionConfig.user ? 'user ' : ''}${!connectionConfig.password ? 'password' : ''}`.trim() 
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     try {
       if (connectionConfig.type === 'postgresql') {
