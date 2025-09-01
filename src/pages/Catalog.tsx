@@ -125,22 +125,11 @@ export default function Catalog() {
         }
       });
 
-      console.log('Catalog response:', { data, error });
-
       if (error) {
         console.error('Error loading catalog:', error);
         toast({
           title: "Erro",
-          description: `Falha ao carregar catálogo: ${error.message || 'Edge function error'}`,
-          variant: "destructive",
-        });
-        return;
-      }
-
-      if (data && data.success === false) {
-        toast({
-          title: "Erro no catálogo",
-          description: data.message || "Erro desconhecido",
+          description: "Falha ao carregar catálogo",
           variant: "destructive",
         });
         return;
@@ -167,8 +156,6 @@ export default function Catalog() {
     setPreviewOffset(offset);
 
     try {
-      console.log('Loading preview for:', { schemaName, tableName, selectedConnectionId });
-
       const { data, error } = await supabase.functions.invoke('preview-table', {
         body: {
           org_id: userProfile.org_id,
@@ -180,22 +167,11 @@ export default function Catalog() {
         }
       });
 
-      console.log('Preview response:', { data, error });
-
       if (error) {
         console.error('Error loading preview:', error);
         toast({
           title: "Erro",
-          description: `Falha ao carregar preview: ${error.message || 'Edge function error'}`,
-          variant: "destructive",
-        });
-        return;
-      }
-
-      if (data && data.success === false) {
-        toast({
-          title: "Erro no preview",
-          description: data.message || "Erro desconhecido",
+          description: "Falha ao carregar preview da tabela",
           variant: "destructive",
         });
         return;

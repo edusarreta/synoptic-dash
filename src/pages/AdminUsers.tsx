@@ -22,7 +22,7 @@ interface UserProfile {
   account_id?: string;
   is_active: boolean;
   created_at: string;
-  account?: {
+  organization?: {
     id: string;
     name: string;
     slug: string;
@@ -60,7 +60,7 @@ export default function AdminUsers() {
           org_id,
           is_active,
           created_at,
-          accounts!inner(
+          organizations!inner(
             id,
             name,
             slug
@@ -230,7 +230,7 @@ export default function AdminUsers() {
                             </div>
                             <div className="flex items-center gap-1">
                               <Building className="w-3 h-3" />
-                              {user.account?.name || 'Organização'}
+                              {user.organization?.name || 'Organização'}
                             </div>
                           </div>
                         </div>
@@ -291,16 +291,16 @@ export default function AdminUsers() {
                                   Organização
                                 </h4>
                                 <div className="space-y-2">
-                                   <div className="flex justify-between">
-                                     <span className="text-muted-foreground">Nome:</span>
-                                     <span>{selectedUser.account?.name || 'ConnectaDados'}</span>
-                                   </div>
-                                   <div className="flex justify-between">
-                                     <span className="text-muted-foreground">Slug:</span>
-                                     <span className="font-mono text-sm">
-                                       {selectedUser.account?.slug || 'connectadados'}
-                                     </span>
-                                   </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-muted-foreground">Nome:</span>
+                                    <span>{selectedUser.organization?.name || 'ConnectaDados'}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-muted-foreground">Slug:</span>
+                                    <span className="font-mono text-sm">
+                                      {selectedUser.organization?.slug || 'connectadados'}
+                                    </span>
+                                  </div>
                                   <div className="flex justify-between">
                                     <span className="text-muted-foreground">Criado em:</span>
                                     <span>
