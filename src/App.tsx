@@ -111,15 +111,25 @@ export default function App() {
                 </AuthenticatedRoute>
               } />
               
-              <Route path="/dashboards/new" element={
-                <AuthenticatedRoute>
-                  <RequirePermission perms={["dashboards:create"]}>
-                    <AppLayout>
-                      <DashboardWizard />
-                    </AppLayout>
-                  </RequirePermission>
-                </AuthenticatedRoute>
-              } />
+               <Route path="/dashboards/new" element={
+                 <AuthenticatedRoute>
+                   <RequirePermission perms={["dashboards:create"]}>
+                     <AppLayout>
+                       <DashboardWizard />
+                     </AppLayout>
+                   </RequirePermission>
+                 </AuthenticatedRoute>
+               } />
+               
+               <Route path="/dashboards/:id" element={
+                 <AuthenticatedRoute>
+                   <RequirePermission perms={["dashboards:read"]}>
+                     <AppLayout>
+                       <Dashboard />
+                     </AppLayout>
+                   </RequirePermission>
+                 </AuthenticatedRoute>
+               } />
               
               <Route path="/editor/:id" element={
                 <AuthenticatedRoute>

@@ -364,18 +364,27 @@ export default function SQLEditor() {
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label>Conexão</Label>
-                <Select value={selectedConnectionId || ''} onValueChange={setSelectedConnectionId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione uma conexão" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {connections.map((connection) => (
-                      <SelectItem key={connection.id} value={connection.id}>
-                        {connection.name} - {getTypeLabel(connection.connection_type)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                 <Select value={selectedConnectionId || ''} onValueChange={setSelectedConnectionId}>
+                   <SelectTrigger>
+                     <SelectValue placeholder="Selecione uma conexão SQL" />
+                   </SelectTrigger>
+                   <SelectContent>
+                     {connections
+                       .filter(conn => conn.connection_type === 'postgresql' || conn.connection_type === 'mysql')
+                       .map((connection) => (
+                         <SelectItem key={connection.id} value={connection.id}>
+                           {connection.name} - {getTypeLabel(connection.connection_type)}
+                         </SelectItem>
+                       ))}
+                   </SelectContent>
+                 </Select>
+                 
+                 {/* Warning for non-SQL connections */}
+                 {connections.some(conn => conn.connection_type === 'supabase_api' || conn.connection_type === 'rest') && (
+                   <div className="text-sm text-muted-foreground mt-2 p-2 bg-amber-50 border border-amber-200 rounded">
+                     ⚠️ SQL Editor suporta conexões SQL; use Catálogo/Dataset para Supabase API
+                   </div>
+                 )}
               </div>
 
               {/* Parameters Panel */}

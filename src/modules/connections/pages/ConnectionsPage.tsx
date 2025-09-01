@@ -41,9 +41,13 @@ export function ConnectionsPage() {
     password: '',
     port: 5432,
     ssl_mode: 'require',
+    // Supabase API specific fields
+    supabase_url: '',
+    supabase_key: '',
+    schema_default: 'public',
     // REST API specific fields
     base_url: '',
-    auth_type: 'anon',
+    auth_type: 'none',
     auth_token: '',
     headers_json: '{}',
     test_path: '',
@@ -136,8 +140,11 @@ export function ConnectionsPage() {
         password: '',
         port: 5432,
         ssl_mode: 'require',
+        supabase_url: '',
+        supabase_key: '',
+        schema_default: 'public',
         base_url: '',
-        auth_type: 'anon',
+        auth_type: 'none',
         auth_token: '',
         headers_json: '{}',
         test_path: '',
@@ -273,8 +280,11 @@ export function ConnectionsPage() {
       password: '', // Don't populate password for security
       port: connection.port,
       ssl_mode: 'require', // Default since we don't store this separately
+      supabase_url: '',
+      supabase_key: '',
+      schema_default: 'public',
       base_url: '',
-      auth_type: 'anon',
+      auth_type: 'none',
       auth_token: '',
       headers_json: '{}',
       test_path: '',
@@ -327,8 +337,11 @@ export function ConnectionsPage() {
           password: '',
           port: 5432,
           ssl_mode: 'require',
+          supabase_url: '',
+          supabase_key: '',
+          schema_default: 'public',
           base_url: '',
-          auth_type: 'anon',
+          auth_type: 'none',
           auth_token: '',
           headers_json: '{}',
           test_path: '',
@@ -479,12 +492,12 @@ export function ConnectionsPage() {
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="postgresql">PostgreSQL</SelectItem>
-                     <SelectItem value="supabase_postgres">Supabase Postgres (DB)</SelectItem>
+                   <SelectContent>
+                     <SelectItem value="postgresql">PostgreSQL</SelectItem>
                      <SelectItem value="mysql">MySQL</SelectItem>
-                     <SelectItem value="rest_api">REST API (Supabase/Genérico)</SelectItem>
-                  </SelectContent>
+                     <SelectItem value="supabase_api">Supabase (API)</SelectItem>
+                     <SelectItem value="rest">REST API genérica</SelectItem>
+                   </SelectContent>
                 </Select>
                 
                 {/* Help text for connection type */}
