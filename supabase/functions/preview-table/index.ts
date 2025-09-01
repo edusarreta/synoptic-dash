@@ -121,7 +121,7 @@ serve(async (req) => {
       hostname: connection.host,
       port: connection.port,
       database: connection.database_name,
-      user: connection.username, // Fix: use 'user' instead of 'username'
+      username: connection.username,
       password: decryptData.decrypted_password,
       tls: connection.ssl_enabled !== false ? { enabled: true, enforce: false } : { enabled: false }
     };

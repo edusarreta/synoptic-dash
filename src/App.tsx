@@ -1,4 +1,4 @@
-import React, { lazy, Suspense } from "react";
+import React, { lazy } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -94,11 +94,12 @@ export default function App() {
               <Route path="/sql" element={
                 <AuthenticatedRoute>
                   <RequirePermission perms={["sql:run"]}>
-                    <SQLEditor />
+                    <AppLayout>
+                      <SQLEditor />
+                    </AppLayout>
                   </RequirePermission>
                 </AuthenticatedRoute>
               } />
-              
               
               <Route path="/dashboards" element={
                 <AuthenticatedRoute>
@@ -152,13 +153,7 @@ export default function App() {
                 <AuthenticatedRoute>
                   <RequirePermission perms={["rbac:read"]}>
                     <AppLayout>
-                      <Suspense fallback={
-                        <div className="flex items-center justify-center h-64">
-                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                        </div>
-                      }>
-                        <AdminUsers />
-                      </Suspense>
+                      <AdminUsers />
                     </AppLayout>
                   </RequirePermission>
                 </AuthenticatedRoute>

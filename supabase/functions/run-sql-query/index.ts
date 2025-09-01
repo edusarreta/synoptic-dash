@@ -105,8 +105,8 @@ serve(async (req) => {
       });
     }
 
-    // Validate SQL is SELECT-only (improved validation)
-    const cleanSql = sql.trim().toLowerCase().replace(/\s+/g, ' ');
+    // Validate SQL is SELECT-only
+    const cleanSql = sql.trim().toLowerCase();
     const sqlStatements = cleanSql.split(';').filter(s => s.trim());
     
     // Check for multiple statements
@@ -120,21 +120,17 @@ serve(async (req) => {
       });
     }
 
-    // Check for forbidden keywords (DDL/DML) - more robust check
+    // Check for forbidden keywords (DDL/DML)
     const forbiddenKeywords = [
       'insert', 'update', 'delete', 'create', 'alter', 'drop', 
-      'grant', 'revoke', 'truncate', 'merge', 'call', 'execute'
+      'grant', 'revoke', 'truncate', 'merge', 'call'
     ];
     
-    const containsForbidden = forbiddenKeywords.some(keyword => {
-      const regex = new RegExp(`\\b${keyword}\\b`, 'i');
-      return regex.test(cleanSql);
-    });
+    const containsForbidden = forbiddenKeywords.some(keyword => 
+      cleanSql.includes(keyword)
+    );
 
-    // More flexible SELECT validation - allow 'select*', 'select now()', etc.
-    const isSelectQuery = /^select(\s|\*|$)/i.test(cleanSql.trim());
-
-    if (containsForbidden || !isSelectQuery) {
+    if (containsForbidden || !cleanSql.match(/^select\s/)) {
       return new Response(JSON.stringify({ 
         error_code: 'ONLY_SELECT_ALLOWED',
         message: 'Only SELECT queries are allowed for security reasons' 

@@ -4,47 +4,29 @@ interface DecryptPasswordRequest {
   encryptedPassword: string;
 }
 
-// Robust decryption function with multiple fallback methods
+// Internal function for decrypting passwords (not exposed as public endpoint)
 export function decryptPassword(encryptedPassword: string): string {
   try {
     const encryptionKey = Deno.env.get('DB_ENCRYPTION_KEY');
     if (!encryptionKey) {
-      console.log('Using legacy decryption method (no key)');
-      return atob(encryptedPassword);
+      throw new Error('Encryption key not configured');
     }
 
-    console.log('Using legacy decryption method (XOR)');
+// Decode the base64 encrypted password
+    const decoded = atob(encryptedPassword);
     
-    // Method 1: Try format with key prefix (password::key_prefix)
-    try {
-      const decoded = atob(encryptedPassword);
-      if (decoded.includes('::')) {
-        const parts = decoded.split('::');
-        if (parts.length === 2 && parts[1] === encryptionKey.slice(0, 8)) {
-          return parts[0];
-        }
+    // Try different formats for backward compatibility
+    if (decoded.includes('::')) {
+      // Format: password::key_prefix
+      const parts = decoded.split('::');
+      if (parts.length === 2 && parts[1] === encryptionKey.slice(0, 8)) {
+        return parts[0];
       }
-    } catch (e) {
-      console.warn('Format with key prefix failed:', e);
     }
-
-    // Method 2: Try direct base64 decode
-    try {
-      const decoded = atob(encryptedPassword);
-      if (decoded && decoded.length > 0) {
-        return decoded;
-      }
-    } catch (e) {
-      console.warn('Direct base64 decode failed:', e);
-    }
-
-    // Method 3: Assume password is already plain text
-    if (encryptedPassword && !encryptedPassword.includes('=') && !encryptedPassword.includes('+')) {
-      console.log('Treating as plain text password');
-      return encryptedPassword;
-    }
-
-    throw new Error('All decryption methods failed');
+    
+    // Direct decryption (simple XOR or direct encoding)
+    // For now, assume the password is directly encoded
+    return decoded;
   } catch (error) {
     console.error('Decryption error:', error);
     throw new Error('Failed to decrypt password');
