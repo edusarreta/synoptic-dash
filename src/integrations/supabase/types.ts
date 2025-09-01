@@ -1554,6 +1554,10 @@ export type Database = {
         Args: { user_id: string }
         Returns: boolean
       }
+      seed_default_permissions: {
+        Args: { org_uuid: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

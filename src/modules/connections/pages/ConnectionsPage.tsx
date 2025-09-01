@@ -167,34 +167,55 @@ export function ConnectionsPage() {
     setTestConnectionResult({ status: null, message: '' });
 
     try {
-      const { data, error } = await supabase.functions.invoke('test-database-connection', {
-        body: {
+      let functionName = 'test-database-connection';
+      let requestBody: any = {
+        org_id: userProfile.org_id,
+        type: newConnection.connection_type,
+      };
+
+      // For REST API connections, use different endpoint and params
+      if (newConnection.connection_type === 'rest_api') {
+        functionName = 'test-rest-connection';
+        requestBody = {
           org_id: userProfile.org_id,
-          type: newConnection.connection_type,
+          base_url: newConnection.base_url,
+          auth_type: newConnection.auth_type,
+          auth_token: newConnection.auth_token,
+          headers: newConnection.headers_json ? JSON.parse(newConnection.headers_json) : {},
+          test_path: newConnection.test_path || '/'
+        };
+      } else {
+        // Database connection params
+        requestBody = {
+          ...requestBody,
           host: newConnection.host,
           port: newConnection.port,
           database: newConnection.database_name,
           user: newConnection.username,
           password: newConnection.password,
           ssl_mode: newConnection.ssl_mode,
-        }
+        };
+      }
+
+      const { data, error } = await supabase.functions.invoke(functionName, {
+        body: requestBody
       });
 
       if (error) throw error;
 
       setTestConnectionResult({
-        status: data.ok ? 'success' : 'error',
-        message: data.ok 
-          ? `Conexão bem-sucedida! ${data.server_version ? `(${data.server_version})` : ''}` 
-          : data.error_message || 'Falha na conexão'
+        status: data.ok || data.success ? 'success' : 'error',
+        message: data.ok || data.success
+          ? `Conexão bem-sucedida! ${data.server_version ? `(${data.server_version})` : ''}${data.status_code ? ` Status: ${data.status_code}` : ''}` 
+          : data.error_message || data.message || 'Falha na conexão'
       });
 
       toast({
-        title: data.ok ? "Sucesso" : "Erro",
-        description: data.ok 
-          ? `Conexão testada com sucesso! ${data.server_version ? `Versão: ${data.server_version}` : ''}` 
-          : data.error_message || 'Falha ao testar conexão',
-        variant: data.ok ? "default" : "destructive",
+        title: data.ok || data.success ? "Sucesso" : "Erro",
+        description: data.ok || data.success
+          ? `Conexão testada com sucesso! ${data.server_version ? `Versão: ${data.server_version}` : ''}${data.status_code ? ` Status: ${data.status_code}` : ''}` 
+          : data.error_message || data.message || 'Falha ao testar conexão',
+        variant: data.ok || data.success ? "default" : "destructive",
       });
     } catch (error: any) {
       console.error('Erro ao testar conexão:', error);

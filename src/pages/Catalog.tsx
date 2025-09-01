@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { ChevronDown, ChevronRight, Database, Table, Columns, Globe, Eye, Loader2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Database, Table, Columns, Globe, Eye, Loader2, X, ArrowLeft, ArrowRight } from "lucide-react";
 import { BackLink } from "@/components/BackLink";
 import { useSession } from "@/providers/SessionProvider";
 import { usePermissions } from "@/modules/auth/PermissionsProvider";
@@ -64,6 +64,7 @@ export default function Catalog() {
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [expandedSchemas, setExpandedSchemas] = useState<Set<string>>(new Set());
   const [selectedTable, setSelectedTable] = useState<{ schema: string; table: string } | null>(null);
+  const [previewOffset, setPreviewOffset] = useState(0);
 
   useEffect(() => {
     loadConnections();
@@ -147,11 +148,12 @@ export default function Catalog() {
     }
   };
 
-  const loadTablePreview = async (schemaName: string, tableName: string) => {
+  const loadTablePreview = async (schemaName: string, tableName: string, offset: number = 0) => {
     if (!userProfile?.org_id || !selectedConnectionId) return;
 
     setLoadingPreview(true);
     setSelectedTable({ schema: schemaName, table: tableName });
+    setPreviewOffset(offset);
 
     try {
       const { data, error } = await supabase.functions.invoke('preview-table', {
@@ -161,7 +163,7 @@ export default function Catalog() {
           schema: schemaName,
           table: tableName,
           limit: 50,
-          offset: 0
+          offset
         }
       });
 
@@ -175,11 +177,17 @@ export default function Catalog() {
         return;
       }
 
-      if (data) {
+      if (data && data.success) {
         setPreviewData({
-          columns: data.columns?.map((col: any) => col.column_name) || [],
+          columns: data.columns?.map((col: any) => col.name || col.column_name) || [],
           rows: data.rows || [],
-          total_rows: data.total_count || 0
+          total_rows: data.total || data.total_count || 0
+        });
+      } else {
+        toast({
+          title: "Erro",
+          description: data?.message || "Falha ao carregar preview da tabela",
+          variant: "destructive",
         });
       }
     } catch (error) {
@@ -476,30 +484,74 @@ export default function Catalog() {
                             <Loader2 className="w-6 h-6 animate-spin" />
                           </div>
                         ) : previewData ? (
-                          <div className="border rounded overflow-x-auto">
-                            <table className="w-full text-sm">
-                              <thead className="bg-muted">
-                                <tr>
-                                  {previewData.columns.map((column) => (
-                                    <th key={column} className="p-2 text-left font-medium">
-                                      {column}
-                                    </th>
-                                  ))}
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {previewData.rows.map((row, index) => (
-                                  <tr key={index} className="border-t hover:bg-muted/50">
-                                    {row.map((cell, cellIndex) => (
-                                      <td key={cellIndex} className="p-2">
-                                        {cell}
-                                      </td>
+                          <>
+                            <div className="border rounded overflow-x-auto max-h-96">
+                              <table className="w-full text-sm">
+                                <thead className="bg-muted sticky top-0">
+                                  <tr>
+                                    {previewData.columns.map((column) => (
+                                      <th key={column} className="p-2 text-left font-medium">
+                                        {column}
+                                      </th>
                                     ))}
                                   </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
+                                </thead>
+                                <tbody>
+                                  {previewData.rows.map((row, index) => (
+                                    <tr key={index} className="border-t hover:bg-muted/50">
+                                      {row.map((cell, cellIndex) => (
+                                        <td key={cellIndex} className="p-2">
+                                          {typeof cell === 'object' && cell !== null ? JSON.stringify(cell) : String(cell || '')}
+                                        </td>
+                                      ))}
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                            
+                            {/* Pagination controls */}
+                            <div className="flex items-center justify-between mt-4">
+                              <div className="text-sm text-muted-foreground">
+                                Mostrando {previewData.rows.length} de {previewData.total_rows} linhas
+                              </div>
+                              <div className="flex gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    if (selectedTable) {
+                                      loadTablePreview(selectedTable.schema, selectedTable.table, 0);
+                                    }
+                                  }}
+                                  disabled={loadingPreview || previewOffset === 0}
+                                >
+                                  <ArrowLeft className="w-3 h-3 mr-1" />
+                                  Primeira
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    if (selectedTable) {
+                                      const nextOffset = previewOffset + 50;
+                                      if (nextOffset < (previewData.total_rows || 0)) {
+                                        loadTablePreview(selectedTable.schema, selectedTable.table, nextOffset);
+                                      }
+                                    }
+                                  }}
+                                  disabled={
+                                    loadingPreview || 
+                                    !previewData || 
+                                    previewOffset + previewData.rows.length >= (previewData.total_rows || 0)
+                                  }
+                                >
+                                  Próxima
+                                  <ArrowRight className="w-3 h-3 ml-1" />
+                                </Button>
+                              </div>
+                            </div>
+                          </>
                         ) : (
                           <p className="text-muted-foreground text-sm">Selecione uma tabela para ver o preview</p>
                         )}
