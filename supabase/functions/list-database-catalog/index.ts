@@ -1,12 +1,15 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.56.1';
-import { Client } from 'https://deno.land/x/postgres@v0.19.3/mod.ts';
-import { assertMembershipAndPerm, getSqlConnectionConfig, getSupabaseApiConfig } from '../_shared/connections.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+interface CatalogRequest {
+  org_id: string;
+  connection_id: string;
+}
 
 async function handleSqlCatalog(config: any) {
   console.log('🔌 Starting SQL catalog with config:', {
@@ -19,91 +22,28 @@ async function handleSqlCatalog(config: any) {
     connection_type: config.connection_type
   });
 
-  // Try different connection configurations based on SSL settings and SCRAM issues
-  const connectionConfigs = [];
+  const { Client } = await import("https://deno.land/x/postgres@v0.17.0/mod.ts");
   
-  // Config with connection string (bypasses SCRAM validation issues)
-  connectionConfigs.push({
-    connection: `postgresql://${encodeURIComponent(config.user)}:${encodeURIComponent(config.password)}@${config.host}:${config.port}/${config.database}?sslmode=disable`
+  // Create client with proper SSL settings
+  const client = new Client({
+    user: config.user,
+    database: config.database,
+    hostname: config.host,
+    port: config.port,
+    password: config.password,
+    tls: config.ssl_mode === 'require' ? { enabled: true, enforce: false } : false,
   });
-  
-  // If SSL is explicitly disabled, try non-SSL first
-  if (config.ssl_mode === 'disable' || config.ssl_mode === 'prefer') {
-    connectionConfigs.push({
-      user: config.user,
-      database: config.database,
-      hostname: config.host,
-      port: config.port,
-      password: config.password,
-      tls: {
-        enabled: false
-      }
-    });
-  }
-  
-  // Add SSL configurations as fallbacks
-  connectionConfigs.push(
-    // SSL with flexible settings
-    {
-      user: config.user,
-      database: config.database,
-      hostname: config.host,
-      port: config.port,
-      password: config.password,
-      tls: {
-        enabled: true,
-        enforce: false,
-        caCertificates: []
-      }
-    }
-  );
-
-  let client: Client | null = null;
-  let lastError: any = null;
-
-  // Try each configuration
-  for (let i = 0; i < connectionConfigs.length; i++) {
-     try {
-       console.log(`🔄 Trying connection config ${i + 1}/${connectionConfigs.length}`);
-       
-       client = new Client(connectionConfigs[i]);
-       await client.connect();
-      console.log('🔗 PostgreSQL connected successfully with config', i + 1);
-      break;
-    } catch (error: any) {
-      lastError = error;
-      console.log(`❌ Connection attempt ${i + 1} failed:`, error.message);
-      if (client) {
-        try {
-          await client.end();
-        } catch (e) {
-          // Ignore cleanup errors
-        }
-        client = null;
-      }
-    }
-  }
-
-  if (!client) {
-    console.error('💥 All connection attempts failed. Last error:', lastError?.message);
-    throw lastError || new Error('All connection attempts failed');
-  }
 
   try {
+    await client.connect();
+    console.log('🔗 PostgreSQL connected successfully');
 
     // Query to get schemas and tables with column info
     const result = await client.queryObject(`
       SELECT 
         t.table_schema,
         t.table_name,
-        COUNT(c.column_name) as column_count,
-        JSON_AGG(
-          JSON_BUILD_OBJECT(
-            'name', c.column_name,
-            'type', c.data_type,
-            'nullable', c.is_nullable = 'YES'
-          ) ORDER BY c.ordinal_position
-        ) as columns
+        COUNT(c.column_name) as column_count
       FROM information_schema.tables t
       LEFT JOIN information_schema.columns c ON t.table_name = c.table_name AND t.table_schema = c.table_schema
       WHERE t.table_schema NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
@@ -112,20 +52,51 @@ async function handleSqlCatalog(config: any) {
       ORDER BY t.table_schema, t.table_name
     `);
 
+    // Query to get columns separately for better performance
+    const columnsResult = await client.queryObject(`
+      SELECT 
+        table_schema as schema,
+        table_name as table,
+        column_name as name,
+        data_type as type,
+        is_nullable = 'YES' as nullable
+      FROM information_schema.columns
+      WHERE table_schema NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
+      ORDER BY table_schema, table_name, ordinal_position
+    `);
+
+    // Group columns by schema and table
+    const columnsByTable: any = {};
+    for (const col of columnsResult.rows) {
+      const key = `${col.schema}.${col.table}`;
+      if (!columnsByTable[key]) {
+        columnsByTable[key] = [];
+      }
+      columnsByTable[key].push({
+        name: col.name,
+        type: col.type,
+        nullable: col.nullable
+      });
+    }
+
     // Group by schema
     const schemas: any = {};
     for (const row of result.rows) {
       const schemaName = row.table_schema as string;
+      const tableName = row.table_name as string;
+      const tableKey = `${schemaName}.${tableName}`;
+      
       if (!schemas[schemaName]) {
         schemas[schemaName] = {
           name: schemaName,
           tables: []
         };
       }
+      
       schemas[schemaName].tables.push({
-        name: row.table_name,
+        name: tableName,
         column_count: row.column_count,
-        columns: row.columns
+        columns: columnsByTable[tableKey] || []
       });
     }
 
@@ -134,130 +105,24 @@ async function handleSqlCatalog(config: any) {
       schemas: Object.values(schemas)
     };
 
-    return new Response(
-      JSON.stringify(catalogData),
-      { status: 200, headers: corsHeaders }
-    );
+    return {
+      success: true,
+      data: catalogData
+    };
 
   } catch (error: any) {
-    console.error('💥 PostgreSQL connection failed:', error.message);
-    console.error('💥 Database catalog error:', error.message);
-    
-    return new Response(
-      JSON.stringify({ 
-        error: 'Database connection failed', 
-        message: error.message,
-        error_code: 'CONNECTION_FAILED'
-      }),
-      { status: 500, headers: corsHeaders }
-    );
+    console.error('💥 PostgreSQL catalog error:', error.message);
+    throw error;
   } finally {
-    if (client) {
-      try {
-        await client.end();
-      } catch (closeError) {
-        console.warn('Warning closing DB connection:', closeError);
-      }
+    try {
+      await client.end();
+    } catch (closeError) {
+      console.warn('Warning closing DB connection:', closeError);
     }
   }
 }
 
-async function handleSupabaseApiCatalog(connection_id: string, org_id: string) {
-  try {
-    const config = await getSupabaseApiConfig(connection_id, org_id);
-    
-    // Use Supabase pg_meta API to get schemas and tables
-    const headers = {
-      'apikey': config.supabase_key,
-      'Authorization': `Bearer ${config.supabase_key}`,
-      'Content-Type': 'application/json'
-    };
-
-    // Get schemas
-    const schemasResponse = await fetch(`${config.supabase_url}/rest/v1/rpc/pg_meta_schemas`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({})
-    });
-
-    if (!schemasResponse.ok) {
-      throw new Error('Failed to fetch schemas from Supabase API');
-    }
-
-    const schemasData = await schemasResponse.json();
-    const filteredSchemas = schemasData.filter((schema: any) => 
-      schema.name === config.schema_default || schema.name === 'public'
-    );
-
-    // Get tables for each schema
-    const schemas = [];
-    for (const schema of filteredSchemas) {
-      const tablesResponse = await fetch(`${config.supabase_url}/rest/v1/rpc/pg_meta_tables`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ schema: schema.name })
-      });
-
-      if (tablesResponse.ok) {
-        const tablesData = await tablesResponse.json();
-        
-        const tables = [];
-        for (const table of tablesData) {
-          // Get columns for each table
-          const columnsResponse = await fetch(`${config.supabase_url}/rest/v1/rpc/pg_meta_columns`, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({ schema: schema.name, table: table.name })
-          });
-
-          let columns = [];
-          if (columnsResponse.ok) {
-            columns = await columnsResponse.json();
-          }
-
-          tables.push({
-            name: table.name,
-            column_count: columns.length,
-            columns: columns.map((col: any) => ({
-              name: col.name,
-              type: col.format,
-              nullable: !col.is_required
-            }))
-          });
-        }
-
-        schemas.push({
-          name: schema.name,
-          tables
-        });
-      }
-    }
-
-    const catalogData = {
-      db: 'supabase',
-      schemas
-    };
-
-    return new Response(
-      JSON.stringify(catalogData),
-      { status: 200, headers: corsHeaders }
-    );
-
-  } catch (error: any) {
-    console.error('💥 Supabase API catalog error:', error.message);
-    
-    return new Response(
-      JSON.stringify({ 
-        error: 'Supabase API connection failed', 
-        message: error.message,
-        error_code: 'SUPABASE_API_FAILED'
-      }),
-      { status: 500, headers: corsHeaders }
-    );
-  }
-}
-
-export async function handler(req: Request) {
+serve(async (req) => {
   console.log('📋 list-database-catalog function called');
   
   // Handle CORS preflight
@@ -268,31 +133,118 @@ export async function handler(req: Request) {
   if (req.method !== 'POST') {
     return new Response(
       JSON.stringify({ error: 'Method not allowed' }),
-      { status: 405, headers: corsHeaders }
+      { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 
   try {
-    const { org_id, connection_id } = await req.json();
-    
-    console.log('📥 Raw request params:', { org_id, connection_id });
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Get user from auth header
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ success: false, message: 'Token de autorização necessário' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser(
+      authHeader.replace('Bearer ', '')
+    );
+
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ success: false, message: 'Token inválido' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { org_id, connection_id }: CatalogRequest = await req.json();
     
     if (!org_id || !connection_id) {
-      console.log('❌ Missing required params');
       return new Response(
-        JSON.stringify({ error: 'org_id and connection_id are required' }),
-        { status: 400, headers: corsHeaders }
+        JSON.stringify({ success: false, message: 'org_id e connection_id são obrigatórios' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     console.log(`📋 Listing catalog for connection ${connection_id} in org ${org_id}`);
 
-    // Validate permissions
-    const permError = await assertMembershipAndPerm(req, org_id, 'catalog:read');
-    if (permError) return permError;
+    // Validate membership
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('org_id, role')
+      .eq('id', user.id)
+      .single();
 
-    // Get connection config with proper password decryption
-    const config = await getSqlConnectionConfig(connection_id, org_id);
+    if (!profile || profile.org_id !== org_id) {
+      return new Response(
+        JSON.stringify({ success: false, message: 'Você não tem acesso a esta organização' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Get connection config
+    const { data: connection, error: connError } = await supabase
+      .from('data_connections')
+      .select('*')
+      .eq('id', connection_id)
+      .eq('account_id', org_id)
+      .single();
+
+    if (connError || !connection) {
+      return new Response(
+        JSON.stringify({ success: false, message: 'Conexão não encontrada' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Check if connection type is supported for catalog
+    if (connection.connection_type === 'supabase_api') {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          message: 'Catálogo não suportado para conexões Supabase API. Use uma conexão SQL direta.' 
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Decrypt password if needed
+    let password = connection.encrypted_password;
+    if (password) {
+      try {
+        const { data: decryptData, error: decryptError } = await supabase.functions.invoke('decrypt-password', {
+          body: { encrypted_password: password }
+        });
+        
+        if (decryptError || !decryptData?.success) {
+          throw new Error('Failed to decrypt password');
+        }
+        
+        password = decryptData.password;
+      } catch (decryptError) {
+        console.error('Password decryption failed:', decryptError);
+        return new Response(
+          JSON.stringify({ success: false, message: 'Falha ao descriptografar senha' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
+    const config = {
+      host: connection.host,
+      port: connection.port,
+      database: connection.database_name,
+      user: connection.username,
+      password: password,
+      ssl_mode: connection.ssl_enabled ? 'require' : 'disable',
+      connection_type: connection.connection_type
+    };
+
     console.log('✅ Connection config obtained:', {
       host: config.host,
       database: config.database,
@@ -301,25 +253,33 @@ export async function handler(req: Request) {
       ssl_mode: config.ssl_mode
     });
     
-    // Check connection type and handle accordingly
-    if (config.connection_type === 'supabase_api') {
-      return await handleSupabaseApiCatalog(connection_id, org_id);
+    // Handle SQL databases only (PostgreSQL/MySQL)
+    if (config.connection_type === 'postgresql' || config.connection_type === 'mysql') {
+      const result = await handleSqlCatalog(config);
+      
+      return new Response(
+        JSON.stringify(result.data),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     } else {
-      return await handleSqlCatalog(config);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          message: `Tipo de conexão '${config.connection_type}' não suportado para catálogo` 
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
   } catch (error: any) {
     console.error('💥 Catalog function error:', error.message);
     return new Response(
       JSON.stringify({ 
-        error: 'Catalog listing failed', 
-        message: error.message,
-        error_code: 'CATALOG_FAILED'
+        success: false,
+        message: 'Falha ao listar catálogo',
+        error: error.message
       }),
-      { status: 500, headers: corsHeaders }
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
-}
-
-// Main handler
-serve(handler);
+})

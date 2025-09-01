@@ -496,7 +496,6 @@ export function ConnectionsPage() {
                      <SelectItem value="postgresql">PostgreSQL</SelectItem>
                      <SelectItem value="mysql">MySQL</SelectItem>
                      <SelectItem value="supabase_api">Supabase (API)</SelectItem>
-                     <SelectItem value="rest">REST API genérica</SelectItem>
                    </SelectContent>
                 </Select>
                 

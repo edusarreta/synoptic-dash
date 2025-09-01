@@ -118,17 +118,6 @@ export default function Catalog() {
 
     setLoadingCatalog(true);
     try {
-      // Debug connection first
-      console.log('🧪 Running connection debug...');
-      const debugResult = await supabase.functions.invoke('debug-connection', {
-        body: {
-          org_id: userProfile.org_id,
-          connection_id: selectedConnectionId
-        }
-      });
-
-      console.log('🧪 Debug result:', debugResult);
-
       const { data, error } = await supabase.functions.invoke('list-database-catalog', {
         body: {
           org_id: userProfile.org_id,
