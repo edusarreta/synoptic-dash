@@ -131,16 +131,5 @@ serve(async (req) => {
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-
-  } catch (error: any) {
-    console.error('💥 Unexpected error:', error);
-    return new Response(
-      JSON.stringify({ 
-        success: false, 
-        message: 'Erro interno do servidor',
-        details: error.message 
-      }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
   }
 })
