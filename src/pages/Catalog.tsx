@@ -463,20 +463,25 @@ export default function Catalog() {
                             <Eye className="w-4 h-4" />
                             Preview dos Dados
                           </h4>
-                          <div className="flex items-center gap-2">
-                            {previewData?.total_rows && (
-                              <Badge variant="outline">
-                                {previewData.total_rows} linhas total
-                              </Badge>
-                            )}
-                            <Button 
-                              size="sm" 
-                              onClick={saveAsDataSource}
-                              disabled={!selectedTable}
-                            >
-                              Salvar como Fonte de Dados
-                            </Button>
-                          </div>
+                           <div className="flex items-center gap-2">
+                             {previewData?.total_rows && (
+                               <Badge variant="outline">
+                                 {previewData.total_rows} linhas total
+                               </Badge>
+                             )}
+                             {selectedConnection && (
+                               <Badge variant="secondary" className="text-xs">
+                                 Fonte: {selectedConnection.name}
+                               </Badge>
+                             )}
+                             <Button 
+                               size="sm" 
+                               onClick={saveAsDataSource}
+                               disabled={!selectedTable}
+                             >
+                               Salvar como Fonte de Dados
+                             </Button>
+                           </div>
                         </div>
                         
                         {loadingPreview ? (

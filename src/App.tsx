@@ -1,4 +1,4 @@
-import React from "react";
+import React, { lazy } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -29,6 +29,9 @@ import Catalog from "./pages/Catalog";
 import OrgPermissions from "./pages/OrgPermissions";
 import DashboardList from "./pages/DashboardList";
 import DashboardWizard from "./pages/DashboardWizard";
+import SuperAdmin from "./pages/SuperAdmin";
+
+const AdminUsers = lazy(() => import("./pages/AdminUsers"));
 
 const queryClient = new QueryClient();
 
@@ -143,6 +146,24 @@ export default function App() {
                       <OrgPermissions />
                     </AppLayout>
                   </RequirePermission>
+                </AuthenticatedRoute>
+              } />
+              
+              <Route path="/admin/users" element={
+                <AuthenticatedRoute>
+                  <RequirePermission perms={["rbac:read"]}>
+                    <AppLayout>
+                      <AdminUsers />
+                    </AppLayout>
+                  </RequirePermission>
+                </AuthenticatedRoute>
+              } />
+              
+              <Route path="/super-admin" element={
+                <AuthenticatedRoute>
+                  <AppLayout>
+                    <SuperAdmin />
+                  </AppLayout>
                 </AuthenticatedRoute>
               } />
               
