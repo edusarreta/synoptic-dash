@@ -57,6 +57,7 @@ export default function Catalog() {
   const [loadingConnections, setLoadingConnections] = useState(true);
   const [loadingCatalog, setLoadingCatalog] = useState(false);
   const [columnSearchQuery, setColumnSearchQuery] = useState("");
+  const [datasetName, setDatasetName] = useState("");
 
   useEffect(() => {
     loadConnections();
@@ -203,7 +204,7 @@ export default function Catalog() {
           connection_id: selectedConnectionId,
           sql_query: sql,
           mode: 'dataset',
-          dataset_name: `${schema}_${name}`,
+          dataset_name: datasetName.trim(),
           description: `Dataset gerado a partir de ${schema}.${name}`
         }
       });
@@ -220,8 +221,11 @@ export default function Catalog() {
 
       toast({
         title: "Sucesso",
-        description: `Fonte de dados "${schema}_${name}" salva com sucesso`,
+        description: `Fonte de dados "${datasetName.trim()}" salva com sucesso`,
       });
+      
+      // Clear the input after successful save
+      setDatasetName("");
     } catch (error: any) {
       console.error('Error saving dataset:', error);
       toast({
@@ -458,14 +462,25 @@ export default function Catalog() {
                                 <Eye className="h-4 w-4 mr-2" />
                                 {isLoadingPreview ? "Carregando..." : "Preview"}
                               </Button>
-                              
+                            </div>
+                          </div>
+                          <div>
+                            <h4 className="font-medium text-sm text-muted-foreground">Nome da Fonte de Dados</h4>
+                            <div className="flex gap-2 mt-1">
+                              <Input
+                                placeholder="Digite o nome da fonte de dados"
+                                value={datasetName}
+                                onChange={(e) => setDatasetName(e.target.value)}
+                                className="text-sm"
+                              />
                               <Button 
                                 variant="default" 
                                 size="sm"
                                 onClick={() => handleSaveAsDataset(selectedTable.schema, selectedTable.name)}
+                                disabled={!datasetName.trim()}
                               >
                                 <Download className="h-4 w-4 mr-2" />
-                                Salvar como Fonte de Dados
+                                Salvar
                               </Button>
                             </div>
                           </div>
