@@ -28,7 +28,8 @@ interface Schema {
 
 interface Table {
   name: string;
-  columns: Column[];
+  columns?: Column[];
+  column_count?: number;
 }
 
 interface Column {
@@ -382,9 +383,9 @@ export default function Catalog() {
                                 >
                                   <Table className="w-4 h-4 text-green-500" />
                                   <span className="text-sm">{table.name}</span>
-                                  <Badge variant="outline" className="ml-auto text-xs">
-                                    {table.columns?.length || 0} colunas
-                                  </Badge>
+                                   <Badge variant="outline" className="ml-auto text-xs">
+                                     {table.column_count || 0} colunas
+                                   </Badge>
                                 </div>
                               ))}
                             </CollapsibleContent>
