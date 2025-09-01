@@ -19,24 +19,26 @@ async function handleSqlCatalog(config: any) {
     connection_type: config.connection_type
   });
 
-  // Try multiple connection configurations
-  const connectionConfigs = [
-    // Primary config
-    {
+  // Try different connection configurations based on SSL settings
+  const connectionConfigs = [];
+  
+  // If SSL is explicitly disabled, try non-SSL first
+  if (config.ssl_mode === 'disable' || config.ssl_mode === 'prefer') {
+    connectionConfigs.push({
       user: config.user,
       database: config.database,
       hostname: config.host,
       port: config.port,
       password: config.password,
-      tls: config.ssl_mode === 'require' ? {
-        enabled: true,
-        enforce: false,
-        caCertificates: []
-      } : {
+      tls: {
         enabled: false
       }
-    },
-    // Fallback config with different SSL settings
+    });
+  }
+  
+  // Add SSL configurations as fallbacks
+  connectionConfigs.push(
+    // SSL with flexible settings
     {
       user: config.user,
       database: config.database,
@@ -49,7 +51,7 @@ async function handleSqlCatalog(config: any) {
         caCertificates: []
       }
     },
-    // Fallback config without SSL
+    // SSL required mode
     {
       user: config.user,
       database: config.database,
@@ -57,10 +59,25 @@ async function handleSqlCatalog(config: any) {
       port: config.port,
       password: config.password,
       tls: {
-        enabled: false
+        enabled: config.ssl_mode === 'require',
+        enforce: config.ssl_mode === 'require'
       }
     }
-  ];
+  );
+  
+  // If SSL wasn't disabled initially, add non-SSL as last resort
+  if (config.ssl_mode !== 'disable' && config.ssl_mode !== 'prefer') {
+    connectionConfigs.push({
+      user: config.user,
+      database: config.database,
+      hostname: config.host,
+      port: config.port,
+      password: config.password,
+      tls: {
+        enabled: false
+      }
+    });
+  }
 
   let client: Client | null = null;
   let lastError: any = null;
@@ -68,10 +85,14 @@ async function handleSqlCatalog(config: any) {
   // Try each configuration
   for (let i = 0; i < connectionConfigs.length; i++) {
     try {
-      console.log(`🔄 Trying connection config ${i + 1}/${connectionConfigs.length}`);
+      console.log(`🔄 Trying connection config ${i + 1}/${connectionConfigs.length}:`, {
+        ssl_enabled: connectionConfigs[i].tls.enabled,
+        ssl_enforce: connectionConfigs[i].tls.enforce
+      });
+      
       client = new Client(connectionConfigs[i]);
       await client.connect();
-      console.log('🔗 PostgreSQL connected successfully');
+      console.log('🔗 PostgreSQL connected successfully with config', i + 1);
       break;
     } catch (error: any) {
       lastError = error;
@@ -88,6 +109,7 @@ async function handleSqlCatalog(config: any) {
   }
 
   if (!client) {
+    console.error('💥 All connection attempts failed. Last error:', lastError?.message);
     throw lastError || new Error('All connection attempts failed');
   }
 
