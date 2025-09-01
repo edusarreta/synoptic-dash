@@ -83,29 +83,42 @@ export function ConnectionFormFields({ type, values, onChange }: FormFieldsProps
   const renderSupabaseApiFields = () => (
     <>
       <div className="grid gap-2">
-        <Label htmlFor="api_url">API URL</Label>
+        <Label htmlFor="project_url">Project URL</Label>
         <Input
-          id="api_url"
-          value={values.api_url || ''}
-          onChange={(e) => onChange('api_url', e.target.value)}
-          placeholder="https://xxxx.supabase.co/rest/v1"
+          id="project_url"
+          value={values.project_url || ''}
+          onChange={(e) => onChange('project_url', e.target.value)}
+          placeholder="https://xxxx.supabase.co"
         />
         <p className="text-xs text-muted-foreground">
-          URL da API REST do Supabase (termina com /rest/v1)
+          URL do projeto Supabase (ex: https://xxx.supabase.co)
         </p>
       </div>
       
       <div className="grid gap-2">
-        <Label htmlFor="api_key">API Key</Label>
+        <Label htmlFor="anon_key">Anon Key (Public)</Label>
         <Input
-          id="api_key"
-          type="password"
-          value={values.api_key || ''}
-          onChange={(e) => onChange('api_key', e.target.value)}
-          placeholder="Chave anon ou service_role"
+          id="anon_key"
+          value={values.anon_key || ''}
+          onChange={(e) => onChange('anon_key', e.target.value)}
+          placeholder="Chave pública anon"
         />
         <p className="text-xs text-muted-foreground">
-          Chave de API para autenticação (apikey + Authorization Bearer)
+          Chave pública para autenticação (apikey header)
+        </p>
+      </div>
+      
+      <div className="grid gap-2">
+        <Label htmlFor="service_role">Service Role (Secret)</Label>
+        <Input
+          id="service_role"
+          type="password"
+          value={values.service_role || ''}
+          onChange={(e) => onChange('service_role', e.target.value)}
+          placeholder="Chave service_role (secreto)"
+        />
+        <p className="text-xs text-muted-foreground">
+          Chave secreta service_role para operações avançadas
         </p>
       </div>
       
@@ -118,7 +131,7 @@ export function ConnectionFormFields({ type, values, onChange }: FormFieldsProps
           placeholder="public"
         />
         <p className="text-xs text-muted-foreground">
-          Schema do PostgreSQL a ser acessado via API
+          Schema PostgreSQL (default: public). O catálogo e previews usam a REST API do PostgREST.
         </p>
       </div>
     </>

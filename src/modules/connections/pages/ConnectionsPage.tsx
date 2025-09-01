@@ -42,8 +42,9 @@ export function ConnectionsPage() {
     port: 5432,
     ssl_mode: 'require',
     // Supabase API fields
-    api_url: '',
-    api_key: '',
+    project_url: '',
+    anon_key: '',
+    service_role: '',
     schema: 'public',
     // REST API fields
     supabase_url: '',
@@ -143,8 +144,9 @@ export function ConnectionsPage() {
         port: 5432,
         ssl_mode: 'require',
         // Supabase API fields
-        api_url: '',
-        api_key: '',
+        project_url: '',
+        anon_key: '',
+        service_role: '',
         schema: 'public',
         // REST API fields
         supabase_url: '',
@@ -295,10 +297,11 @@ export function ConnectionsPage() {
       password: '', // Don't populate password for security
       port: connection.port,
       ssl_mode: 'require', // Default since we don't store this separately
-      // Supabase API fields
-      api_url: '',
-      api_key: '',
-      schema: 'public',
+        // Supabase API fields
+        project_url: '',
+        anon_key: '',
+        service_role: '',
+        schema: 'public',
       // REST API fields
       supabase_url: '',
       base_url: '',
@@ -356,8 +359,9 @@ export function ConnectionsPage() {
           port: 5432,
           ssl_mode: 'require',
           // Supabase API fields
-          api_url: '',
-          api_key: '',
+          project_url: '',
+          anon_key: '',
+          service_role: '',
           schema: 'public',
           // REST API fields
           supabase_url: '',
@@ -530,9 +534,9 @@ export function ConnectionsPage() {
                   <div className="grid gap-2">
                     <Label htmlFor="api_url">API URL</Label>
                     <Input
-                      id="api_url"
-                      value={newConnection.api_url || ''}
-                      onChange={(e) => setNewConnection({...newConnection, api_url: e.target.value})}
+                      id="project_url"
+                      value={newConnection.project_url || ''}
+                      onChange={(e) => setNewConnection({...newConnection, project_url: e.target.value})}
                       placeholder="https://xxxx.supabase.co/rest/v1"
                     />
                     <p className="text-xs text-muted-foreground">
@@ -543,10 +547,9 @@ export function ConnectionsPage() {
                   <div className="grid gap-2">
                     <Label htmlFor="api_key">API Key</Label>
                     <Input
-                      id="api_key"
-                      type="password"
-                      value={newConnection.api_key || ''}
-                      onChange={(e) => setNewConnection({...newConnection, api_key: e.target.value})}
+                      id="anon_key"
+                      value={newConnection.anon_key || ''}
+                      onChange={(e) => setNewConnection({...newConnection, anon_key: e.target.value})}
                       placeholder="Chave anon ou service_role"
                     />
                     <p className="text-xs text-muted-foreground">

@@ -423,7 +423,7 @@ export default function Catalog() {
                       Detalhes da tabela/view
                     </CardDescription>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="space-y-4">
                     <Tabs defaultValue="resumo" className="w-full">
                       <TabsList className="grid w-full grid-cols-2">
                         <TabsTrigger value="resumo">Resumo</TabsTrigger>
