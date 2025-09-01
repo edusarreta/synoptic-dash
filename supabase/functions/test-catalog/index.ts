@@ -92,8 +92,31 @@ export async function handler(req: Request) {
       type: connection.connection_type,
       active: connection.is_active,
       host: connection.host,
-      database: connection.database_name
+      database: connection.database_name,
+      hasEncryptedPassword: !!connection.encrypted_password
     });
+
+    // Decrypt password if needed
+    let password = connection.encrypted_password;
+    if (password) {
+      try {
+        console.log('🔓 Attempting to decrypt password...');
+        const { data: decryptData, error: decryptError } = await supabase.functions.invoke('decrypt-password', {
+          body: { encrypted_password: password }
+        });
+        
+        if (decryptError) {
+          console.log('⚠️ Decrypt error:', decryptError);
+        } else if (decryptData?.password) {
+          password = decryptData.password;
+          console.log('✅ Password decrypted successfully');
+        } else {
+          console.log('⚠️ No decrypted password returned, using as-is');
+        }
+      } catch (decryptError: any) {
+        console.warn('⚠️ Failed to decrypt password, using as-is:', decryptError.message);
+      }
+    }
 
     // Test simple connection
     if (connection.connection_type === 'postgresql') {
@@ -103,7 +126,7 @@ export async function handler(req: Request) {
           database: connection.database_name,
           hostname: connection.host,
           port: connection.port || 5432,
-          password: connection.encrypted_password,
+          password: password, // Use decrypted password
           tls: {
             enabled: false  // Start with SSL disabled
           }

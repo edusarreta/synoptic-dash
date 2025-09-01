@@ -315,9 +315,15 @@ export async function handler(req: Request) {
     const permError = await assertMembershipAndPerm(req, org_id, 'catalog:read');
     if (permError) return permError;
 
-    // Get connection config  
+    // Get connection config with proper password decryption
     const config = await getSqlConnectionConfig(connection_id, org_id);
-    console.log('✅ DB config obtained');
+    console.log('✅ Connection config obtained:', {
+      host: config.host,
+      database: config.database,
+      user: config.user,
+      hasPassword: !!config.password,
+      ssl_mode: config.ssl_mode
+    });
     
     // Check connection type and handle accordingly
     if (config.connection_type === 'supabase_api') {
