@@ -12,7 +12,7 @@ import { useSession } from "@/providers/SessionProvider";
 import { usePermissions } from "@/modules/auth/PermissionsProvider";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { getTypeLabel } from "@/modules/connections/utils/normalizeConnectionType";
+import { getConnectionTypeLabel } from "@/modules/connections/connectionTypes";
 
 interface Connection {
   id: string;
@@ -317,7 +317,7 @@ export default function Catalog() {
                             )}
                             <span>{connection.name}</span>
                             <Badge variant="outline" className="ml-auto">
-                              {getTypeLabel(connection.connection_type)}
+                              {getConnectionTypeLabel(connection.connection_type)}
                             </Badge>
                           </div>
                         </SelectItem>

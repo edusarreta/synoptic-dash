@@ -1,10 +1,5 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { adminClient, corsHeaders, handleCORS, errorResponse, successResponse } from "../_shared/admin.ts";
 
 interface DeleteConnectionRequest {
   org_id: string;
@@ -12,148 +7,107 @@ interface DeleteConnectionRequest {
 }
 
 serve(async (req) => {
-  console.log('delete-connection function called');
-
-  // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
+  console.log('🗑️ delete-connection function called');
+  
+  // Handle CORS
+  const corsResponse = handleCORS(req);
+  if (corsResponse) return corsResponse;
 
   try {
-    const authHeader = req.headers.get('authorization');
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ success: false, message: 'Autorização necessária' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    // Get user from auth header
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+    const admin = adminClient();
     
-    if (userError || !user) {
-      console.error('Auth error:', userError);
-      return new Response(
-        JSON.stringify({ success: false, message: 'Token inválido' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    // Get user from auth header
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return errorResponse('Token de autorização necessário', 401);
     }
 
-    const body: DeleteConnectionRequest = await req.json();
-    const { org_id, connection_id } = body;
+    const { data: { user }, error: authError } = await admin.auth.getUser(
+      authHeader.replace('Bearer ', '')
+    );
+
+    if (authError || !user) {
+      return errorResponse('Token inválido', 401);
+    }
+
+    const { org_id, connection_id }: DeleteConnectionRequest = await req.json();
+    console.log('🗑️ Delete request for connection', connection_id, 'in org', org_id);
 
     if (!org_id || !connection_id) {
-      return new Response(
-        JSON.stringify({ success: false, message: 'org_id e connection_id são obrigatórios' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return errorResponse('org_id e connection_id são obrigatórios', 400);
     }
 
-    console.log('Deleting connection:', { org_id, connection_id, user_id: user.id });
-
-    // Verify user has permission to delete connections
-    const { data: profile, error: profileError } = await supabase
+    // Validate membership and permissions
+    const { data: profile } = await admin
       .from('profiles')
       .select('org_id, role')
       .eq('id', user.id)
       .single();
 
-    console.log('Profile data:', profile, 'Profile error:', profileError);
-
-    if (profileError || !profile || profile.org_id !== org_id) {
-      console.log('Access denied:', { profile, expected_org_id: org_id });
-      return new Response(
-        JSON.stringify({ success: false, message: 'Acesso negado' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    if (!profile || profile.org_id !== org_id) {
+      return errorResponse('Você não tem acesso a esta organização', 403);
     }
 
-    // Check if user has delete permission (MASTER/ADMIN roles can delete)
-    console.log('Checking role:', profile.role);
+    // Check if user has permission to delete connections (MASTER or ADMIN)
     if (!['MASTER', 'ADMIN'].includes(profile.role)) {
-      return new Response(
-        JSON.stringify({ success: false, message: 'Permissão insuficiente para excluir conexões' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return errorResponse('Você não tem permissão para excluir conexões', 403);
     }
 
-    // Verify connection belongs to the organization
-    console.log('Looking for connection:', { connection_id, account_id: org_id });
-    const { data: connection, error: fetchError } = await supabase
+    // Verify connection exists and belongs to org
+    const { data: connection, error: fetchError } = await admin
       .from('data_connections')
-      .select('id, name, account_id')
+      .select('id, name')
       .eq('id', connection_id)
       .eq('account_id', org_id)
+      .eq('is_active', true)
       .single();
 
-    console.log('Connection found:', connection, 'Fetch error:', fetchError);
-
     if (fetchError || !connection) {
-      console.error('Connection fetch error:', fetchError);
-      return new Response(
-        JSON.stringify({ success: false, message: 'Conexão não encontrada' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return errorResponse('Conexão não encontrada ou já foi excluída', 404);
     }
 
-    // Soft delete: set deleted_at timestamp
-    console.log('Attempting to delete connection:', connection_id);
-    const { error: deleteError } = await supabase
+    // Perform soft delete by setting is_active = false
+    const { error: deleteError } = await admin
       .from('data_connections')
       .update({ 
         is_active: false,
         updated_at: new Date().toISOString()
       })
-      .eq('id', connection_id);
-
-    console.log('Delete result:', { deleteError });
+      .eq('id', connection_id)
+      .eq('account_id', org_id);
 
     if (deleteError) {
       console.error('Delete error:', deleteError);
-      return new Response(
-        JSON.stringify({ success: false, message: 'Falha ao excluir conexão' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return errorResponse('Falha ao excluir conexão', 500);
     }
 
-    // Log the deletion for audit
+    // Log the deletion in audit logs
     try {
-      await supabase.from('audit_logs').insert({
-        org_id,
-        user_id: user.id,
-        action: 'connections:delete',
-        resource_type: 'connection',
-        resource_id: connection_id,
-        metadata: {
-          connection_name: connection.name,
-          deleted_at: new Date().toISOString()
-        }
-      });
+      await admin
+        .from('audit_logs')
+        .insert({
+          org_id,
+          user_id: user.id,
+          action: 'connection_deleted',
+          resource_type: 'data_connection',
+          resource_id: connection_id,
+          metadata: {
+            connection_name: connection.name,
+            deleted_by: user.id
+          }
+        });
     } catch (auditError) {
       console.warn('Failed to log audit:', auditError);
-      // Don't fail the operation for audit logging issues
+      // Don't fail the main operation
     }
 
-    console.log('Connection deleted successfully:', connection_id);
+    console.log('✅ Connection deleted successfully:', connection_id);
+    return successResponse({
+      message: `Conexão "${connection.name}" foi excluída com sucesso`
+    });
 
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: `Conexão "${connection.name}" foi excluída com sucesso` 
-      }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-
-  } catch (error) {
-    console.error('Unexpected error:', error);
-    return new Response(
-      JSON.stringify({ success: false, message: 'Erro interno do servidor' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+  } catch (error: any) {
+    console.error('Function error:', error);
+    return errorResponse('Erro interno do servidor', 500);
   }
-})
+});

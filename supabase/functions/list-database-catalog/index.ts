@@ -1,285 +1,285 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.56.1';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { adminClient, corsHeaders, handleCORS, errorResponse, successResponse } from "../_shared/admin.ts";
 
 interface CatalogRequest {
   org_id: string;
   connection_id: string;
 }
 
-async function handleSqlCatalog(config: any) {
-  console.log('🔌 Starting SQL catalog with config:', {
-    host: config.host,
-    port: config.port,
-    database: config.database,
-    user: config.user,
-    hasPassword: !!config.password,
-    ssl_mode: config.ssl_mode,
-    connection_type: config.connection_type
-  });
-
-  const { Client } = await import("https://deno.land/x/postgres@v0.17.0/mod.ts");
-  
-  // Create client with proper SSL settings
-  const client = new Client({
-    user: config.user,
-    database: config.database,
-    hostname: config.host,
-    port: config.port,
-    password: config.password,
-    tls: config.ssl_mode === 'require' ? { enabled: true, enforce: false } : false,
-  });
-
-  try {
-    await client.connect();
-    console.log('🔗 PostgreSQL connected successfully');
-
-    // Query to get schemas and tables with column info
-    const result = await client.queryObject(`
-      SELECT 
-        t.table_schema,
-        t.table_name,
-        COUNT(c.column_name) as column_count
-      FROM information_schema.tables t
-      LEFT JOIN information_schema.columns c ON t.table_name = c.table_name AND t.table_schema = c.table_schema
-      WHERE t.table_schema NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
-      AND t.table_type = 'BASE TABLE'
-      GROUP BY t.table_schema, t.table_name
-      ORDER BY t.table_schema, t.table_name
-    `);
-
-    // Query to get columns separately for better performance
-    const columnsResult = await client.queryObject(`
-      SELECT 
-        table_schema as schema,
-        table_name as table,
-        column_name as name,
-        data_type as type,
-        is_nullable = 'YES' as nullable
-      FROM information_schema.columns
-      WHERE table_schema NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
-      ORDER BY table_schema, table_name, ordinal_position
-    `);
-
-    // Group columns by schema and table
-    const columnsByTable: any = {};
-    for (const col of columnsResult.rows) {
-      const key = `${col.schema}.${col.table}`;
-      if (!columnsByTable[key]) {
-        columnsByTable[key] = [];
-      }
-      columnsByTable[key].push({
-        name: col.name,
-        type: col.type,
-        nullable: col.nullable
-      });
-    }
-
-    // Group by schema
-    const schemas: any = {};
-    for (const row of result.rows) {
-      const schemaName = row.table_schema as string;
-      const tableName = row.table_name as string;
-      const tableKey = `${schemaName}.${tableName}`;
-      
-      if (!schemas[schemaName]) {
-        schemas[schemaName] = {
-          name: schemaName,
-          tables: []
-        };
-      }
-      
-      schemas[schemaName].tables.push({
-        name: tableName,
-        column_count: row.column_count,
-        columns: columnsByTable[tableKey] || []
-      });
-    }
-
-    const catalogData = {
-      db: config.database,
-      schemas: Object.values(schemas)
-    };
-
-    return {
-      success: true,
-      data: catalogData
-    };
-
-  } catch (error: any) {
-    console.error('💥 PostgreSQL catalog error:', error.message);
-    throw error;
-  } finally {
-    try {
-      await client.end();
-    } catch (closeError) {
-      console.warn('Warning closing DB connection:', closeError);
-    }
-  }
-}
-
 serve(async (req) => {
   console.log('📋 list-database-catalog function called');
   
-  // Handle CORS preflight
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
-
-  if (req.method !== 'POST') {
-    return new Response(
-      JSON.stringify({ error: 'Method not allowed' }),
-      { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
+  // Handle CORS
+  const corsResponse = handleCORS(req);
+  if (corsResponse) return corsResponse;
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
+    const admin = adminClient();
+    
     // Get user from auth header
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      return new Response(
-        JSON.stringify({ success: false, message: 'Token de autorização necessário' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return errorResponse('Token de autorização necessário', 401);
     }
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser(
+    const { data: { user }, error: authError } = await admin.auth.getUser(
       authHeader.replace('Bearer ', '')
     );
 
     if (authError || !user) {
-      return new Response(
-        JSON.stringify({ success: false, message: 'Token inválido' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return errorResponse('Token inválido', 401);
     }
 
     const { org_id, connection_id }: CatalogRequest = await req.json();
-    
-    if (!org_id || !connection_id) {
-      return new Response(
-        JSON.stringify({ success: false, message: 'org_id e connection_id são obrigatórios' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    console.log(`📋 Listing catalog for connection ${connection_id} in org ${org_id}`);
+    console.log('📋 Listing catalog for connection', connection_id, 'in org', org_id);
 
     // Validate membership
-    const { data: profile } = await supabase
+    const { data: profile } = await admin
       .from('profiles')
       .select('org_id, role')
       .eq('id', user.id)
       .single();
 
     if (!profile || profile.org_id !== org_id) {
-      return new Response(
-        JSON.stringify({ success: false, message: 'Você não tem acesso a esta organização' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return errorResponse('Você não tem acesso a esta organização', 403);
     }
 
-    // Get connection config
-    const { data: connection, error: connError } = await supabase
+    // Get connection details
+    const { data: connection, error: connectionError } = await admin
       .from('data_connections')
       .select('*')
       .eq('id', connection_id)
       .eq('account_id', org_id)
       .single();
 
-    if (connError || !connection) {
-      return new Response(
-        JSON.stringify({ success: false, message: 'Conexão não encontrada' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    if (connectionError || !connection) {
+      return errorResponse('Conexão não encontrada', 404);
     }
 
-    // Check if connection type is supported for catalog
+    // Handle Supabase API separately  
     if (connection.connection_type === 'supabase_api') {
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          message: 'Catálogo não suportado para conexões Supabase API. Use uma conexão SQL direta.' 
-        }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      return errorResponse(
+        'Use conexão SQL para Catálogo/SQL Editor; Supabase API virá no próximo ciclo.',
+        400
       );
     }
 
-    // Decrypt password if needed
-    let password = connection.encrypted_password;
-    if (password) {
-      try {
-        const { data: decryptData, error: decryptError } = await supabase.functions.invoke('decrypt-password', {
-          body: { encrypted_password: password }
-        });
-        
-        if (decryptError || !decryptData?.success) {
-          throw new Error('Failed to decrypt password');
+    // Decrypt password
+    const key = Deno.env.get('DB_ENCRYPTION_KEY');
+    if (!key) {
+      return errorResponse('Chave de criptografia não configurada', 500);
+    }
+
+    let decryptedPassword: string;
+    try {
+      const encoder = new TextEncoder();
+      const keyData = encoder.encode(key);
+      const encrypted = new Uint8Array(atob(connection.encrypted_password).split('').map(c => c.charCodeAt(0)));
+      const decrypted = new Uint8Array(encrypted.length);
+      
+      for (let i = 0; i < encrypted.length; i++) {
+        decrypted[i] = encrypted[i] ^ keyData[i % keyData.length];
+      }
+      
+      decryptedPassword = new TextDecoder().decode(decrypted);
+    } catch (decryptError) {
+      console.error('❌ Password decryption failed:', decryptError);
+      return errorResponse('Erro ao descriptografar senha', 500);
+    }
+
+    const catalogData = await generateCatalog(connection, decryptedPassword);
+    return successResponse(catalogData);
+
+  } catch (error: any) {
+    console.error('Function error:', error);
+    return errorResponse('Erro interno do servidor', 500);
+  }
+});
+
+async function generateCatalog(connection: any, password: string) {
+  if (connection.connection_type === 'postgresql') {
+    return await generatePostgreSQLCatalog(connection, password);
+  } else if (connection.connection_type === 'mysql') {
+    return await generateMySQLCatalog(connection, password);
+  } else {
+    throw new Error(`Tipo de conexão não suportado: ${connection.connection_type}`);
+  }
+}
+
+async function generatePostgreSQLCatalog(connection: any, password: string) {
+  const { Client } = await import("https://deno.land/x/postgres@v0.17.0/mod.ts");
+  
+  const pgConfig: any = {
+    user: connection.username,
+    database: connection.database_name,
+    hostname: connection.host,
+    port: connection.port || 5432,
+    password: password,
+  };
+
+  // Configure SSL
+  const sslMode = connection.connection_config?.ssl_mode || 'require';
+  if (sslMode === 'disable') {
+    pgConfig.tls = { enabled: false };
+  } else {
+    pgConfig.tls = { enabled: true, enforce: false };
+  }
+
+  const client = new Client(pgConfig);
+  
+  try {
+    await client.connect();
+
+    // Get schemas and tables
+    const tablesResult = await client.queryObject(`
+      SELECT table_schema, table_name
+      FROM information_schema.tables
+      WHERE table_type = 'BASE TABLE'
+      ORDER BY table_schema, table_name
+    `);
+
+    // Get columns
+    const columnsResult = await client.queryObject(`
+      SELECT table_schema, table_name, column_name, data_type
+      FROM information_schema.columns
+      ORDER BY table_schema, table_name, ordinal_position
+    `);
+
+    await client.end();
+
+    // Organize data
+    const schemasMap = new Map();
+    
+    // Group tables by schema
+    for (const row of tablesResult.rows as any[]) {
+      const schemaName = row.table_schema;
+      const tableName = row.table_name;
+      
+      if (!schemasMap.has(schemaName)) {
+        schemasMap.set(schemaName, { name: schemaName, tables: [] });
+      }
+      
+      schemasMap.get(schemaName).tables.push({
+        name: tableName,
+        columns: [],
+        column_count: 0
+      });
+    }
+
+    // Add columns to tables
+    for (const row of columnsResult.rows as any[]) {
+      const schemaName = row.table_schema;
+      const tableName = row.table_name;
+      const schema = schemasMap.get(schemaName);
+      
+      if (schema) {
+        const table = schema.tables.find((t: any) => t.name === tableName);
+        if (table) {
+          table.columns.push({
+            name: row.column_name,
+            type: row.data_type
+          });
         }
-        
-        password = decryptData.password;
-      } catch (decryptError) {
-        console.error('Password decryption failed:', decryptError);
-        return new Response(
-          JSON.stringify({ success: false, message: 'Falha ao descriptografar senha' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
       }
     }
 
-    const config = {
-      host: connection.host,
-      port: connection.port,
-      database: connection.database_name,
-      user: connection.username,
-      password: password,
-      ssl_mode: connection.ssl_enabled ? 'require' : 'disable',
-      connection_type: connection.connection_type
-    };
-
-    console.log('✅ Connection config obtained:', {
-      host: config.host,
-      database: config.database,
-      user: config.user,
-      hasPassword: !!config.password,
-      ssl_mode: config.ssl_mode
-    });
-    
-    // Handle SQL databases only (PostgreSQL/MySQL)
-    if (config.connection_type === 'postgresql' || config.connection_type === 'mysql') {
-      const result = await handleSqlCatalog(config);
-      
-      return new Response(
-        JSON.stringify(result.data),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    } else {
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          message: `Tipo de conexão '${config.connection_type}' não suportado para catálogo` 
-        }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    // Calculate column counts
+    for (const schema of schemasMap.values()) {
+      for (const table of schema.tables) {
+        table.column_count = table.columns.length;
+      }
     }
 
-  } catch (error: any) {
-    console.error('💥 Catalog function error:', error.message);
-    return new Response(
-      JSON.stringify({ 
-        success: false,
-        message: 'Falha ao listar catálogo',
-        error: error.message
-      }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return {
+      db: connection.database_name,
+      schemas: Array.from(schemasMap.values())
+    };
+
+  } catch (error) {
+    console.error('PostgreSQL catalog error:', error);
+    throw error;
   }
-})
+}
+
+async function generateMySQLCatalog(connection: any, password: string) {
+  const { Client } = await import("https://deno.land/x/mysql@v2.12.1/mod.ts");
+  
+  const client = await new Client().connect({
+    hostname: connection.host,
+    port: connection.port || 3306,
+    username: connection.username,
+    password: password,
+    db: connection.database_name,
+  });
+
+  try {
+    // Get tables
+    const tablesResult = await client.execute(`
+      SELECT TABLE_SCHEMA, TABLE_NAME
+      FROM information_schema.TABLES
+      WHERE TABLE_TYPE = 'BASE TABLE'
+      ORDER BY TABLE_SCHEMA, TABLE_NAME
+    `);
+
+    // Get columns
+    const columnsResult = await client.execute(`
+      SELECT TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME, DATA_TYPE
+      FROM information_schema.COLUMNS
+      ORDER BY TABLE_SCHEMA, TABLE_NAME, ORDINAL_POSITION
+    `);
+
+    await client.close();
+
+    // Organize data
+    const schemasMap = new Map();
+    
+    // Group tables by schema
+    for (const row of tablesResult.rows || []) {
+      const schemaName = row[0];
+      const tableName = row[1];
+      
+      if (!schemasMap.has(schemaName)) {
+        schemasMap.set(schemaName, { name: schemaName, tables: [] });
+      }
+      
+      schemasMap.get(schemaName).tables.push({
+        name: tableName,
+        columns: [],
+        column_count: 0
+      });
+    }
+
+    // Add columns to tables
+    for (const row of columnsResult.rows || []) {
+      const schemaName = row[0];
+      const tableName = row[1];
+      const schema = schemasMap.get(schemaName);
+      
+      if (schema) {
+        const table = schema.tables.find((t: any) => t.name === tableName);
+        if (table) {
+          table.columns.push({
+            name: row[2],
+            type: row[3]
+          });
+        }
+      }
+    }
+
+    // Calculate column counts
+    for (const schema of schemasMap.values()) {
+      for (const table of schema.tables) {
+        table.column_count = table.columns.length;
+      }
+    }
+
+    return {
+      db: connection.database_name,
+      schemas: Array.from(schemasMap.values())
+    };
+
+  } catch (error) {
+    console.error('MySQL catalog error:', error);
+    throw error;
+  }
+}

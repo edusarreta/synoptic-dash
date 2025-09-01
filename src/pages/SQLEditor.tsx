@@ -15,7 +15,7 @@ import { useSession } from "@/providers/SessionProvider";
 import { usePermissions } from "@/modules/auth/PermissionsProvider";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { getTypeLabel } from "@/modules/connections/utils/normalizeConnectionType";
+import { getConnectionTypeLabel, supportsSQLEditor } from "@/modules/connections/connectionTypes";
 
 interface Connection {
   id: string;
@@ -369,13 +369,13 @@ export default function SQLEditor() {
                      <SelectValue placeholder="Selecione uma conexão SQL" />
                    </SelectTrigger>
                    <SelectContent>
-                     {connections
-                       .filter(conn => conn.connection_type === 'postgresql' || conn.connection_type === 'mysql')
-                       .map((connection) => (
-                         <SelectItem key={connection.id} value={connection.id}>
-                           {connection.name} - {getTypeLabel(connection.connection_type)}
-                         </SelectItem>
-                       ))}
+                      {connections
+                        .filter(conn => supportsSQLEditor(conn.connection_type))
+                        .map((connection) => (
+                          <SelectItem key={connection.id} value={connection.id}>
+                            {connection.name} - {getConnectionTypeLabel(connection.connection_type)}
+                          </SelectItem>
+                        ))}
                    </SelectContent>
                  </Select>
                  

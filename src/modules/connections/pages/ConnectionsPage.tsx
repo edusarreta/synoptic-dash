@@ -10,7 +10,7 @@ import { Database, Plus, TestTube, CheckCircle, XCircle, AlertCircle, Trash2, In
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useSession } from '@/providers/SessionProvider';
-import { getTypeLabel, getConnectionHelpText } from '../utils/normalizeConnectionType';
+import { getConnectionTypeLabel, getConnectionHelpText, getAvailableConnectionTypes, getDefaultSSLMode } from '../connectionTypes';
 
 interface DataConnection {
   id: string;
@@ -41,16 +41,6 @@ export function ConnectionsPage() {
     password: '',
     port: 5432,
     ssl_mode: 'require',
-    // Supabase API specific fields
-    supabase_url: '',
-    supabase_key: '',
-    schema_default: 'public',
-    // REST API specific fields
-    base_url: '',
-    auth_type: 'none',
-    auth_token: '',
-    headers_json: '{}',
-    test_path: '',
   });
 
   const [editingConnection, setEditingConnection] = useState<DataConnection | null>(null);

@@ -80,8 +80,20 @@ verify_jwt = false
 [functions.test-database-connection]
 verify_jwt = true
 
-[functions.run-sql-query]
+[functions.create-connection]
+verify_jwt = true
+
+[functions.update-connection]
+verify_jwt = true
+
+[functions.delete-connection]
 verify_jwt = true
 
 [functions.list-database-catalog]
+verify_jwt = true
+
+[functions.preview-table]
+verify_jwt = true
+
+[functions.run-sql-query]
 verify_jwt = true
