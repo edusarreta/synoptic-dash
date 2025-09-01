@@ -226,20 +226,40 @@ serve(async (req) => {
           };
 
         } else {
-          // Get all schemas
-          const schemasQuery = `
+          // Get all schemas with their tables
+          const catalogQuery = `
             SELECT 
-              schema_name 
-            FROM information_schema.schemata 
-            WHERE schema_name NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
-            ORDER BY schema_name
+              s.schema_name as name,
+              COALESCE(
+                json_agg(
+                  json_build_object(
+                    'name', t.table_name,
+                    'type', t.table_type,
+                    'column_count', c.column_count
+                  ) ORDER BY t.table_name
+                ) FILTER (WHERE t.table_name IS NOT NULL), 
+                '[]'::json
+              ) as tables
+            FROM information_schema.schemata s
+            LEFT JOIN information_schema.tables t ON s.schema_name = t.table_schema
+            LEFT JOIN (
+              SELECT 
+                table_schema,
+                table_name,
+                COUNT(*) as column_count
+              FROM information_schema.columns
+              GROUP BY table_schema, table_name
+            ) c ON t.table_schema = c.table_schema AND t.table_name = c.table_name
+            WHERE s.schema_name NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
+            GROUP BY s.schema_name
+            ORDER BY s.schema_name
           `;
           
-          const schemasResult = await client.queryObject(schemasQuery);
+          const catalogResult = await client.queryObject(catalogQuery);
           
           result = {
-            type: 'schemas',
-            schemas: schemasResult.rows
+            type: 'catalog',
+            schemas: catalogResult.rows
           };
         }
 
