@@ -41,6 +41,13 @@ export function ConnectionsPage() {
     password: '',
     port: 5432,
     ssl_mode: 'require',
+    // Supabase API fields
+    supabase_url: '',
+    base_url: '',
+    auth_type: 'none',
+    auth_token: '',
+    headers_json: '{}',
+    test_path: '',
   });
 
   const [editingConnection, setEditingConnection] = useState<DataConnection | null>(null);
@@ -132,8 +139,6 @@ export function ConnectionsPage() {
         port: 5432,
         ssl_mode: 'require',
         supabase_url: '',
-        supabase_key: '',
-        schema_default: 'public',
         base_url: '',
         auth_type: 'none',
         auth_token: '',
@@ -277,8 +282,6 @@ export function ConnectionsPage() {
       port: connection.port,
       ssl_mode: 'require', // Default since we don't store this separately
       supabase_url: '',
-      supabase_key: '',
-      schema_default: 'public',
       base_url: '',
       auth_type: 'none',
       auth_token: '',
@@ -334,8 +337,6 @@ export function ConnectionsPage() {
           port: 5432,
           ssl_mode: 'require',
           supabase_url: '',
-          supabase_key: '',
-          schema_default: 'public',
           base_url: '',
           auth_type: 'none',
           auth_token: '',
