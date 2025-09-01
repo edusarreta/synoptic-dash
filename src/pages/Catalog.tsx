@@ -153,27 +153,83 @@ export default function Catalog() {
     setSelectedTable({ schema: schemaName, table: tableName });
 
     try {
-      // Mock preview data for now - in production, this would come from the catalog API
-      const mockData: PreviewData = {
-        columns: ['id', 'name', 'created_at', 'status'],
-        rows: [
-          ['1', 'Exemplo 1', '2024-01-01T10:00:00Z', 'active'],
-          ['2', 'Exemplo 2', '2024-01-02T11:00:00Z', 'inactive'],
-          ['3', 'Exemplo 3', '2024-01-03T12:00:00Z', 'active']
-        ],
-        total_rows: 150
-      };
+      const { data, error } = await supabase.functions.invoke('preview-table', {
+        body: {
+          org_id: userProfile.org_id,
+          connection_id: selectedConnectionId,
+          schema: schemaName,
+          table: tableName,
+          limit: 50,
+          offset: 0
+        }
+      });
 
-      setPreviewData(mockData);
+      if (error) {
+        console.error('Error loading preview:', error);
+        toast({
+          title: "Erro",
+          description: "Falha ao carregar preview da tabela",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (data) {
+        setPreviewData({
+          columns: data.columns?.map((col: any) => col.column_name) || [],
+          rows: data.rows || [],
+          total_rows: data.total_count || 0
+        });
+      }
     } catch (error) {
       console.error('Error loading preview:', error);
       toast({
         title: "Erro",
-        description: "Falha ao carregar preview",
+        description: "Falha ao carregar preview da tabela",
         variant: "destructive",
       });
     } finally {
       setLoadingPreview(false);
+    }
+  };
+
+  const saveAsDataSource = async () => {
+    if (!selectedTable || !userProfile?.org_id || !selectedConnectionId) return;
+
+    try {
+      // Create a saved query for the table
+      const { error: queryError } = await supabase
+        .from('saved_queries')
+        .insert({
+          org_id: userProfile.org_id,
+          name: `${selectedTable.schema}.${selectedTable.table}`,
+          description: `Tabela ${selectedTable.table} do schema ${selectedTable.schema}`,
+          sql_query: `SELECT * FROM ${selectedTable.schema}.${selectedTable.table}`,
+          connection_id: selectedConnectionId,
+          created_by: userProfile.id
+        });
+
+      if (queryError) {
+        console.error('Error saving query:', queryError);
+        toast({
+          title: "Erro", 
+          description: "Falha ao salvar como fonte de dados",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Sucesso",
+        description: "Tabela salva como fonte de dados",
+      });
+    } catch (error) {
+      console.error('Error saving as data source:', error);
+      toast({
+        title: "Erro",
+        description: "Falha ao salvar como fonte de dados", 
+        variant: "destructive",
+      });
     }
   };
 
@@ -398,11 +454,20 @@ export default function Catalog() {
                             <Eye className="w-4 h-4" />
                             Preview dos Dados
                           </h4>
-                          {previewData?.total_rows && (
-                            <Badge variant="outline">
-                              {previewData.total_rows} linhas total
-                            </Badge>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {previewData?.total_rows && (
+                              <Badge variant="outline">
+                                {previewData.total_rows} linhas total
+                              </Badge>
+                            )}
+                            <Button 
+                              size="sm" 
+                              onClick={saveAsDataSource}
+                              disabled={!selectedTable}
+                            >
+                              Salvar como Fonte de Dados
+                            </Button>
+                          </div>
                         </div>
                         
                         {loadingPreview ? (
