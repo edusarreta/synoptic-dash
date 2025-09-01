@@ -19,6 +19,9 @@ interface TestConnectionRequest {
 }
 
 serve(async (req) => {
+  console.log('🔧 test-database-connection function called');
+  console.log('Method:', req.method);
+  
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -51,6 +54,7 @@ serve(async (req) => {
 
     const { org_id, connection_id, type, host, port, database, user: dbUser, password, ssl_mode }: TestConnectionRequest = await req.json();
 
+    console.log('🔧 Request body parsed:', { org_id, connection_id, type, host, port, database, user: dbUser, password: password ? '[REDACTED]' : 'none', ssl_mode });
     console.log(`🔧 Testing connection for user ${user.id} in org ${org_id}`);
 
     // Validate membership
@@ -74,12 +78,15 @@ serve(async (req) => {
 
     // If connection_id is provided, get connection from database
     if (connection_id) {
+      console.log('🔧 Fetching connection from database:', connection_id);
       const { data: connection, error: connectionError } = await supabase
         .from('data_connections')
         .select('*')
         .eq('id', connection_id)
         .eq('account_id', org_id)
         .single();
+
+      console.log('🔧 Connection data:', connection ? 'found' : 'not found', 'Error:', connectionError);
 
       if (connectionError || !connection) {
         return new Response(
@@ -89,11 +96,15 @@ serve(async (req) => {
       }
 
       // Decrypt password
+      console.log('🔧 Decrypting password...');
       const { data: decryptedData, error: decryptError } = await supabase.functions.invoke('decrypt-password', {
         body: { encrypted_password: connection.encrypted_password }
       });
 
+      console.log('🔧 Password decryption result:', decryptedData ? 'success' : 'failed', 'Error:', decryptError);
+
       if (decryptError || !decryptedData.success) {
+        console.error('❌ Password decryption failed:', decryptError);
         return new Response(
           JSON.stringify({ ok: false, message: 'Erro ao descriptografar senha' }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -121,6 +132,14 @@ serve(async (req) => {
         ssl_mode
       };
     }
+
+    console.log('🔧 Final connection config:', { 
+      type: connectionConfig.type, 
+      host: connectionConfig.host, 
+      port: connectionConfig.port, 
+      database: connectionConfig.database, 
+      user: connectionConfig.user 
+    });
 
     try {
       if (connectionConfig.type === 'postgresql') {
