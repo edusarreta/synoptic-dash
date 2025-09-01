@@ -49,6 +49,9 @@ export function ConnectionsPage() {
     test_path: '',
   });
 
+  // Forçar re-mount do form quando tipo muda
+  const [formKey, setFormKey] = useState(0);
+
   const [editingConnection, setEditingConnection] = useState<DataConnection | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
@@ -302,7 +305,7 @@ export function ConnectionsPage() {
           port: newConnection.port,
           database: newConnection.database_name,
           user: newConnection.username,
-          password: newConnection.password || 'unchanged', // Use special value if password not changed
+          password: newConnection.password || undefined, // Não enviar se vazio
           ssl_mode: newConnection.ssl_mode,
           update_id: editingConnection.id, // Special parameter for update
         }
@@ -474,16 +477,35 @@ export function ConnectionsPage() {
                 <Label htmlFor="type">Tipo de Conexão</Label>
                 <Select 
                   value={newConnection.connection_type} 
-                  onValueChange={(value) => setNewConnection({...newConnection, connection_type: value})}
+                  onValueChange={(value) => {
+                    // Reset form com novos valores baseados no tipo
+                    const baseConnection = {
+                      name: newConnection.name,
+                      connection_type: value,
+                      host: '',
+                      database_name: '',
+                      username: '',
+                      password: '',
+                      port: value === 'mysql' ? 3306 : 5432,
+                      ssl_mode: value.includes('supabase') ? 'require' : 'prefer',
+                      base_url: '',
+                      auth_type: 'anon',
+                      auth_token: '',
+                      headers_json: '{}',
+                      test_path: '',
+                    };
+                    setNewConnection(baseConnection);
+                    setFormKey(prev => prev + 1); // Forçar re-mount
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="postgresql">PostgreSQL</SelectItem>
-                     <SelectItem value="supabase_postgres">Supabase Postgres (DB)</SelectItem>
-                     <SelectItem value="mysql">MySQL</SelectItem>
-                     <SelectItem value="rest_api">REST API (Supabase/Genérico)</SelectItem>
+                    <SelectItem value="supabase">Supabase (PostgreSQL)</SelectItem>
+                    <SelectItem value="mysql">MySQL</SelectItem>
+                    <SelectItem value="rest">REST API</SelectItem>
                   </SelectContent>
                 </Select>
                 

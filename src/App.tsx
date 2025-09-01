@@ -94,7 +94,9 @@ export default function App() {
               <Route path="/sql" element={
                 <AuthenticatedRoute>
                   <RequirePermission perms={["sql:run"]}>
-                    <SQLEditor />
+                    <AppLayout>
+                      <SQLEditor />
+                    </AppLayout>
                   </RequirePermission>
                 </AuthenticatedRoute>
               } />
@@ -115,6 +117,16 @@ export default function App() {
                   <RequirePermission perms={["dashboards:create"]}>
                     <AppLayout>
                       <DashboardWizard />
+                    </AppLayout>
+                  </RequirePermission>
+                </AuthenticatedRoute>
+              } />
+              
+              <Route path="/dashboards/:id" element={
+                <AuthenticatedRoute>
+                  <RequirePermission perms={["dashboards:read"]}>
+                    <AppLayout>
+                      <Dashboard />
                     </AppLayout>
                   </RequirePermission>
                 </AuthenticatedRoute>
