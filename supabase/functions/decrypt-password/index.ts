@@ -27,13 +27,46 @@ export function decryptPassword(encryptedPassword: string): string {
   }
 }
 
-// This function should not be exposed as a public endpoint for security
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+// This function is internal and should only be called by other edge functions
 serve(async (req) => {
-  return new Response(
-    JSON.stringify({ error: 'This endpoint is not available' }),
-    { 
-      status: 404, 
-      headers: { 'Content-Type': 'application/json' } 
+  // Handle CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const { encrypted_password }: { encrypted_password: string } = await req.json();
+    
+    if (!encrypted_password) {
+      return new Response(JSON.stringify({ 
+        error: 'encrypted_password is required' 
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
-  );
+
+    const decryptedPassword = decryptPassword(encrypted_password);
+    
+    return new Response(JSON.stringify({ 
+      decrypted_password: decryptedPassword 
+    }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+    
+  } catch (error) {
+    console.error('Decrypt password error:', error);
+    return new Response(JSON.stringify({ 
+      error: 'Failed to decrypt password' 
+    }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
 });

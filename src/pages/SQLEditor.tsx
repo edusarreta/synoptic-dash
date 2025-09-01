@@ -156,10 +156,46 @@ export default function SQLEditor() {
       setQueryResult(data);
       
       if (mode === 'dataset') {
-        toast({
-          title: "✅ Dataset criado",
-          description: `Query executada e dataset criado com ${data.rows?.length || 0} linhas`,
-        });
+        // Try to create dataset record
+        try {
+          const { data: datasetData, error: datasetError } = await supabase
+            .from('datasets')
+            .insert({
+              org_id: userProfile.org_id,
+              name: `Dataset ${new Date().toLocaleString('pt-BR')}`,
+              description: `Dataset criado a partir da consulta SQL`,
+              cache_ttl_seconds: 300,
+              data_schema: {
+                columns: data.columns,
+                row_count: data.rows?.length || 0
+              },
+              last_updated: new Date().toISOString(),
+              created_by: userProfile.id
+            })
+            .select()
+            .single();
+
+          if (datasetError) {
+            console.error('Dataset creation error:', datasetError);
+            toast({
+              title: "⚠️ Query executada",
+              description: `Query executada com ${data.rows?.length || 0} linhas, mas dataset não foi criado`,
+              variant: "destructive",
+            });
+          } else {
+            toast({
+              title: "✅ Dataset criado",
+              description: `Dataset criado com ID: ${datasetData.id} (${data.rows?.length || 0} linhas)`,
+            });
+          }
+        } catch (datasetError) {
+          console.error('Dataset creation error:', datasetError);
+          toast({
+            title: "⚠️ Query executada",
+            description: `Query executada com ${data.rows?.length || 0} linhas, mas dataset não foi criado`,
+            variant: "destructive",
+          });
+        }
       } else {
         toast({
           title: "✅ Query executada",
@@ -188,26 +224,38 @@ export default function SQLEditor() {
       return;
     }
 
+    if (!userProfile?.org_id || !userProfile?.id) {
+      toast({
+        title: "Erro de autenticação",
+        description: "Usuário não identificado",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       const { data, error } = await supabase
         .from('saved_queries')
         .insert({
-          org_id: userProfile?.org_id,
+          org_id: userProfile.org_id,
           name: queryName || `Consulta ${new Date().toLocaleString('pt-BR')}`,
-          description: queryDescription,
+          description: queryDescription || null,
           sql_query: sql,
           connection_id: selectedConnectionId,
-          parameters: queryParams,
-          created_by: userProfile?.id
+          parameters: Object.keys(queryParams).length > 0 ? queryParams : {},
+          created_by: userProfile.id
         })
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Save query error:', error);
+        throw error;
+      }
 
       toast({
         title: "✅ Consulta salva",
-        description: "Consulta salva com sucesso!",
+        description: `Consulta salva com ID: ${data.id}`,
       });
 
       setShowSaveDialog(false);
@@ -217,7 +265,7 @@ export default function SQLEditor() {
       console.error('Error saving query:', error);
       toast({
         title: "Erro ao salvar",
-        description: "Falha ao salvar consulta",
+        description: error.message || "Falha ao salvar consulta",
         variant: "destructive",
       });
     }

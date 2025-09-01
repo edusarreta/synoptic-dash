@@ -141,11 +141,12 @@ serve(async (req) => {
     }
 
     // Decrypt password
-    const { data: decryptResult } = await supabase.functions.invoke('decrypt-password', {
+    const { data: decryptResult, error: decryptError } = await supabase.functions.invoke('decrypt-password', {
       body: { encrypted_password: connection.encrypted_password }
     });
 
-    if (!decryptResult?.decrypted_password) {
+    if (decryptError || !decryptResult?.decrypted_password) {
+      console.error('Decryption failed:', decryptError);
       return new Response(JSON.stringify({ 
         error_code: 'DECRYPTION_FAILED',
         message: 'Failed to decrypt connection password' 

@@ -46,6 +46,7 @@ const navigationItems = [
 ];
 
 const adminItems = [
+  { title: "Usuários", url: "/admin/users", icon: Shield, permission: "rbac:read" },
   { title: "Permissões", url: "/org/permissions", icon: Shield, permission: "rbac:manage" },
 ];
 
