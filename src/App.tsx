@@ -29,6 +29,7 @@ import Catalog from "./pages/Catalog";
 import OrgPermissions from "./pages/OrgPermissions";
 import DashboardList from "./pages/DashboardList";
 import DashboardWizard from "./pages/DashboardWizard";
+import DashboardEditor from "./pages/DashboardEditor";
 import SuperAdmin from "./pages/SuperAdmin";
 
 const AdminUsers = lazy(() => import("./pages/AdminUsers"));
@@ -116,6 +117,26 @@ export default function App() {
                    <RequirePermission perms={["dashboards:create"]}>
                      <AppLayout>
                        <DashboardWizard />
+                     </AppLayout>
+                   </RequirePermission>
+                 </AuthenticatedRoute>
+               } />
+               
+               <Route path="/dashboards/:id/view" element={
+                 <AuthenticatedRoute>
+                   <RequirePermission perms={["dashboards:read"]}>
+                     <AppLayout>
+                       <Dashboard />
+                     </AppLayout>
+                   </RequirePermission>
+                 </AuthenticatedRoute>
+               } />
+
+               <Route path="/dashboards/:id/edit" element={
+                 <AuthenticatedRoute>
+                   <RequirePermission perms={["dashboards:update_layout"]}>
+                     <AppLayout>
+                       <DashboardEditor />
                      </AppLayout>
                    </RequirePermission>
                  </AuthenticatedRoute>

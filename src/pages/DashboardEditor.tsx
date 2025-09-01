@@ -1,93 +1,129 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Save, Share, Eye, Settings, BarChart3, PieChart, LineChart, TrendingUp } from 'lucide-react';
-import { BackLink } from '@/components/BackLink';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Responsive, WidthProvider } from 'react-grid-layout';
+import { DndContext, DragEndEvent, DragOverlay, closestCenter } from '@dnd-kit/core';
+import { 
+  Plus, 
+  Save, 
+  Eye, 
+  BarChart3, 
+  TrendingUp, 
+  PieChart, 
+  Table, 
+  LineChart,
+  AreaChart,
+  Hash,
+  Calendar,
+  Type,
+  Trash2,
+  Settings,
+  ArrowLeft
+} from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useSession } from '@/providers/SessionProvider';
 import { useToast } from '@/hooks/use-toast';
+import { BackLink } from '@/components/BackLink';
+import 'react-grid-layout/css/styles.css';
+import 'react-resizable/css/styles.css';
+
+const ResponsiveGridLayout = WidthProvider(Responsive);
+
+interface ChartWidget {
+  i: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  minW?: number;
+  minH?: number;
+  type: 'bar' | 'line' | 'area' | 'pie' | 'table' | 'kpi';
+  title: string;
+  dataConfig: {
+    dimensions: string[];
+    metrics: string[];
+    aggregation: 'sum' | 'avg' | 'count' | 'count_distinct';
+  };
+}
 
 interface Dashboard {
   id: string;
   name: string;
   description?: string;
-  layout_config?: any;
+  layout_config: any;
+  org_id: string;
+  created_by: string;
   created_at: string;
   updated_at: string;
 }
 
-interface Widget {
-  id: string;
-  type: 'chart' | 'kpi' | 'table';
-  title: string;
-  config: any;
-  position: { x: number; y: number; w: number; h: number };
-}
+const chartTypes = [
+  { value: 'table', label: 'Tabela', icon: Table },
+  { value: 'bar', label: 'Barra', icon: BarChart3 },
+  { value: 'line', label: 'Linha', icon: LineChart },
+  { value: 'area', label: 'Área', icon: AreaChart },
+  { value: 'pie', label: 'Pizza', icon: PieChart },
+  { value: 'kpi', label: 'KPI', icon: Hash },
+];
+
+const aggregationTypes = [
+  { value: 'sum', label: 'Soma' },
+  { value: 'avg', label: 'Média' },
+  { value: 'count', label: 'Contagem' },
+  { value: 'count_distinct', label: 'Contagem Distinta' },
+];
 
 export default function DashboardEditor() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { userProfile } = useSession();
   const { toast } = useToast();
-  
+
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
-  const [widgets, setWidgets] = useState<Widget[]>([]);
+  const [widgets, setWidgets] = useState<ChartWidget[]>([]);
+  const [selectedWidget, setSelectedWidget] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [dataFields, setDataFields] = useState<any[]>([]);
 
   useEffect(() => {
-    if (id && userProfile?.org_id) {
+    if (id) {
       loadDashboard();
     }
-  }, [id, userProfile]);
+  }, [id]);
 
   const loadDashboard = async () => {
-    if (!id || !userProfile?.org_id) return;
-
     try {
       const { data, error } = await supabase
         .from('dashboards')
         .select('*')
         .eq('id', id)
-        .eq('org_id', userProfile.org_id)
         .single();
 
       if (error) throw error;
 
       setDashboard(data);
       
-      // Load widgets from layout config or create sample widgets
-      const layoutConfig = data.layout_config as any;
-      if (layoutConfig?.widgets) {
-        setWidgets(layoutConfig.widgets);
-      } else {
-        // Create sample widgets for demo
-        setWidgets([
-          {
-            id: '1',
-            type: 'kpi',
-            title: 'Total de Vendas',
-            config: { value: 'R$ 125.430', change: '+12%' },
-            position: { x: 0, y: 0, w: 3, h: 2 }
-          },
-          {
-            id: '2',
-            type: 'chart',
-            title: 'Vendas por Mês',
-            config: { type: 'bar', data: [] },
-            position: { x: 3, y: 0, w: 6, h: 4 }
-          },
-          {
-            id: '3',
-            type: 'chart',
-            title: 'Distribuição por Categoria',
-            config: { type: 'pie', data: [] },
-            position: { x: 9, y: 0, w: 3, h: 4 }
-          }
-        ]);
+      // Load existing widgets from layout_config
+      if (data.layout_config && typeof data.layout_config === 'object' && 'widgets' in data.layout_config) {
+        setWidgets((data.layout_config as any).widgets || []);
       }
+
+      // Mock data fields - in real implementation, load from datasource
+      setDataFields([
+        { name: 'produto', type: 'dimension', dataType: 'text' },
+        { name: 'categoria', type: 'dimension', dataType: 'text' },
+        { name: 'data_venda', type: 'dimension', dataType: 'date' },
+        { name: 'vendas', type: 'metric', dataType: 'number' },
+        { name: 'quantidade', type: 'metric', dataType: 'number' },
+        { name: 'preco_unitario', type: 'metric', dataType: 'number' },
+      ]);
     } catch (error) {
       console.error('Error loading dashboard:', error);
       toast({
@@ -101,7 +137,7 @@ export default function DashboardEditor() {
   };
 
   const saveDashboard = async () => {
-    if (!dashboard || !userProfile?.org_id) return;
+    if (!dashboard) return;
 
     setSaving(true);
     try {
@@ -110,23 +146,23 @@ export default function DashboardEditor() {
         .update({
           layout_config: {
             ...dashboard.layout_config,
-            widgets,
-            updated_at: new Date().toISOString()
-          }
+            widgets: widgets
+          },
+          updated_at: new Date().toISOString()
         })
         .eq('id', dashboard.id);
 
       if (error) throw error;
 
       toast({
-        title: "Sucesso",
-        description: "Dashboard salvo com sucesso",
+        title: "✅ Dashboard salvo",
+        description: "Layout atualizado com sucesso",
       });
     } catch (error) {
       console.error('Error saving dashboard:', error);
       toast({
-        title: "Erro",
-        description: "Falha ao salvar dashboard",
+        title: "Erro ao salvar",
+        description: "Falha ao atualizar dashboard",
         variant: "destructive",
       });
     } finally {
@@ -134,21 +170,78 @@ export default function DashboardEditor() {
     }
   };
 
-  const addWidget = (type: 'chart' | 'kpi' | 'table') => {
-    const newWidget: Widget = {
-      id: Date.now().toString(),
+  const addWidget = (type: ChartWidget['type']) => {
+    const newWidget: ChartWidget = {
+      i: `widget-${Date.now()}`,
+      x: 0,
+      y: 0,
+      w: type === 'kpi' ? 2 : 4,
+      h: type === 'table' ? 6 : 4,
+      minW: 2,
+      minH: 2,
       type,
-      title: `Novo ${type === 'kpi' ? 'KPI' : type === 'chart' ? 'Gráfico' : 'Tabela'}`,
-      config: type === 'kpi' ? { value: '0', change: '+0%' } : { type: 'bar', data: [] },
-      position: { x: 0, y: 0, w: type === 'kpi' ? 3 : 6, h: type === 'kpi' ? 2 : 4 }
+      title: `Novo ${chartTypes.find(t => t.value === type)?.label}`,
+      dataConfig: {
+        dimensions: [],
+        metrics: [],
+        aggregation: 'sum'
+      }
     };
 
-    setWidgets([...widgets, newWidget]);
+    setWidgets(prev => [...prev, newWidget]);
+    setSelectedWidget(newWidget.i);
   };
 
   const removeWidget = (widgetId: string) => {
-    setWidgets(widgets.filter(w => w.id !== widgetId));
+    setWidgets(prev => prev.filter(w => w.i !== widgetId));
+    if (selectedWidget === widgetId) {
+      setSelectedWidget(null);
+    }
   };
+
+  const updateWidget = (widgetId: string, updates: Partial<ChartWidget>) => {
+    setWidgets(prev => prev.map(w => 
+      w.i === widgetId ? { ...w, ...updates } : w
+    ));
+  };
+
+  const onLayoutChange = (layout: any) => {
+    setWidgets(prev => prev.map(widget => {
+      const layoutItem = layout.find((l: any) => l.i === widget.i);
+      return layoutItem ? { ...widget, ...layoutItem } : widget;
+    }));
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    
+    if (over && active.data.current?.field) {
+      const field = active.data.current.field;
+      const widgetId = over.id as string;
+      const dropZone = over.data.current?.dropZone;
+      
+      if (dropZone && selectedWidget === widgetId) {
+        const widget = widgets.find(w => w.i === widgetId);
+        if (widget) {
+          const updatedConfig = { ...widget.dataConfig };
+          
+          if (dropZone === 'dimensions') {
+            if (!updatedConfig.dimensions.includes(field.name)) {
+              updatedConfig.dimensions = [...updatedConfig.dimensions, field.name];
+            }
+          } else if (dropZone === 'metrics') {
+            if (!updatedConfig.metrics.includes(field.name)) {
+              updatedConfig.metrics = [...updatedConfig.metrics, field.name];
+            }
+          }
+          
+          updateWidget(widgetId, { dataConfig: updatedConfig });
+        }
+      }
+    }
+  };
+
+  const selectedWidgetData = selectedWidget ? widgets.find(w => w.i === selectedWidget) : null;
 
   if (loading) {
     return (
@@ -156,7 +249,7 @@ export default function DashboardEditor() {
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-            <p className="mt-2 text-muted-foreground">Carregando dashboard...</p>
+            <p className="mt-2 text-muted-foreground">Carregando editor...</p>
           </div>
         </div>
       </div>
@@ -166,138 +259,301 @@ export default function DashboardEditor() {
   if (!dashboard) {
     return (
       <div className="container mx-auto py-6">
-        <BackLink />
-        <div className="flex flex-col items-center justify-center h-64">
+        <div className="text-center">
           <h3 className="text-lg font-semibold mb-2">Dashboard não encontrado</h3>
-          <p className="text-muted-foreground mb-4">
-            O dashboard solicitado não foi encontrado ou você não tem acesso a ele.
-          </p>
-          <Button onClick={() => navigate('/dashboards')}>
-            Voltar para Dashboards
-          </Button>
+          <BackLink to="/dashboards" />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <BackLink />
-          <div>
-            <h1 className="text-3xl font-bold">{dashboard.name}</h1>
-            {dashboard.description && (
-              <p className="text-muted-foreground mt-2">{dashboard.description}</p>
+    <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <div className="h-screen flex flex-col">
+        {/* Header */}
+        <div className="border-b bg-background p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Button variant="ghost" size="sm" onClick={() => navigate('/dashboards')}>
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Voltar
+              </Button>
+              <div>
+                <h1 className="text-xl font-bold">{dashboard.name}</h1>
+                <p className="text-sm text-muted-foreground">Editor de Dashboard</p>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => navigate(`/dashboards/${id}/view`)}>
+                <Eye className="w-4 h-4 mr-2" />
+                Visualizar
+              </Button>
+              <Button onClick={saveDashboard} disabled={saving}>
+                <Save className="w-4 h-4 mr-2" />
+                {saving ? 'Salvando...' : 'Salvar'}
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-1 overflow-hidden">
+          {/* Sidebar */}
+          <div className="w-80 border-r bg-muted/10 p-4 overflow-y-auto">
+            <div className="space-y-6">
+              {/* Chart Types */}
+              <div>
+                <h3 className="font-semibold mb-3">Tipos de Gráfico</h3>
+                <div className="grid grid-cols-2 gap-2">
+                  {chartTypes.map((type) => (
+                    <Button
+                      key={type.value}
+                      variant="outline"
+                      size="sm"
+                      className="h-auto p-3 flex flex-col gap-1"
+                      onClick={() => addWidget(type.value as any)}
+                    >
+                      <type.icon className="w-4 h-4" />
+                      <span className="text-xs">{type.label}</span>
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Data Fields */}
+              <div>
+                <h3 className="font-semibold mb-3">Campos de Dados</h3>
+                <div className="space-y-2">
+                  {dataFields.map((field) => (
+                    <div
+                      key={field.name}
+                      className="p-2 border rounded cursor-grab flex items-center gap-2 hover:bg-muted/50"
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData('field', JSON.stringify(field));
+                      }}
+                    >
+                      {field.type === 'dimension' ? (
+                        field.dataType === 'date' ? (
+                          <Calendar className="w-4 h-4 text-blue-500" />
+                        ) : (
+                          <Type className="w-4 h-4 text-green-500" />
+                        )
+                      ) : (
+                        <Hash className="w-4 h-4 text-orange-500" />
+                      )}
+                      <span className="text-sm">{field.name}</span>
+                      <Badge variant="outline" className="text-xs ml-auto">
+                        {field.type === 'dimension' ? 'Dim' : 'Métr'}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Widget Inspector */}
+              {selectedWidgetData && (
+                <div>
+                  <h3 className="font-semibold mb-3">Configurações</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <Label>Título</Label>
+                      <Input
+                        value={selectedWidgetData.title}
+                        onChange={(e) => updateWidget(selectedWidget!, { title: e.target.value })}
+                        placeholder="Nome do gráfico"
+                      />
+                    </div>
+
+                    <div>
+                      <Label>Agregação</Label>
+                      <Select
+                        value={selectedWidgetData.dataConfig.aggregation}
+                        onValueChange={(value: any) => 
+                          updateWidget(selectedWidget!, {
+                            dataConfig: { ...selectedWidgetData.dataConfig, aggregation: value }
+                          })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {aggregationTypes.map(agg => (
+                            <SelectItem key={agg.value} value={agg.value}>
+                              {agg.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label>Dimensões</Label>
+                      <div className="p-2 border rounded min-h-[60px] bg-muted/20"
+                           onDrop={(e) => {
+                             e.preventDefault();
+                             const field = JSON.parse(e.dataTransfer.getData('field'));
+                             if (field.type === 'dimension') {
+                               const updatedConfig = { ...selectedWidgetData.dataConfig };
+                               if (!updatedConfig.dimensions.includes(field.name)) {
+                                 updatedConfig.dimensions = [...updatedConfig.dimensions, field.name];
+                                 updateWidget(selectedWidget!, { dataConfig: updatedConfig });
+                               }
+                             }
+                           }}
+                           onDragOver={(e) => e.preventDefault()}>
+                        {selectedWidgetData.dataConfig.dimensions.length === 0 ? (
+                          <p className="text-xs text-muted-foreground">Arraste dimensões aqui</p>
+                        ) : (
+                          <div className="flex flex-wrap gap-1">
+                            {selectedWidgetData.dataConfig.dimensions.map(dim => (
+                              <Badge key={dim} variant="secondary" className="text-xs">
+                                {dim}
+                                <button
+                                  className="ml-1 hover:text-destructive"
+                                  onClick={() => {
+                                    const updatedConfig = { ...selectedWidgetData.dataConfig };
+                                    updatedConfig.dimensions = updatedConfig.dimensions.filter(d => d !== dim);
+                                    updateWidget(selectedWidget!, { dataConfig: updatedConfig });
+                                  }}
+                                >
+                                  ×
+                                </button>
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label>Métricas</Label>
+                      <div className="p-2 border rounded min-h-[60px] bg-muted/20"
+                           onDrop={(e) => {
+                             e.preventDefault();
+                             const field = JSON.parse(e.dataTransfer.getData('field'));
+                             if (field.type === 'metric') {
+                               const updatedConfig = { ...selectedWidgetData.dataConfig };
+                               if (!updatedConfig.metrics.includes(field.name)) {
+                                 updatedConfig.metrics = [...updatedConfig.metrics, field.name];
+                                 updateWidget(selectedWidget!, { dataConfig: updatedConfig });
+                               }
+                             }
+                           }}
+                           onDragOver={(e) => e.preventDefault()}>
+                        {selectedWidgetData.dataConfig.metrics.length === 0 ? (
+                          <p className="text-xs text-muted-foreground">Arraste métricas aqui</p>
+                        ) : (
+                          <div className="flex flex-wrap gap-1">
+                            {selectedWidgetData.dataConfig.metrics.map(metric => (
+                              <Badge key={metric} variant="secondary" className="text-xs">
+                                {metric}
+                                <button
+                                  className="ml-1 hover:text-destructive"
+                                  onClick={() => {
+                                    const updatedConfig = { ...selectedWidgetData.dataConfig };
+                                    updatedConfig.metrics = updatedConfig.metrics.filter(m => m !== metric);
+                                    updateWidget(selectedWidget!, { dataConfig: updatedConfig });
+                                  }}
+                                >
+                                  ×
+                                </button>
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => removeWidget(selectedWidget!)}
+                      className="w-full"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Remover Widget
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Main Canvas */}
+          <div className="flex-1 p-4 bg-muted/5 overflow-auto">
+            {widgets.length === 0 ? (
+              <div className="h-full flex items-center justify-center">
+                <div className="text-center">
+                  <BarChart3 className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">Canvas Vazio</h3>
+                  <p className="text-muted-foreground mb-4">
+                    Adicione gráficos clicando nos tipos na barra lateral
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <ResponsiveGridLayout
+                className="layout"
+                layouts={{ lg: widgets }}
+                breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
+                cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
+                rowHeight={60}
+                onLayoutChange={onLayoutChange}
+                margin={[16, 16]}
+                containerPadding={[0, 0]}
+              >
+                {widgets.map((widget) => (
+                  <div 
+                    key={widget.i} 
+                    className={`bg-background border rounded-lg shadow-sm ${
+                      selectedWidget === widget.i ? 'ring-2 ring-primary' : ''
+                    }`}
+                    onClick={() => setSelectedWidget(widget.i)}
+                  >
+                    <div className="p-3 h-full flex flex-col">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-medium text-sm truncate">{widget.title}</h4>
+                        <div className="flex items-center gap-1">
+                          <Badge variant="outline" className="text-xs">
+                            {chartTypes.find(t => t.value === widget.type)?.label}
+                          </Badge>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedWidget(widget.i);
+                            }}
+                          >
+                            <Settings className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </div>
+                      
+                      <div className="flex-1 border rounded p-2 bg-muted/20 flex items-center justify-center">
+                        <div className="text-center text-muted-foreground">
+                          {widget.type === 'bar' && <BarChart3 className="w-8 h-8 mx-auto mb-1" />}
+                          {widget.type === 'line' && <LineChart className="w-8 h-8 mx-auto mb-1" />}
+                          {widget.type === 'area' && <AreaChart className="w-8 h-8 mx-auto mb-1" />}
+                          {widget.type === 'pie' && <PieChart className="w-8 h-8 mx-auto mb-1" />}
+                          {widget.type === 'table' && <Table className="w-8 h-8 mx-auto mb-1" />}
+                          {widget.type === 'kpi' && <Hash className="w-8 h-8 mx-auto mb-1" />}
+                          <p className="text-xs">
+                            {widget.dataConfig.dimensions.length} dim, {widget.dataConfig.metrics.length} métr
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </ResponsiveGridLayout>
             )}
           </div>
         </div>
-        
-        <div className="flex items-center gap-2">
-          <Badge variant="outline">
-            {widgets.length} widgets
-          </Badge>
-          <Button variant="outline" size="sm">
-            <Eye className="w-4 h-4 mr-2" />
-            Preview
-          </Button>
-          <Button variant="outline" size="sm">
-            <Share className="w-4 h-4 mr-2" />
-            Compartilhar
-          </Button>
-          <Button onClick={saveDashboard} disabled={saving}>
-            <Save className="w-4 h-4 mr-2" />
-            {saving ? 'Salvando...' : 'Salvar'}
-          </Button>
-        </div>
       </div>
-
-      {/* Toolbar */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Adicionar Widgets</CardTitle>
-          <CardDescription>
-            Clique para adicionar novos elementos ao seu dashboard
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-4">
-            <Button variant="outline" onClick={() => addWidget('kpi')}>
-              <TrendingUp className="w-4 h-4 mr-2" />
-              KPI
-            </Button>
-            <Button variant="outline" onClick={() => addWidget('chart')}>
-              <BarChart3 className="w-4 h-4 mr-2" />
-              Gráfico de Barras
-            </Button>
-            <Button variant="outline" onClick={() => addWidget('chart')}>
-              <LineChart className="w-4 h-4 mr-2" />
-              Gráfico de Linha
-            </Button>
-            <Button variant="outline" onClick={() => addWidget('chart')}>
-              <PieChart className="w-4 h-4 mr-2" />
-              Gráfico de Pizza
-            </Button>
-            <Button variant="outline" onClick={() => addWidget('table')}>
-              <Settings className="w-4 h-4 mr-2" />
-              Tabela
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Canvas */}
-      <div className="grid grid-cols-12 gap-4 min-h-96">
-        {widgets.map((widget) => (
-          <Card 
-            key={widget.id}
-            className={`col-span-${Math.min(widget.position.w, 12)} cursor-move border-2 border-dashed hover:border-primary transition-colors`}
-          >
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm">{widget.title}</CardTitle>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => removeWidget(widget.id)}
-                  className="h-6 w-6 p-0"
-                >
-                  ×
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {widget.type === 'kpi' ? (
-                <div className="text-center">
-                  <div className="text-2xl font-bold">{widget.config.value}</div>
-                  <div className="text-sm text-green-600">{widget.config.change}</div>
-                </div>
-              ) : widget.type === 'chart' ? (
-                <div className="h-32 bg-muted rounded flex items-center justify-center">
-                  <BarChart3 className="w-8 h-8 text-muted-foreground" />
-                  <span className="ml-2 text-muted-foreground">Gráfico</span>
-                </div>
-              ) : (
-                <div className="h-32 bg-muted rounded flex items-center justify-center">
-                  <Settings className="w-8 h-8 text-muted-foreground" />
-                  <span className="ml-2 text-muted-foreground">Tabela</span>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        ))}
-        
-        {widgets.length === 0 && (
-          <div className="col-span-12 flex flex-col items-center justify-center h-64 border-2 border-dashed border-muted-foreground/25 rounded-lg">
-            <Plus className="w-12 h-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Seu dashboard está vazio</h3>
-            <p className="text-muted-foreground text-center mb-4">
-              Adicione widgets usando a barra de ferramentas acima
-            </p>
-          </div>
-        )}
-      </div>
-    </div>
+    </DndContext>
   );
 }
