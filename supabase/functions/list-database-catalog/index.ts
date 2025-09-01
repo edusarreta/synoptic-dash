@@ -175,16 +175,16 @@ async function generatePostgreSQLCatalog(connection: any, password: string) {
     await client.queryObject('SELECT 1 as test');
     console.log('✅ Basic query successful');
 
-    // Get schemas and tables
-    console.log('📋 Fetching tables...');
+    // Get schemas, tables and views
+    console.log('📋 Fetching tables and views...');
     const tablesResult = await client.queryObject(`
-      SELECT table_schema, table_name
+      SELECT table_schema, table_name, table_type
       FROM information_schema.tables
-      WHERE table_type = 'BASE TABLE'
+      WHERE table_type IN ('BASE TABLE', 'VIEW')
         AND table_schema NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
       ORDER BY table_schema, table_name
     `);
-    console.log(`📋 Found ${tablesResult.rows.length} tables`);
+    console.log(`📋 Found ${tablesResult.rows.length} tables and views`);
 
     // Get columns
     console.log('📋 Fetching columns...');
@@ -212,6 +212,7 @@ async function generatePostgreSQLCatalog(connection: any, password: string) {
       
       schemasMap.get(schemaName).tables.push({
         name: tableName,
+        type: row.table_type,
         columns: [],
         column_count: 0
       });
