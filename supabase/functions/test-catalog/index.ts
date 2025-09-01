@@ -118,60 +118,87 @@ export async function handler(req: Request) {
       }
     }
 
-    // Test simple connection
+    // Test connection with multiple approaches to handle SCRAM issues
     if (connection.connection_type === 'postgresql') {
-      try {
-        const client = new Client({
+      const connectionConfigs = [
+        // Config 1: Basic connection without SSL
+        {
           user: connection.username,
           database: connection.database_name,
           hostname: connection.host,
           port: connection.port || 5432,
-          password: password, // Use decrypted password
-          tls: {
-            enabled: false  // Start with SSL disabled
-          }
-        });
+          password: password,
+          tls: { enabled: false }
+        },
+        // Config 2: With connection string (bypasses SCRAM validation)
+        {
+          connection: `postgresql://${encodeURIComponent(connection.username)}:${encodeURIComponent(password)}@${connection.host}:${connection.port || 5432}/${connection.database_name}?sslmode=disable`
+        }
+      ];
 
-        await client.connect();
-        console.log('🔗 PostgreSQL test connection successful');
-        
-        // Simple test query
-        const result = await client.queryObject('SELECT version()');
-        console.log('📝 Test query result:', result.rows[0]);
-        
-        await client.end();
+      let lastError: any = null;
+      
+      for (let i = 0; i < connectionConfigs.length; i++) {
+        try {
+          console.log(`🔄 Trying connection config ${i + 1}/${connectionConfigs.length}`);
+          const client = new Client(connectionConfigs[i]);
+          
+          await client.connect();
+          console.log('🔗 PostgreSQL test connection successful');
+          
+          // Simple test query
+          const result = await client.queryObject('SELECT version()');
+          console.log('📝 Test query result:', result.rows[0]);
+          
+          await client.end();
 
-        return new Response(
-          JSON.stringify({ 
-            success: true,
-            message: 'Connection test successful',
-            connection: {
-              name: connection.name,
-              type: connection.connection_type,
-              database: connection.database_name
-            },
-            test_result: result.rows[0]
-          }),
-          { status: 200, headers: corsHeaders }
-        );
+          return new Response(
+            JSON.stringify({ 
+              success: true,
+              message: 'Connection test successful',
+              connection: {
+                name: connection.name,
+                type: connection.connection_type,
+                database: connection.database_name,
+                config_used: i + 1
+              },
+              test_result: result.rows[0]
+            }),
+            { status: 200, headers: corsHeaders }
+          );
 
-      } catch (dbError: any) {
-        console.error('💥 Database connection failed:', dbError.message);
-        
-        return new Response(
-          JSON.stringify({ 
-            error: 'Database connection test failed',
-            message: dbError.message,
-            connection_info: {
-              host: connection.host,
-              port: connection.port,
-              database: connection.database_name,
-              user: connection.username
+        } catch (error: any) {
+          lastError = error;
+          console.log(`❌ Config ${i + 1} failed:`, error.message);
+          
+          if (client) {
+            try {
+              await client.end();
+            } catch (e) {
+              // Ignore cleanup errors
             }
-          }),
-          { status: 500, headers: corsHeaders }
-        );
+          }
+        }
       }
+
+      // If all configs failed
+      console.error('💥 All connection configs failed. Last error:', lastError?.message);
+      
+      return new Response(
+        JSON.stringify({ 
+          error: 'Database connection test failed',
+          message: lastError?.message || 'All connection attempts failed',
+          connection_info: {
+            host: connection.host,
+            port: connection.port,
+            database: connection.database_name,
+            user: connection.username,
+            username_length: connection.username?.length,
+            has_special_chars: /[^\x00-\x7F]/.test(connection.username || '') || /[^\x00-\x7F]/.test(password || '')
+          }
+        }),
+        { status: 500, headers: corsHeaders }
+      );
     }
 
     return new Response(

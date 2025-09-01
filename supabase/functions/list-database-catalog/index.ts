@@ -19,8 +19,13 @@ async function handleSqlCatalog(config: any) {
     connection_type: config.connection_type
   });
 
-  // Try different connection configurations based on SSL settings
+  // Try different connection configurations based on SSL settings and SCRAM issues
   const connectionConfigs = [];
+  
+  // Config with connection string (bypasses SCRAM validation issues)
+  connectionConfigs.push({
+    connection: `postgresql://${encodeURIComponent(config.user)}:${encodeURIComponent(config.password)}@${config.host}:${config.port}/${config.database}?sslmode=disable`
+  });
   
   // If SSL is explicitly disabled, try non-SSL first
   if (config.ssl_mode === 'disable' || config.ssl_mode === 'prefer') {
@@ -50,48 +55,19 @@ async function handleSqlCatalog(config: any) {
         enforce: false,
         caCertificates: []
       }
-    },
-    // SSL required mode
-    {
-      user: config.user,
-      database: config.database,
-      hostname: config.host,
-      port: config.port,
-      password: config.password,
-      tls: {
-        enabled: config.ssl_mode === 'require',
-        enforce: config.ssl_mode === 'require'
-      }
     }
   );
-  
-  // If SSL wasn't disabled initially, add non-SSL as last resort
-  if (config.ssl_mode !== 'disable' && config.ssl_mode !== 'prefer') {
-    connectionConfigs.push({
-      user: config.user,
-      database: config.database,
-      hostname: config.host,
-      port: config.port,
-      password: config.password,
-      tls: {
-        enabled: false
-      }
-    });
-  }
 
   let client: Client | null = null;
   let lastError: any = null;
 
   // Try each configuration
   for (let i = 0; i < connectionConfigs.length; i++) {
-    try {
-      console.log(`🔄 Trying connection config ${i + 1}/${connectionConfigs.length}:`, {
-        ssl_enabled: connectionConfigs[i].tls.enabled,
-        ssl_enforce: connectionConfigs[i].tls.enforce
-      });
-      
-      client = new Client(connectionConfigs[i]);
-      await client.connect();
+     try {
+       console.log(`🔄 Trying connection config ${i + 1}/${connectionConfigs.length}`);
+       
+       client = new Client(connectionConfigs[i]);
+       await client.connect();
       console.log('🔗 PostgreSQL connected successfully with config', i + 1);
       break;
     } catch (error: any) {
