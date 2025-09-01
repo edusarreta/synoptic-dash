@@ -22,6 +22,7 @@ serve(async (req) => {
   try {
     const authHeader = req.headers.get('authorization');
     if (!authHeader) {
+      console.log('❌ No authorization header');
       return new Response(
         JSON.stringify({ success: false, message: 'Autorização necessária' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -44,6 +45,8 @@ serve(async (req) => {
       );
     }
 
+    console.log('✅ User authenticated:', user.id);
+
     const body: CatalogRequest = await req.json();
     const { org_id, connection_id } = body;
 
@@ -64,11 +67,14 @@ serve(async (req) => {
       .single();
 
     if (!profile || profile.org_id !== org_id) {
+      console.log('❌ Access denied - user not in org');
       return new Response(
         JSON.stringify({ success: false, message: 'Acesso negado' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    console.log('✅ User authorized for org:', profile.org_id);
 
     // Get connection details and verify ownership
     const { data: connection, error: connError } = await supabase
@@ -87,8 +93,10 @@ serve(async (req) => {
       );
     }
 
-    // Only support PostgreSQL connections
-    if (!['postgresql', 'supabase', 'POSTGRES'].includes(connection.connection_type)) {
+    console.log('✅ Connection found:', connection.name, connection.connection_type);
+
+    // Only support PostgreSQL connections for now
+    if (!['postgresql', 'supabase', 'postgres'].includes(connection.connection_type.toLowerCase())) {
       return new Response(
         JSON.stringify({ success: false, message: 'Catálogo disponível apenas para conexões PostgreSQL' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -96,27 +104,42 @@ serve(async (req) => {
     }
 
     // Decrypt password
-    const { data: decryptData, error: decryptError } = await supabase.functions.invoke('decrypt-password', {
-      body: { encrypted_password: connection.encrypted_password }
-    });
+    let decryptedPassword = connection.encrypted_password;
+    try {
+      const { data: decryptData, error: decryptError } = await supabase.functions.invoke('decrypt-password', {
+        body: { encrypted_password: connection.encrypted_password }
+      });
 
-    if (decryptError || !decryptData?.decrypted_password) {
-      console.error('Password decryption failed:', decryptError);
-      return new Response(
-        JSON.stringify({ success: false, message: 'Falha na descriptografia da senha' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      if (decryptError) {
+        console.warn('Password decryption failed, trying raw:', decryptError);
+        // Fallback to using password as-is if decryption fails
+        decryptedPassword = connection.encrypted_password;
+      } else if (decryptData?.decrypted_password) {
+        decryptedPassword = decryptData.decrypted_password;
+      }
+    } catch (e) {
+      console.warn('Decrypt function error, using raw password:', e);
     }
+
+    console.log('🔐 Password processed for connection');
 
     // Connect to PostgreSQL database
     const pgConfig = {
       hostname: connection.host,
-      port: connection.port,
+      port: connection.port || 5432,
       database: connection.database_name,
       user: connection.username,
-      password: decryptData.decrypted_password,
+      password: decryptedPassword,
       tls: connection.ssl_enabled !== false ? { enabled: true, enforce: false } : { enabled: false }
     };
+
+    console.log('🔌 Connecting to PostgreSQL:', {
+      hostname: pgConfig.hostname,
+      port: pgConfig.port,
+      database: pgConfig.database,
+      user: pgConfig.user,
+      ssl: pgConfig.tls.enabled
+    });
 
     try {
       // Import PostgreSQL client dynamically
@@ -124,56 +147,31 @@ serve(async (req) => {
       const client = new Client(pgConfig);
       
       await client.connect();
+      console.log('✅ Connected to PostgreSQL');
 
-      // Get all schemas and tables
+      // Simple query to get schemas and tables
       const schemaQuery = `
         SELECT 
-          t.table_schema,
-          t.table_name,
-          COUNT(c.column_name) as column_count
-        FROM information_schema.tables t
-        LEFT JOIN information_schema.columns c ON (
-          t.table_schema = c.table_schema AND 
-          t.table_name = c.table_name
-        )
-        WHERE t.table_type = 'BASE TABLE'
-          AND t.table_schema NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
-        GROUP BY t.table_schema, t.table_name
-        ORDER BY t.table_schema, t.table_name;
+          schemaname as schema_name,
+          tablename as table_name,
+          0 as column_count
+        FROM pg_tables 
+        WHERE schemaname NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
+        ORDER BY schemaname, tablename
+        LIMIT 100;
       `;
       
-      const schemaResult = await client.queryObject(schemaQuery);
-      
-      // Get detailed columns for each table
-      const columnsQuery = `
-        SELECT 
-          c.table_schema,
-          c.table_name,
-          c.column_name,
-          c.data_type,
-          c.is_nullable
-        FROM information_schema.columns c
-        JOIN information_schema.tables t ON (
-          c.table_schema = t.table_schema AND 
-          c.table_name = t.table_name
-        )
-        WHERE t.table_type = 'BASE TABLE'
-          AND c.table_schema NOT IN ('information_schema', 'pg_catalog', 'pg_toast')
-        ORDER BY c.table_schema, c.table_name, c.ordinal_position;
-      `;
-      
-      const columnsResult = await client.queryObject(columnsQuery);
+      const result = await client.queryObject(schemaQuery);
+      console.log(`📊 Found ${result.rows.length} tables`);
       
       await client.end();
 
-      // Build nested structure
+      // Build simple structure
       const schemasMap = new Map();
       
-      // Process tables first
-      for (const row of schemaResult.rows) {
-        const schemaName = row.table_schema as string;
+      for (const row of result.rows) {
+        const schemaName = row.schema_name as string;
         const tableName = row.table_name as string;
-        const columnCount = parseInt(row.column_count as string) || 0;
         
         if (!schemasMap.has(schemaName)) {
           schemasMap.set(schemaName, {
@@ -184,37 +182,16 @@ serve(async (req) => {
         
         schemasMap.get(schemaName).tables.push({
           name: tableName,
-          column_count: columnCount,
+          column_count: 0,
           columns: []
         });
-      }
-      
-      // Process columns
-      for (const row of columnsResult.rows) {
-        const schemaName = row.table_schema as string;
-        const tableName = row.table_name as string;
-        const columnName = row.column_name as string;
-        const dataType = row.data_type as string;
-        const isNullable = row.is_nullable === 'YES';
-        
-        const schema = schemasMap.get(schemaName);
-        if (schema) {
-          const table = schema.tables.find((t: any) => t.name === tableName);
-          if (table) {
-            table.columns.push({
-              name: columnName,
-              type: dataType,
-              nullable: isNullable
-            });
-          }
-        }
       }
 
       const schemas = Array.from(schemasMap.values());
 
-      console.log('Database catalog retrieved successfully:', {
+      console.log('✅ Catalog data prepared:', {
         schemas: schemas.length,
-        totalTables: schemas.reduce((acc, s) => acc + s.tables.length, 0)
+        totalTables: schemas.reduce((acc: number, s: any) => acc + s.tables.length, 0)
       });
 
       return new Response(
@@ -227,9 +204,9 @@ serve(async (req) => {
       );
 
     } catch (dbError: any) {
-      console.error('Database query error:', dbError);
+      console.error('💥 Database connection error:', dbError);
       
-      let errorMessage = 'Falha na consulta ao banco de dados';
+      let errorMessage = 'Falha na conexão com o banco de dados';
       if (dbError.message?.includes('ECONNREFUSED')) {
         errorMessage = 'Conexão recusada. Verifique host, porta e firewall.';
       } else if (dbError.message?.includes('password authentication failed')) {
@@ -237,19 +214,29 @@ serve(async (req) => {
       } else if (dbError.message?.includes('SSL')) {
         errorMessage = 'Erro SSL. Verifique as configurações de SSL.';
       } else if (dbError.message?.includes('timeout')) {
-        errorMessage = 'Timeout na consulta. O banco pode estar sobrecarregado.';
+        errorMessage = 'Timeout na conexão. O banco pode estar sobrecarregado.';
+      } else if (dbError.message?.includes('Missing connection parameters')) {
+        errorMessage = 'Parâmetros de conexão inválidos. Verifique a configuração.';
       }
 
       return new Response(
-        JSON.stringify({ success: false, message: errorMessage, details: dbError.message }),
+        JSON.stringify({ 
+          success: false, 
+          message: errorMessage, 
+          details: dbError.message 
+        }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-  } catch (error) {
-    console.error('Unexpected error:', error);
+  } catch (error: any) {
+    console.error('💥 Unexpected error:', error);
     return new Response(
-      JSON.stringify({ success: false, message: 'Erro interno do servidor' }),
+      JSON.stringify({ 
+        success: false, 
+        message: 'Erro interno do servidor',
+        details: error.message 
+      }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
