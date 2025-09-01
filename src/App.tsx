@@ -27,6 +27,7 @@ import { ConnectionsPage } from "./modules/connections/pages/ConnectionsPage";
 import SQLEditor from "./pages/SQLEditor";
 import Catalog from "./pages/Catalog";
 import OrgPermissions from "./pages/OrgPermissions";
+import DashboardList from "./pages/DashboardList";
 
 const queryClient = new QueryClient();
 
@@ -100,7 +101,7 @@ export default function App() {
                 <AuthenticatedRoute>
                   <RequirePermission perms={["dashboards:read"]}>
                     <AppLayout>
-                      <Dashboard />
+                      <DashboardList />
                     </AppLayout>
                   </RequirePermission>
                 </AuthenticatedRoute>

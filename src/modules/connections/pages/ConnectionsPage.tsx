@@ -460,9 +460,9 @@ export function ConnectionsPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="postgresql">PostgreSQL</SelectItem>
-                    <SelectItem value="supabase">Supabase Postgres (DB)</SelectItem>
-                    <SelectItem value="rest">REST API (Supabase/Genérico)</SelectItem>
-                    <SelectItem value="mysql">MySQL</SelectItem>
+                     <SelectItem value="supabase_postgres">Supabase Postgres (DB)</SelectItem>
+                     <SelectItem value="mysql">MySQL</SelectItem>
+                     <SelectItem value="rest_api">REST API (Supabase/Genérico)</SelectItem>
                   </SelectContent>
                 </Select>
                 
@@ -478,7 +478,7 @@ export function ConnectionsPage() {
               </div>
 
               {/* Database connection fields */}
-              {['postgresql', 'supabase', 'mysql'].includes(newConnection.connection_type) && (
+              {['postgresql', 'supabase_postgres', 'mysql'].includes(newConnection.connection_type) && (
                 <>
                   <div className="grid gap-2">
                     <Label htmlFor="host">Host</Label>
@@ -551,7 +551,7 @@ export function ConnectionsPage() {
               )}
 
               {/* REST API connection fields */}
-              {newConnection.connection_type === 'rest' && (
+              {newConnection.connection_type === 'rest_api' && (
                 <>
                   <div className="grid gap-2">
                     <Label htmlFor="base_url">URL Base da API</Label>

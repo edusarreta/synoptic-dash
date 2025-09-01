@@ -1,19 +1,18 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.56.1';
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+}
 
 interface TestRestConnectionRequest {
   org_id: string;
-  workspace_id?: string;
   base_url: string;
-  auth_type: 'none' | 'bearer' | 'header';
+  auth_type: 'anon' | 'service' | 'bearer' | 'header';
   auth_token?: string;
-  headers_json?: string;
-  test_path: string;
+  headers?: string;
+  test_path?: string;
 }
 
 serve(async (req) => {
@@ -28,13 +27,16 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get user from authorization header
+    // Get the user from the Authorization header
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Authorization required' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return new Response(
+        JSON.stringify({ success: false, message: 'Missing authorization header' }),
+        { 
+          status: 401, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
     }
 
     const { data: { user }, error: authError } = await supabase.auth.getUser(
@@ -42,146 +44,168 @@ serve(async (req) => {
     );
 
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: 'Invalid authorization' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return new Response(
+        JSON.stringify({ success: false, message: 'Invalid authorization' }),
+        { 
+          status: 401, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
     }
 
     // Parse request body
-    const { org_id, base_url, auth_type, auth_token, headers_json, test_path }: TestRestConnectionRequest = await req.json();
+    const requestBody: TestRestConnectionRequest = await req.json();
+    const { org_id, base_url, auth_type, auth_token, headers, test_path } = requestBody;
 
-    // Validate org membership
-    const { data: profile } = await supabase
+    // Validate user's organization membership
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('org_id')
       .eq('id', user.id)
       .single();
 
-    if (!profile || profile.org_id !== org_id) {
-      return new Response(JSON.stringify({ error: 'Not authorized for this organization' }), {
-        status: 403,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+    if (profileError || !profile || profile.org_id !== org_id) {
+      return new Response(
+        JSON.stringify({ success: false, message: 'Access denied' }),
+        { 
+          status: 403, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
     }
 
     // Prepare request headers
     const requestHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
-      'User-Agent': 'Synoptic-Dashboard/1.0'
     };
 
-    // Add auth headers
-    if (auth_type === 'bearer' && auth_token) {
-      requestHeaders['Authorization'] = `Bearer ${auth_token}`;
-    } else if (auth_type === 'header' && auth_token) {
-      requestHeaders['X-API-Key'] = auth_token;
+    // Add authentication based on type
+    switch (auth_type) {
+      case 'anon':
+      case 'service':
+        if (auth_token) {
+          requestHeaders['apikey'] = auth_token;
+          requestHeaders['Authorization'] = `Bearer ${auth_token}`;
+        }
+        break;
+      case 'bearer':
+        if (auth_token) {
+          requestHeaders['Authorization'] = `Bearer ${auth_token}`;
+        }
+        break;
+      case 'header':
+        if (headers) {
+          try {
+            const customHeaders = JSON.parse(headers);
+            Object.assign(requestHeaders, customHeaders);
+          } catch (e) {
+            return new Response(
+              JSON.stringify({ success: false, message: 'Invalid headers JSON' }),
+              { 
+                status: 400, 
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+              }
+            );
+          }
+        }
+        break;
     }
 
-    // Add custom headers from JSON
-    if (headers_json) {
-      try {
-        const customHeaders = JSON.parse(headers_json);
-        Object.assign(requestHeaders, customHeaders);
-      } catch (e) {
-        return new Response(JSON.stringify({ 
-          ok: false, 
-          error_code: 'INVALID_HEADERS',
-          message: 'Invalid headers JSON format' 
-        }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-    }
+    // Build test URL
+    const testUrl = test_path ? `${base_url.replace(/\/$/, '')}/${test_path.replace(/^\//, '')}` : base_url;
 
-    // Make test request with timeout
+    console.log(`Testing REST API connection to: ${testUrl}`);
+
+    // Test the connection with timeout
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
     try {
-      const testUrl = `${base_url.replace(/\/$/, '')}${test_path.startsWith('/') ? test_path : `/${test_path}`}`;
-      
       const response = await fetch(testUrl, {
         method: 'GET',
         headers: requestHeaders,
-        signal: controller.signal
+        signal: controller.signal,
       });
 
       clearTimeout(timeoutId);
 
-      if (!response.ok) {
-        return new Response(JSON.stringify({ 
-          ok: false, 
-          error_code: 'HTTP_ERROR',
-          message: `HTTP ${response.status}: ${response.statusText}` 
-        }), {
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+      // Check if response is successful
+      if (response.ok) {
+        const contentType = response.headers.get('content-type') || '';
+        const isJson = contentType.includes('application/json');
+        
+        let sampleData = null;
+        if (isJson) {
+          const data = await response.text();
+          sampleData = data.length > 200 ? data.substring(0, 200) + '...' : data;
+        }
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            message: `Conexão bem-sucedida! Status: ${response.status}`,
+            status_code: response.status,
+            content_type: contentType,
+            sample_data_length: sampleData?.length || 0
+          }),
+          { 
+            status: 200, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
+      } else {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            message: `Erro HTTP: ${response.status} - ${response.statusText}`,
+            status_code: response.status
+          }),
+          { 
+            status: 200, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
       }
 
-      const contentType = response.headers.get('content-type') || '';
-      
-      // Check if response is JSON
-      if (!contentType.includes('application/json')) {
-        return new Response(JSON.stringify({ 
-          ok: false, 
-          error_code: 'NON_JSON_RESPONSE',
-          message: `Expected JSON response, got ${contentType}` 
-        }), {
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
-      // Try to parse JSON
-      const responseData = await response.json();
-      const sampleLen = JSON.stringify(responseData).length;
-
-      return new Response(JSON.stringify({ 
-        ok: true, 
-        contentType,
-        sampleLen: sampleLen > 1000 ? '1000+' : sampleLen.toString(),
-        message: 'Connection successful'
-      }), {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-
-    } catch (fetchError) {
+    } catch (fetchError: any) {
       clearTimeout(timeoutId);
       
       if (fetchError.name === 'AbortError') {
-        return new Response(JSON.stringify({ 
-          ok: false, 
-          error_code: 'TIMEOUT',
-          message: 'Request timed out after 10 seconds' 
-        }), {
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        return new Response(
+          JSON.stringify({
+            success: false,
+            message: 'Timeout: A conexão demorou mais de 10 segundos para responder'
+          }),
+          { 
+            status: 200, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
       }
 
-      return new Response(JSON.stringify({ 
-        ok: false, 
-        error_code: 'NETWORK_ERROR',
-        message: `Network error: ${fetchError.message}` 
-      }), {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: `Erro de rede: ${fetchError.message}`
+        }),
+        { 
+          status: 200, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
     }
 
-  } catch (error) {
-    console.error('REST connection test error:', error);
-    return new Response(JSON.stringify({ 
-      ok: false, 
-      error_code: 'INTERNAL_ERROR',
-      message: 'Internal server error' 
-    }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+  } catch (error: any) {
+    console.error('Error testing REST connection:', error);
+    return new Response(
+      JSON.stringify({
+        success: false,
+        message: `Erro interno: ${error.message}`
+      }),
+      { 
+        status: 500, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
+    );
   }
 });
