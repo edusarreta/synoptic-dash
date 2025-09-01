@@ -246,16 +246,21 @@ export function ConnectionsPage() {
   const testConnection = async (connectionId: string) => {
     setIsTestingConnection(connectionId);
     try {
-      const { data, error } = await supabase.functions.invoke('test-connection', {
-        body: { connection_id: connectionId }
+      const { data, error } = await supabase.functions.invoke('test-database-connection', {
+        body: { 
+          org_id: userProfile?.org_id,
+          connection_id: connectionId 
+        }
       });
 
       if (error) throw error;
 
       toast({
-        title: data.success ? "Sucesso" : "Erro",
-        description: data.message,
-        variant: data.success ? "default" : "destructive",
+        title: data.ok || data.success ? "Sucesso" : "Erro",
+        description: data.ok || data.success
+          ? `Conexão testada com sucesso! ${data.server_version ? `Versão: ${data.server_version}` : ''}` 
+          : data.error_message || data.message || 'Falha ao testar conexão',
+        variant: data.ok || data.success ? "default" : "destructive",
       });
     } catch (error) {
       console.error('Erro ao testar conexão:', error);

@@ -8,12 +8,13 @@ const corsHeaders = {
 
 interface TestConnectionRequest {
   org_id: string;
-  type: 'postgresql' | 'mysql' | 'supabase_api';
-  host: string;
-  port: number;
-  database: string;
-  user: string;
-  password: string;
+  connection_id?: string;
+  type?: 'postgresql' | 'mysql' | 'supabase_api';
+  host?: string;
+  port?: number;
+  database?: string;
+  user?: string;
+  password?: string;
   ssl_mode?: string;
 }
 
@@ -48,9 +49,9 @@ serve(async (req) => {
       );
     }
 
-    const { org_id, type, host, port, database, user: dbUser, password, ssl_mode }: TestConnectionRequest = await req.json();
+    const { org_id, connection_id, type, host, port, database, user: dbUser, password, ssl_mode }: TestConnectionRequest = await req.json();
 
-    console.log(`🔧 Testing ${type} connection for user ${user.id} in org ${org_id}`);
+    console.log(`🔧 Testing connection for user ${user.id} in org ${org_id}`);
 
     // Validate membership
     const { data: profile } = await supabase
@@ -69,59 +70,149 @@ serve(async (req) => {
     let testResult = false;
     let errorMessage = '';
     let serverVersion = '';
+    let connectionConfig: any = {};
+
+    // If connection_id is provided, get connection from database
+    if (connection_id) {
+      const { data: connection, error: connectionError } = await supabase
+        .from('data_connections')
+        .select('*')
+        .eq('id', connection_id)
+        .eq('account_id', org_id)
+        .single();
+
+      if (connectionError || !connection) {
+        return new Response(
+          JSON.stringify({ ok: false, message: 'Conexão não encontrada' }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Decrypt password
+      const { data: decryptedData, error: decryptError } = await supabase.functions.invoke('decrypt-password', {
+        body: { encrypted_password: connection.encrypted_password }
+      });
+
+      if (decryptError || !decryptedData.success) {
+        return new Response(
+          JSON.stringify({ ok: false, message: 'Erro ao descriptografar senha' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      connectionConfig = {
+        type: connection.connection_type,
+        host: connection.host,
+        port: connection.port,
+        database: connection.database_name,
+        user: connection.username,
+        password: decryptedData.password,
+        ssl_mode: 'require'
+      };
+    } else {
+      // Use provided parameters for new connection test
+      connectionConfig = {
+        type,
+        host,
+        port,
+        database,
+        user: dbUser,
+        password,
+        ssl_mode
+      };
+    }
 
     try {
-      if (type === 'postgresql') {
+      if (connectionConfig.type === 'postgresql') {
         console.log('🔧 Testing PostgreSQL connection...');
         
         const { Client } = await import("https://deno.land/x/postgres@v0.17.0/mod.ts");
         
-        // Try connection with SSL settings
-        const client = new Client({
-          user: dbUser,
-          database: database,
-          hostname: host,
-          port: port,
-          password: password,
-          tls: ssl_mode === 'require' ? { enabled: true, enforce: false } : false,
-        });
-
-        // Set timeout to 8 seconds
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('TIMEOUT')), 8000);
-        });
-
-        const connectPromise = (async () => {
-          await client.connect();
-          
-          // Test with simple query
-          const result = await client.queryObject('SELECT 1 as test');
-          if (result.rows.length > 0) {
-            // Get server version
-            const versionResult = await client.queryObject('SELECT version() as version');
-            if (versionResult.rows.length > 0) {
-              const versionString = (versionResult.rows[0] as any).version;
-              serverVersion = versionString.split(' ')[1] || 'Unknown';
-            }
+        // Try multiple connection approaches to handle SCRAM issues
+        const connectionConfigs = [
+          // 1. Standard connection with SSL
+          {
+            user: connectionConfig.user,
+            database: connectionConfig.database,
+            hostname: connectionConfig.host,
+            port: connectionConfig.port || 5432,
+            password: connectionConfig.password,
+            tls: { enabled: true, enforce: false }
+          },
+          // 2. Connection string format to bypass SCRAM issues
+          {
+            connectionString: `postgresql://${encodeURIComponent(connectionConfig.user)}:${encodeURIComponent(connectionConfig.password)}@${connectionConfig.host}:${connectionConfig.port || 5432}/${connectionConfig.database}?sslmode=require`,
+          },
+          // 3. Without SSL for local connections
+          {
+            user: connectionConfig.user,
+            database: connectionConfig.database,
+            hostname: connectionConfig.host,
+            port: connectionConfig.port || 5432,
+            password: connectionConfig.password,
+            tls: { enabled: false }
           }
-          
-          await client.end();
-          return true;
-        })();
+        ];
 
-        testResult = await Promise.race([connectPromise, timeoutPromise]) as boolean;
+        let lastError = null;
+
+        for (const config of connectionConfigs) {
+          try {
+            const client = new Client(config);
+            
+            // Set timeout to 8 seconds
+            const timeoutPromise = new Promise((_, reject) => {
+              setTimeout(() => reject(new Error('TIMEOUT')), 8000);
+            });
+
+            const connectPromise = (async () => {
+              await client.connect();
+              
+              // Test with simple query
+              const result = await client.queryObject('SELECT 1 as test');
+              if (result.rows.length > 0) {
+                // Get server version
+                const versionResult = await client.queryObject('SELECT version() as version');
+                if (versionResult.rows.length > 0) {
+                  const versionString = (versionResult.rows[0] as any).version;
+                  serverVersion = versionString.split(' ')[1] || 'Unknown';
+                }
+              }
+              
+              await client.end();
+              return true;
+            })();
+
+            testResult = await Promise.race([connectPromise, timeoutPromise]) as boolean;
+            
+            if (testResult) {
+              console.log('✅ PostgreSQL connection successful');
+              break; // Success, exit loop
+            }
+          } catch (pgError) {
+            console.error('❌ PostgreSQL connection attempt failed:', pgError.message);
+            lastError = pgError;
+            continue; // Try next config
+          }
+        }
         
-      } else if (type === 'mysql') {
+        if (!testResult && lastError) {
+          errorMessage = lastError.message;
+        }
+        
+      } else if (connectionConfig.type === 'mysql') {
         // MySQL implementation with proper error handling
+        console.log('🔧 Testing MySQL connection...');
+        
         try {
           const { Client } = await import("https://deno.land/x/mysql@v2.12.1/mod.ts");
           
           const client = await new Client().connect({
-            hostname: host,
-            port: port,
-            username: dbUser,
-            password: password,
-            db: database,
+            hostname: connectionConfig.host,
+            port: connectionConfig.port || 3306,
+            username: connectionConfig.user,
+            password: connectionConfig.password,
+            db: connectionConfig.database,
           });
 
           // Test with simple query
@@ -130,20 +221,21 @@ serve(async (req) => {
           
           testResult = true;
           serverVersion = 'MySQL';
+          console.log('✅ MySQL connection successful');
         } catch (mysqlError: any) {
           console.error('❌ MySQL connection failed:', mysqlError.message);
           errorMessage = mysqlError.message;
           testResult = false;
         }
         
-      } else if (type === 'supabase_api') {
+      } else if (connectionConfig.type === 'supabase_api') {
         return new Response(
           JSON.stringify({ ok: false, message: 'Supabase API não suporta teste direto' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
         
       } else {
-        throw new Error(`Tipo de conexão não suportado: ${type}`);
+        throw new Error(`Tipo de conexão não suportado: ${connectionConfig.type}`);
       }
 
     } catch (testError: any) {
@@ -171,7 +263,8 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         ok: testResult,
-        engine: type,
+        success: testResult,
+        engine: connectionConfig.type,
         server_version: serverVersion,
         message: testResult ? 'Conexão bem-sucedida' : 'Falha na conexão',
         error_message: testResult ? null : errorMessage

@@ -111,40 +111,90 @@ serve(async (req) => {
     let serverVersion = '';
 
     try {
-      if (connection.connection_type === 'postgresql' || connection.connection_type === 'supabase') {
+      if (connection.connection_type === 'postgresql') {
         // Test PostgreSQL connection
         const { Client } = await import("https://deno.land/x/postgres@v0.17.0/mod.ts");
         
         console.log('🔧 Testing PostgreSQL connection...');
         
-        const client = new Client({
-          user: connection.username,
-          database: connection.database_name,
-          hostname: connection.host,
-          port: connection.port || 5432,
-          password: password,
-          tls: {
-            enabled: connection.ssl_enabled,
-            enforce: false,
-            caCertificates: []
+        // Try multiple connection approaches to handle SCRAM issues
+        const connectionConfigs = [
+          // 1. Standard connection with SSL
+          {
+            user: connection.username,
+            database: connection.database_name,
+            hostname: connection.host,
+            port: connection.port || 5432,
+            password: password,
+            tls: { enabled: true, enforce: false }
+          },
+          // 2. Connection string format to bypass SCRAM issues
+          {
+            connectionString: `postgresql://${encodeURIComponent(connection.username)}:${encodeURIComponent(password)}@${connection.host}:${connection.port || 5432}/${connection.database_name}?sslmode=require`,
+          },
+          // 3. Without SSL for local connections
+          {
+            user: connection.username,
+            database: connection.database_name,
+            hostname: connection.host,
+            port: connection.port || 5432,
+            password: password,
+            tls: { enabled: false }
           }
-        });
+        ];
 
-        try {
-          await client.connect();
-          console.log('✅ PostgreSQL connection successful');
-          
-          // Get server version
-          const versionResult = await client.queryObject('SELECT version()');
-          if (versionResult.rows.length > 0) {
-            serverVersion = (versionResult.rows[0] as any).version;
+        let lastError = null;
+        
+        for (const config of connectionConfigs) {
+          try {
+            const client = new Client(config);
+            await client.connect();
+            console.log('✅ PostgreSQL connection successful');
+            
+            // Get server version
+            const versionResult = await client.queryObject('SELECT version()');
+            if (versionResult.rows.length > 0) {
+              serverVersion = (versionResult.rows[0] as any).version;
+            }
+            
+            testResult = true;
+            await client.end();
+            break; // Success, exit loop
+          } catch (pgError) {
+            console.error('❌ PostgreSQL connection attempt failed:', pgError.message);
+            lastError = pgError;
+            continue; // Try next config
           }
+        }
+        
+        if (!testResult && lastError) {
+          errorMessage = lastError.message;
+        }
+        
+      } else if (connection.connection_type === 'mysql') {
+        // Test MySQL connection
+        console.log('🔧 Testing MySQL connection...');
+        
+        try {
+          const { Client } = await import("https://deno.land/x/mysql@v2.12.1/mod.ts");
+          
+          const client = await new Client().connect({
+            hostname: connection.host,
+            port: connection.port || 3306,
+            username: connection.username,
+            password: password,
+            db: connection.database_name,
+          });
+
+          await client.execute('SELECT 1');
+          await client.close();
           
           testResult = true;
-          await client.end();
-        } catch (pgError) {
-          console.error('❌ PostgreSQL connection failed:', pgError);
-          errorMessage = pgError.message;
+          serverVersion = 'MySQL';
+          console.log('✅ MySQL connection successful');
+        } catch (mysqlError) {
+          console.error('❌ MySQL connection failed:', mysqlError.message);
+          errorMessage = mysqlError.message;
         }
         
       } else {
