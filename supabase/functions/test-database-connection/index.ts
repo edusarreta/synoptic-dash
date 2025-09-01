@@ -95,18 +95,36 @@ serve(async (req) => {
         );
       }
 
-      // Decrypt password
+      // Decrypt password directly
       console.log('🔧 Decrypting password...');
-      const { data: decryptedData, error: decryptError } = await supabase.functions.invoke('decrypt-password', {
-        body: { encrypted_password: connection.encrypted_password }
-      });
+      
+      const decryptPassword = (encryptedPassword: string): string => {
+        const key = Deno.env.get('DB_ENCRYPTION_KEY') || 'demo-key-change-in-production';
+        const encoder = new TextEncoder();
+        const keyData = encoder.encode(key);
+        
+        try {
+          const encrypted = new Uint8Array(atob(encryptedPassword).split('').map(c => c.charCodeAt(0)));
+          const decrypted = new Uint8Array(encrypted.length);
+          
+          for (let i = 0; i < encrypted.length; i++) {
+            decrypted[i] = encrypted[i] ^ keyData[i % keyData.length];
+          }
+          
+          return new TextDecoder().decode(decrypted);
+        } catch (error) {
+          throw new Error('Failed to decrypt password');
+        }
+      };
 
-      console.log('🔧 Password decryption result:', decryptedData ? 'success' : 'failed', 'Error:', decryptError);
-
-      if (decryptError || !decryptedData.success) {
+      let decryptedPassword: string;
+      try {
+        decryptedPassword = decryptPassword(connection.encrypted_password);
+        console.log('🔧 Password decryption successful');
+      } catch (decryptError) {
         console.error('❌ Password decryption failed:', decryptError);
         return new Response(
-          JSON.stringify({ ok: false, message: 'Erro ao descriptografar senha' }),
+          JSON.stringify({ ok: false, success: false, message: 'Erro ao descriptografar senha' }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -117,8 +135,8 @@ serve(async (req) => {
         port: connection.port,
         database: connection.database_name,
         user: connection.username,
-        password: decryptedData.password,
-        ssl_mode: 'require'
+        password: decryptedPassword,
+        ssl_mode: connection.connection_config?.ssl_mode || 'require'
       };
     } else {
       // Use provided parameters for new connection test
