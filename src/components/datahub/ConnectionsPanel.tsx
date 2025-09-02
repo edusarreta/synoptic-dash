@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { getTypeLabel } from "@/modules/connections/utils/normalizeConnectionType";
 import { useDataHubStore } from "@/hooks/useDataHubStore";
+import { ConnectionFormFields } from "@/modules/connections/pages/ConnectionsFormFields";
 
 interface DataConnection {
   id: string;
@@ -36,8 +37,8 @@ interface ConnectionFormData {
   rawType: string;
   host: string;
   port: number;
-  database: string;
-  user: string;
+  database_name: string;
+  username: string;
   password: string;
   ssl_mode: 'require' | 'disable';
   base_url: string;
@@ -45,6 +46,10 @@ interface ConnectionFormData {
   auth_token: string;
   headers_json: string;
   test_path: string;
+  project_url: string;
+  anon_key: string;
+  service_role: string;
+  schema: string;
 }
 
 const defaultFormValues: ConnectionFormData = {
@@ -52,15 +57,19 @@ const defaultFormValues: ConnectionFormData = {
   rawType: 'postgres',
   host: '',
   port: 5432,
-  database: '',
-  user: '',
+  database_name: '',
+  username: '',
   password: '',
   ssl_mode: 'require',
   base_url: '',
   auth_type: 'none',
   auth_token: '',
   headers_json: '{}',
-  test_path: '/api/test'
+  test_path: '/api/test',
+  project_url: '',
+  anon_key: '',
+  service_role: '',
+  schema: 'public'
 };
 
 export function ConnectionsPanel() {
@@ -103,15 +112,19 @@ export function ConnectionsPanel() {
       rawType: connection.connection_type,
       host: connection.host || '',
       port: connection.port || 5432,
-      database: connection.database_name || '',
-      user: connection.username || '',
+      database_name: connection.database_name || '',
+      username: connection.username || '',
       password: '',
       ssl_mode: connection.ssl_enabled ? 'require' : 'disable',
       base_url: config.base_url || '',
       auth_type: config.auth_type || 'none',
       auth_token: '',
       headers_json: JSON.stringify(config.headers || {}, null, 2),
-      test_path: config.test_path || '/api/test'
+      test_path: config.test_path || '/api/test',
+      project_url: config.project_url || '',
+      anon_key: config.anon_key || '',
+      service_role: config.service_role || '',
+      schema: config.schema || 'public'
     };
   };
 
@@ -164,7 +177,7 @@ export function ConnectionsPanel() {
         return;
       }
     } else {
-      if (!formData.host || !formData.database || !formData.user || !formData.password) {
+      if (!formData.host || !formData.database_name || !formData.username || !formData.password) {
         toast({
           title: "Dados incompletos",
           description: "Preencha todos os campos obrigatórios",
@@ -210,8 +223,8 @@ export function ConnectionsPanel() {
             type: formData.rawType,
             host: formData.host,
             port: formData.port,
-            database: formData.database,
-            user: formData.user,
+            database: formData.database_name,
+            user: formData.username,
             password: formData.password,
             ssl_mode: formData.ssl_mode
           }
@@ -260,7 +273,7 @@ export function ConnectionsPanel() {
         return;
       }
     } else {
-      if (!formData.name || !formData.host || !formData.database || !formData.user || !formData.password) {
+      if (!formData.name || !formData.host || !formData.database_name || !formData.username || !formData.password) {
         toast({
           title: "Dados incompletos",
           description: "Preencha todos os campos obrigatórios",
@@ -280,8 +293,8 @@ export function ConnectionsPanel() {
           type: formData.rawType,
           host: formData.host,
           port: formData.port,
-          database: formData.database,
-          user: formData.user,
+          database: formData.database_name,
+          user: formData.username,
           password: formData.password,
           ssl_mode: formData.ssl_mode,
           base_url: formData.base_url,
@@ -433,12 +446,12 @@ export function ConnectionsPanel() {
                             PostgreSQL
                           </div>
                         </SelectItem>
-                        <SelectItem value="postgresql">
-                          <div className="flex items-center gap-2">
-                            <Database className="w-4 h-4" />
-                            Supabase (PostgreSQL)
-                          </div>
-                        </SelectItem>
+                         <SelectItem value="supabase_api">
+                           <div className="flex items-center gap-2">
+                             <Database className="w-4 h-4" />
+                             Supabase API
+                           </div>
+                         </SelectItem>
                         <SelectItem value="rest">
                           <div className="flex items-center gap-2">
                             <Globe className="w-4 h-4" />
@@ -450,75 +463,12 @@ export function ConnectionsPanel() {
                   </div>
                 </div>
 
-                {/* Connection form fields based on type */}
-                {!isRest ? (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="host">Host</Label>
-                        <Input
-                          id="host"
-                          {...form.register('host')}
-                          placeholder="localhost"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="port">Porta</Label>
-                        <Input
-                          id="port"
-                          type="number"
-                          {...form.register('port', { valueAsNumber: true })}
-                        />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="database">Database</Label>
-                        <Input
-                          id="database"
-                          {...form.register('database')}
-                          placeholder="my_database"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="user">Usuário</Label>
-                        <Input
-                          id="user"
-                          {...form.register('user')}
-                          placeholder="username"
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="password">Senha</Label>
-                      <Input
-                        id="password"
-                        type="password"
-                        {...form.register('password')}
-                        placeholder="••••••••"
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="base_url">URL Base da API</Label>
-                      <Input
-                        id="base_url"
-                        {...form.register('base_url')}
-                        placeholder="https://api.exemplo.com"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="test_path">Caminho de Teste</Label>
-                      <Input
-                        id="test_path"
-                        {...form.register('test_path')}
-                        placeholder="/api/test"
-                      />
-                    </div>
-                  </div>
-                )}
+                 {/* Connection form fields based on type */}
+                 <ConnectionFormFields
+                   type={watchedRawType}
+                   values={form.getValues()}
+                   onChange={(field, value) => form.setValue(field as any, value)}
+                 />
 
                 <div className="flex gap-2 pt-4">
                   <Button

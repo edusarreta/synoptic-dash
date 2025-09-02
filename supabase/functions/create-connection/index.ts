@@ -18,6 +18,17 @@ interface CreateConnectionRequest {
   password: string;
   ssl_mode: 'require' | 'disable';
   update_id?: string; // For updating existing connections
+  // Supabase API fields
+  project_url?: string;
+  anon_key?: string;
+  service_role?: string;
+  schema?: string;
+  // REST API fields
+  base_url?: string;
+  auth_type?: string;
+  auth_token?: string;
+  headers_json?: string;
+  test_path?: string;
 }
 
 // Unified encryption method matching decrypt function
@@ -35,6 +46,7 @@ async function encryptPassword(password: string): Promise<string> {
 function normalizeConnectionType(type: string): string {
   const t = type.toLowerCase();
   if (t === 'postgres' || t === 'postgresql' || t === 'supabase') return 'postgresql';
+  if (t === 'supabase_api') return 'supabase_api';
   if (t === 'mysql') return 'mysql';
   if (t === 'rest') return 'rest';
   if (t === 'webhook') return 'webhook';
@@ -129,20 +141,36 @@ serve(async (req) => {
     }
 
     // Prepare connection data
+    const connectionConfig: any = {
+      ssl_mode: requestData.ssl_mode,
+      workspace_id: requestData.workspace_id
+    };
+    
+    // Add specific fields based on connection type
+    if (normalizedType === 'supabase_api') {
+      connectionConfig.project_url = requestData.project_url;
+      connectionConfig.anon_key = requestData.anon_key;
+      connectionConfig.service_role = requestData.service_role;
+      connectionConfig.schema = requestData.schema || 'public';
+    } else if (normalizedType === 'rest') {
+      connectionConfig.base_url = requestData.base_url;
+      connectionConfig.auth_type = requestData.auth_type;
+      connectionConfig.auth_token = requestData.auth_token;
+      connectionConfig.headers_json = requestData.headers_json;
+      connectionConfig.test_path = requestData.test_path;
+    }
+
     const connectionData = {
       account_id: requestData.org_id,
       name: requestData.name,
       connection_type: normalizedType,
-      host: requestData.host,
-      port: requestData.port,
-      database_name: requestData.database,
-      username: requestData.user,
+      host: requestData.host || '',
+      port: requestData.port || 5432,
+      database_name: requestData.database || '',
+      username: requestData.user || '',
       encrypted_password: encryptedPassword,
       ssl_enabled: requestData.ssl_mode === 'require',
-      connection_config: {
-        ssl_mode: requestData.ssl_mode,
-        workspace_id: requestData.workspace_id
-      },
+      connection_config: connectionConfig,
       is_active: true,
       created_by: user.id
     };
