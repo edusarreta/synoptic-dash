@@ -98,6 +98,16 @@ export default function DashboardEditor() {
     }
   }, [id]);
 
+  // Debug effect to monitor datasets state
+  useEffect(() => {
+    console.log('=== Datasets state changed ===');
+    console.log('Datasets count:', datasets.length);
+    console.log('Loading state:', loadingDatasets);
+    if (datasets.length > 0) {
+      console.log('Available datasets:', datasets.map(d => ({ id: d.id, name: d.name, type: d.type })));
+    }
+  }, [datasets, loadingDatasets]);
+
   const initializeDashboard = async () => {
     try {
       console.log('=== Dashboard Editor Initialization ===');
@@ -109,8 +119,6 @@ export default function DashboardEditor() {
       if (dashboardData.error) throw dashboardData.error;
 
       await loadDatasets();
-      
-      console.log('Datasets after loadDatasets:', datasets.length);
       
       // Load dashboard into store
       loadDashboard({ ...dashboardData.data, id: id! });
