@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Database, Plus, TestTube, Trash2, Loader2, CheckCircle, XCircle, Globe, Server } from "lucide-react";
+import { Database, Plus, TestTube, Trash2, Loader2, CheckCircle, XCircle, Globe, Server, ArrowLeft } from "lucide-react";
 import { useSession } from "@/providers/SessionProvider";
 import { usePermissions } from "@/modules/auth/PermissionsProvider";
 import { supabase } from "@/integrations/supabase/client";
@@ -391,10 +391,22 @@ export function ConnectionsPanel() {
             </DialogTrigger>
             <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Criar Nova Conexão - {typeLabel}</DialogTitle>
-                <DialogDescription>
-                  Configure uma nova conexão com sua fonte de dados
-                </DialogDescription>
+                <div className="flex items-center gap-3">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowCreateDialog(false)}
+                    className="p-2"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                  </Button>
+                  <div>
+                    <DialogTitle>Criar Nova Conexão - {typeLabel}</DialogTitle>
+                    <DialogDescription>
+                      Configure uma nova conexão com sua fonte de dados
+                    </DialogDescription>
+                  </div>
+                </div>
               </DialogHeader>
 
               <div className="space-y-4 py-4">
