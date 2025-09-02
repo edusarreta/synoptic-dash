@@ -116,15 +116,8 @@ export default function DashboardEditor() {
 
       console.log('Dashboard loaded into store');
 
-      // Mock data fields - in real implementation, load from datasource
-      setDataFields([
-        { name: 'produto', type: 'dimension', dataType: 'text' },
-        { name: 'categoria', type: 'dimension', dataType: 'text' },
-        { name: 'data_venda', type: 'dimension', dataType: 'date' },
-        { name: 'vendas', type: 'metric', dataType: 'number' },
-        { name: 'quantidade', type: 'metric', dataType: 'number' },
-        { name: 'preco_unitario', type: 'metric', dataType: 'number' },
-      ]);
+      // Clear data fields until a dataset is selected
+      setDataFields([]);
     } catch (error) {
       console.error('Error loading dashboard:', error);
       toast({
@@ -180,11 +173,76 @@ export default function DashboardEditor() {
       setSelectedDataset(
         datasetId, 
         dataset.connection_id, 
-        { kind: 'sql', sql: dataset.sql_query }
+        { kind: 'dataset', datasetId }
       );
       
       console.log('Dataset selected:', dataset.name, 'connection:', dataset.connection_id);
+      
+      // Load dataset fields for the field picker
+      try {
+        const { data, error } = await supabase.functions.invoke('datasets-preview', {
+          body: {
+            dataset_id: datasetId,
+            limit: 1,
+            offset: 0
+          }
+        });
+
+        if (error) {
+          throw new Error(error.message || 'Falha ao carregar campos do dataset');
+        }
+
+        // Convert columns to data fields
+        const fields: DataField[] = (data.columns || []).map((col: any) => {
+          const dataType = inferDataType(col.type || 'unknown');
+          const type = dataType === 'number' ? 'metric' : 'dimension';
+          
+          return {
+            name: col.name,
+            type,
+            dataType
+          };
+        });
+
+        setDataFields(fields);
+        console.log('Dataset fields loaded:', fields.length);
+      } catch (error) {
+        console.error('Error loading dataset fields:', error);
+        toast({
+          title: "Erro",
+          description: "Falha ao carregar campos do dataset",
+          variant: "destructive",
+        });
+        // Keep mock fields as fallback
+        setDataFields([
+          { name: 'produto', type: 'dimension', dataType: 'text' },
+          { name: 'categoria', type: 'dimension', dataType: 'text' },
+          { name: 'data_venda', type: 'dimension', dataType: 'date' },
+          { name: 'vendas', type: 'metric', dataType: 'number' },
+          { name: 'quantidade', type: 'metric', dataType: 'number' },
+          { name: 'preco_unitario', type: 'metric', dataType: 'number' },
+        ]);
+      }
     }
+  };
+
+  const inferDataType = (sqlType: string): 'text' | 'number' | 'date' | 'datetime' => {
+    const type = sqlType.toLowerCase();
+    
+    if (type.includes('int') || type.includes('decimal') || type.includes('numeric') || 
+        type.includes('float') || type.includes('double') || type.includes('real')) {
+      return 'number';
+    }
+    
+    if (type.includes('date') && type.includes('time')) {
+      return 'datetime';
+    }
+    
+    if (type.includes('date')) {
+      return 'date';
+    }
+    
+    return 'text';
   };
 
   const handleLayoutChange = (layout: any) => {
@@ -343,36 +401,47 @@ export default function DashboardEditor() {
                 </div>
               </div>
 
-              {/* Data Fields */}
-              <div>
-                <h3 className="font-semibold mb-3">Campos de Dados</h3>
-                <div className="space-y-2">
-                  {dataFields.map((field) => (
-                    <div
-                      key={field.name}
-                      className="p-2 border rounded cursor-grab flex items-center gap-2 hover:bg-muted/50"
-                      draggable
-                      onDragStart={(e) => {
-                        e.dataTransfer.setData('field', JSON.stringify(field));
-                      }}
-                    >
-                      {field.type === 'dimension' ? (
-                        field.dataType === 'date' ? (
-                          <Calendar className="w-4 h-4 text-blue-500" />
-                        ) : (
-                          <Type className="w-4 h-4 text-green-500" />
-                        )
-                      ) : (
-                        <Hash className="w-4 h-4 text-orange-500" />
-                      )}
-                      <span className="text-sm">{field.name}</span>
-                      <Badge variant="outline" className="text-xs ml-auto">
-                        {field.type === 'dimension' ? 'Dim' : 'Métr'}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              </div>
+               {/* Data Fields */}
+               <div>
+                 <h3 className="font-semibold mb-3">Campos de Dados</h3>
+                 {!selectedDatasetId ? (
+                   <div className="text-center p-4 text-muted-foreground">
+                     <p className="text-sm">Selecione um dataset para ver os campos disponíveis</p>
+                   </div>
+                 ) : dataFields.length === 0 ? (
+                   <div className="text-center p-4 text-muted-foreground">
+                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto mb-2"></div>
+                     <p className="text-sm">Carregando campos...</p>
+                   </div>
+                 ) : (
+                   <div className="space-y-2">
+                     {dataFields.map((field) => (
+                       <div
+                         key={field.name}
+                         className="p-2 border rounded cursor-grab flex items-center gap-2 hover:bg-muted/50"
+                         draggable
+                         onDragStart={(e) => {
+                           e.dataTransfer.setData('field', JSON.stringify(field));
+                         }}
+                       >
+                         {field.type === 'dimension' ? (
+                           field.dataType === 'date' || field.dataType === 'datetime' ? (
+                             <Calendar className="w-4 h-4 text-blue-500" />
+                           ) : (
+                             <Type className="w-4 h-4 text-green-500" />
+                           )
+                         ) : (
+                           <Hash className="w-4 h-4 text-orange-500" />
+                         )}
+                         <span className="text-sm">{field.name}</span>
+                         <Badge variant="outline" className="text-xs ml-auto">
+                           {field.type === 'dimension' ? 'Dim' : 'Métr'}
+                         </Badge>
+                       </div>
+                     ))}
+                   </div>
+                 )}
+               </div>
 
               {/* Widget Inspector */}
               {selectedWidgetData && (
