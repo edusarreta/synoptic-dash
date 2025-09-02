@@ -35,7 +35,6 @@ export default function BarWidget({ widget }: BarWidgetProps) {
     );
   }
 
-  const data = widget.data.rows.slice(0, 50); // Limit for performance
   const xAxisKey = widget.query.dims[0]?.field;
   const metrics = widget.query.mets;
 
@@ -47,10 +46,26 @@ export default function BarWidget({ widget }: BarWidgetProps) {
     );
   }
 
+  // Handle column names - support both old string[] format and new object format
+  const columnNames = Array.isArray(widget.data.columns) 
+    ? (typeof widget.data.columns[0] === 'string' 
+        ? widget.data.columns as string[]
+        : (widget.data.columns as Array<{ name: string; type: string }>).map(col => col.name))
+    : [];
+
+  // Transform data for Recharts - convert array format to object format
+  const chartData = widget.data.rows.slice(0, 50).map((row, index) => {
+    const item: Record<string, any> = {};
+    columnNames.forEach((col, colIndex) => {
+      item[col] = row[colIndex];
+    });
+    return item;
+  });
+
   return (
     <div className="min-h-[260px] h-full p-2">
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+        <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
           <XAxis 
             dataKey={xAxisKey} 

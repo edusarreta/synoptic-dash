@@ -3,15 +3,16 @@ import { immer } from 'zustand/middleware/immer';
 import { supabase } from '@/integrations/supabase/client';
 
 export type Agg = 'sum' | 'avg' | 'count' | 'count_distinct';
-export type ChartType = 'table' | 'bar' | 'line' | 'pie';
+export type ChartType = 'table' | 'bar' | 'line' | 'pie' | 'kpi';
 
 export interface QuerySpec {
-  datasetId: string;
-  connectionId: string;
+  datasetId?: string;
+  connectionId?: string;
   source: {
-    kind: 'table' | 'sql';
+    kind: 'table' | 'sql' | 'dataset';
     table?: string; // schema.table quando for tabela
     sql?: string;   // quando for saved_query/dataset SQL
+    datasetId?: string; // quando for dataset
   };
   dims: Array<{ field: string; dataType?: 'text' | 'number' | 'date' | 'datetime' }>;
   mets: Array<{ field: string; agg: Agg; alias?: string }>;
@@ -29,7 +30,11 @@ export interface Widget {
   w: number;
   h: number;
   query: QuerySpec;
-  data?: { columns: string[]; rows: any[]; truncated?: boolean };
+  data?: { 
+    columns: Array<{ name: string; type: string }> | string[]; 
+    rows: any[]; 
+    truncated?: boolean 
+  };
   loading?: boolean;
   error?: string | null;
 }
@@ -72,6 +77,7 @@ export interface EditorActions {
   // Dataset management
   loadDatasets: () => Promise<void>;
   setSelectedDataset: (datasetId: string, connectionId: string, source: QuerySpec['source']) => void;
+  getDataset: (id: string) => Dataset | undefined;
   
   // Field management for selected widget
   addDimension: (field: string, dataType?: string) => void;
@@ -133,9 +139,9 @@ export const useEditorStore = create<DashboardState & EditorActions>()(
           w: type === 'table' ? 6 : 4,
           h: type === 'table' ? 4 : 3,
           query: {
-            datasetId: state.selectedDatasetId || '',
+            datasetId: state.selectedDatasetId,
             connectionId: '',
-            source: { kind: 'table' },
+            source: { kind: 'dataset', datasetId: state.selectedDatasetId },
             dims: [],
             mets: [],
             filters: [],
@@ -201,6 +207,10 @@ export const useEditorStore = create<DashboardState & EditorActions>()(
       return get().widgets.find(w => w.id === id);
     },
 
+    getDataset: (id) => {
+      return get().datasets.find(d => d.id === id);
+    },
+
     setSelectedDataset: (datasetId, connectionId, source) => {
       set((state) => {
         state.selectedDatasetId = datasetId;
@@ -211,7 +221,7 @@ export const useEditorStore = create<DashboardState & EditorActions>()(
             ...widget.query,
             datasetId,
             connectionId,
-            source
+            source: { ...source, datasetId }
           }
         }));
         state.isDirty = true;

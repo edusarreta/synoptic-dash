@@ -4,6 +4,11 @@ const q = (id: string) => `"${id.replace(/"/g, '""')}"`;
 
 export function buildSqlFromSpec(widget: Widget): { sql: string; params: Record<string, any> } {
   const { query: spec } = widget;
+  
+  if (!spec.dims.length && !spec.mets.length) {
+    throw new Error('Widget deve ter pelo menos uma dimensão ou métrica');
+  }
+
   const dims = spec.dims.map(d => q(d.field));
   const mets = spec.mets.map((m) => {
     const col = q(m.field);
@@ -17,9 +22,16 @@ export function buildSqlFromSpec(widget: Widget): { sql: string; params: Record<
 
   const selects = [...dims, ...mets].join(', ');
   
-  const source = spec.source.kind === 'table'
-    ? `FROM ${spec.source.table!}`
-    : `FROM (${spec.source.sql!}) AS sub`;
+  // Use dataset source instead of direct table/SQL
+  let source: string;
+  if (spec.source.kind === 'dataset' && spec.source.datasetId) {
+    // For datasets, we'll need to get the dataset's SQL from the store/API
+    source = `FROM (${spec.source.sql || 'SELECT 1'}) AS dataset_sub`;
+  } else if (spec.source.kind === 'table') {
+    source = `FROM ${q(spec.source.table!)}`;
+  } else {
+    source = `FROM (${spec.source.sql!}) AS sub`;
+  }
 
   const groupBy = dims.length ? `GROUP BY ${dims.join(', ')}` : '';
   

@@ -271,26 +271,44 @@ async function executePostgreSQL(connection: any, password: string, sql: string,
       sample_row: result.rows?.[0]
     });
 
-    // For PostgreSQL queryObject, the result already has the correct structure
-    // result.rows contains objects with column names as keys
-    if (!result.rows || result.rows.length === 0) {
+    // For PostgreSQL queryObject, extract column metadata from query result
+    const columns = result.columns || [];
+    const rows = result.rows || [];
+
+    // If no data, try to extract columns from query metadata
+    if (rows.length === 0 && columns.length === 0) {
       return {
         columns: [],
         rows: []
       };
     }
 
-    // Extract column names from the first row object
-    const firstRow = result.rows[0];
-    const columnNames = Object.keys(firstRow);
+    let formattedColumns: Array<{ name: string; type: string }>;
     
-    console.log('📊 Extracted column names:', columnNames);
+    if (columns.length > 0) {
+      // Use PostgreSQL query metadata for proper column info
+      formattedColumns = columns.map((col: any) => ({
+        name: col.name || col,
+        type: inferPostgresType(col.type_oid || col.type) || 'text'
+      }));
+    } else if (rows.length > 0) {
+      // Fallback: extract from first row object
+      const firstRow = rows[0];
+      const columnNames = Object.keys(firstRow);
+      formattedColumns = columnNames.map(name => ({
+        name,
+        type: inferTypeFromValue(firstRow[name])
+      }));
+    } else {
+      formattedColumns = [];
+    }
+    
+    console.log('📊 Formatted columns:', formattedColumns);
 
     return {
-      columns: columnNames,
-      rows: result.rows.map((row: any) => {
-        // Convert object rows to arrays based on column order
-        return columnNames.map(colName => row[colName] !== undefined ? row[colName] : null);
+      columns: formattedColumns,
+      rows: rows.map((row: any) => {
+        return formattedColumns.map(col => row[col.name] !== undefined ? row[col.name] : null);
       })
     };
 
@@ -321,16 +339,21 @@ async function executeMySQL(connection: any, password: string, sql: string, para
 
     await client.close();
 
-    // Extract column information from fields
-    const columns = (result.fields || []).map((field: any) => ({
+    // Extract column information from MySQL fields
+    const fields = result.fields || [];
+    const rows = result.rows || [];
+
+    const formattedColumns = fields.map((field: any) => ({
       name: field.name || field,
-      type: field.type || 'text'
+      type: inferMySQLType(field.type) || 'text'
     }));
 
+    console.log('📊 MySQL formatted columns:', formattedColumns);
+
     return {
-      columns: columns.map(col => col.name),
-      rows: (result.rows || []).map((row: any) => 
-        Array.isArray(row) ? row : columns.map(col => row[col.name] !== undefined ? row[col.name] : null)
+      columns: formattedColumns,
+      rows: rows.map((row: any) => 
+        Array.isArray(row) ? row : formattedColumns.map(col => row[col.name] !== undefined ? row[col.name] : null)
       )
     };
 
@@ -338,4 +361,52 @@ async function executeMySQL(connection: any, password: string, sql: string, para
     console.error('MySQL execution error:', error);
     throw error;
   }
+}
+
+// Type inference helpers
+function inferPostgresType(typeOid: number): string {
+  // Common PostgreSQL type OIDs
+  const typeMap: Record<number, string> = {
+    16: 'boolean',
+    20: 'number', // bigint
+    21: 'number', // smallint
+    23: 'number', // integer
+    25: 'text',   // text
+    700: 'number', // real
+    701: 'number', // double precision
+    1043: 'text', // varchar
+    1082: 'date', // date
+    1114: 'datetime', // timestamp
+    1184: 'datetime', // timestamptz
+  };
+  return typeMap[typeOid] || 'text';
+}
+
+function inferMySQLType(mysqlType: string): string {
+  if (!mysqlType) return 'text';
+  
+  const type = mysqlType.toLowerCase();
+  if (type.includes('int') || type.includes('decimal') || type.includes('float') || type.includes('double')) {
+    return 'number';
+  }
+  if (type.includes('bool')) {
+    return 'boolean';
+  }
+  if (type.includes('date') || type.includes('time')) {
+    return type.includes('datetime') || type.includes('timestamp') ? 'datetime' : 'date';
+  }
+  return 'text';
+}
+
+function inferTypeFromValue(value: any): string {
+  if (value === null || value === undefined) return 'text';
+  if (typeof value === 'number') return 'number';
+  if (typeof value === 'boolean') return 'boolean';
+  if (value instanceof Date) return 'datetime';
+  if (typeof value === 'string') {
+    // Try to detect date strings
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return 'date';
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value)) return 'datetime';
+  }
+  return 'text';
 }

@@ -38,7 +38,25 @@ serve(async (req) => {
       )
     }
 
-    const { org_id, workspace_id, connection_id, name, sql_query, description } = await req.json()
+    const { 
+      org_id, 
+      workspace_id, 
+      connection_id, 
+      name, 
+      sql_query, 
+      description, 
+      params = {},
+      ttl_sec = 300 
+    } = await req.json()
+
+    console.log('📦 Creating dataset:', { org_id, name, connection_id, has_sql: !!sql_query });
+
+    if (!name || !sql_query || !connection_id || !org_id) {
+      return new Response(
+        JSON.stringify({ error: 'Missing required fields: name, sql_query, connection_id, org_id' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
 
     // Get user's org
     const { data: profile } = await supabase
@@ -62,12 +80,13 @@ serve(async (req) => {
       )
     }
 
-    // First run the query to get column structure
+    // First run the query with LIMIT 1 to get column structure
     const previewResponse = await supabase.functions.invoke('run-sql-query', {
       body: {
         org_id,
         connection_id,
         sql: sql_query,
+        params,
         mode: 'preview',
         row_limit: 1
       }
@@ -75,14 +94,16 @@ serve(async (req) => {
 
     if (previewResponse.error) {
       return new Response(
-        JSON.stringify({ error: 'Failed to preview query', details: previewResponse.error }),
+        JSON.stringify({ error: 'Failed to preview query for columns', details: previewResponse.error }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
     const columns = previewResponse.data?.columns || []
 
-    // Create dataset
+    console.log('📦 Inferred columns:', columns);
+
+    // Create dataset with proper column structure
     const { data: dataset, error: createError } = await supabase
       .from('datasets')
       .insert({
@@ -90,23 +111,33 @@ serve(async (req) => {
         workspace_id,
         connection_id,
         name,
+        description,
         sql_query,
         source_type: 'sql',
         columns,
+        cache_ttl_seconds: ttl_sec,
+        last_updated: new Date().toISOString(),
         created_by: user.id
       })
       .select()
       .single()
 
     if (createError) {
+      console.error('Dataset creation error:', createError);
       return new Response(
         JSON.stringify({ error: 'Failed to create dataset', details: createError }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
+    console.log('✅ Dataset created:', dataset.id, dataset.name);
+
     return new Response(
-      JSON.stringify({ dataset }),
+      JSON.stringify({ 
+        id: dataset.id,
+        name: dataset.name,
+        columns
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 

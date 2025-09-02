@@ -40,6 +40,15 @@ serve(async (req) => {
 
     const { dataset_id, limit = 100, offset = 0 } = await req.json()
 
+    console.log('🔍 Previewing dataset:', { dataset_id, limit, offset });
+
+    if (!dataset_id) {
+      return new Response(
+        JSON.stringify({ error: 'dataset_id is required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     // Get dataset
     const { data: dataset, error: datasetError } = await supabase
       .from('datasets')
@@ -48,6 +57,7 @@ serve(async (req) => {
       .single()
 
     if (datasetError || !dataset) {
+      console.error('Dataset not found:', datasetError);
       return new Response(
         JSON.stringify({ error: 'Dataset not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -68,36 +78,44 @@ serve(async (req) => {
       )
     }
 
-    // Execute the dataset query
+    // Execute the dataset query with proper parameters
     const queryResponse = await supabase.functions.invoke('run-sql-query', {
       body: {
         org_id: dataset.org_id,
         connection_id: dataset.connection_id,
         sql: dataset.sql_query,
-        params: dataset.params || {},
+        params: {},
         mode: 'preview',
         row_limit: limit
       }
     })
 
     if (queryResponse.error) {
+      console.error('Failed to execute dataset query:', queryResponse.error);
       return new Response(
         JSON.stringify({ error: 'Failed to execute dataset query', details: queryResponse.error }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
+    const responseData = {
+      columns: queryResponse.data?.columns || dataset.columns || [],
+      rows: queryResponse.data?.rows || [],
+      truncated: queryResponse.data?.truncated || false,
+      dataset: {
+        id: dataset.id,
+        name: dataset.name,
+        created_at: dataset.created_at
+      }
+    };
+
+    console.log('✅ Dataset preview:', { 
+      columns_count: responseData.columns.length, 
+      rows_count: responseData.rows.length 
+    });
+
     return new Response(
-      JSON.stringify({
-        columns: queryResponse.data?.columns || [],
-        rows: queryResponse.data?.rows || [],
-        truncated: queryResponse.data?.truncated || false,
-        dataset: {
-          id: dataset.id,
-          name: dataset.name,
-          created_at: dataset.created_at
-        }
-      }),
+      JSON.stringify(responseData),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 

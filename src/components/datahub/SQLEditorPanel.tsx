@@ -239,43 +239,38 @@ export function SQLEditorPanel() {
       return;
     }
 
-    if (!queryResults || !userProfile?.org_id || !selectedConnectionId) {
+    if (!sqlQuery.trim() || !userProfile?.org_id || !selectedConnectionId) {
       toast({
         title: "Dados incompletos",
-        description: "Execute uma consulta primeiro",
+        description: "Digite uma consulta SQL e selecione uma conexão",
         variant: "destructive",
       });
       return;
     }
 
     try {
-      const { data: datasetData, error: datasetError } = await supabase
-        .from('datasets')
-        .insert({
+      // Use the datasets-create edge function
+      const { data, error } = await supabase.functions.invoke('datasets-create', {
+        body: {
           org_id: userProfile.org_id,
+          workspace_id: null,
+          connection_id: selectedConnectionId,
           name: datasetName,
           description: datasetDescription || null,
           sql_query: sqlQuery.trim(),
-          connection_id: selectedConnectionId,
-          source_type: 'sql',
-          data_schema: {
-            columns: queryResults.columns,
-            row_count: queryResults.rows?.length || 0
-          },
-          last_updated: new Date().toISOString(),
-          created_by: userProfile.id
-        })
-        .select()
-        .single();
+          params: queryParams,
+          ttl_sec: 300
+        }
+      });
 
-      if (datasetError) {
-        console.error('Dataset creation error:', datasetError);
-        throw datasetError;
+      if (error) {
+        console.error('Dataset creation error:', error);
+        throw new Error(error.message || 'Falha ao criar dataset');
       }
 
       toast({
         title: "✅ Dataset criado",
-        description: `Dataset "${datasetData.name}" criado com ${queryResults.rows?.length || 0} linhas`,
+        description: `Dataset "${data.name}" criado com ID: ${data.id}`,
       });
 
       setShowDatasetDialog(false);

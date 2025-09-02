@@ -36,8 +36,11 @@ export default function TableWidget({ widget }: TableWidgetProps) {
   }
 
   // Extract column names properly
-  const cols = widget.data.columns?.map((col: any) => col.name || col) || 
-               Object.keys(widget.data.rows[0] ?? {});
+  const cols = Array.isArray(widget.data.columns) 
+    ? (typeof widget.data.columns[0] === 'string' 
+        ? widget.data.columns as string[]
+        : (widget.data.columns as Array<{ name: string; type: string }>).map(col => col.name))
+    : Object.keys(widget.data.rows[0] ?? {});
 
   return (
     <div className="overflow-auto min-h-[220px] h-full">
@@ -54,9 +57,9 @@ export default function TableWidget({ widget }: TableWidgetProps) {
         <TableBody>
           {widget.data.rows.slice(0, 100).map((row, i) => (
             <TableRow key={i}>
-              {cols.map(col => (
+              {cols.map((col, colIndex) => (
                 <TableCell key={col} className="px-3 py-2 border-t">
-                  {String(row[col] ?? '')}
+                  {String(row[colIndex] ?? '')}
                 </TableCell>
               ))}
             </TableRow>
