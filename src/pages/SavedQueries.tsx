@@ -45,13 +45,7 @@ export default function SavedQueries() {
     try {
       const { data, error } = await supabase
         .from('saved_queries')
-        .select(`
-          *,
-          profiles!created_by (
-            full_name,
-            email
-          )
-        `)
+        .select('*')
         .eq('org_id', userProfile.org_id)
         .order('created_at', { ascending: false });
 

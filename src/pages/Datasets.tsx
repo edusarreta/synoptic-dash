@@ -51,13 +51,7 @@ export default function Datasets() {
     try {
       const { data, error } = await supabase
         .from('datasets')
-        .select(`
-          *,
-          profiles!created_by (
-            full_name,
-            email
-          )
-        `)
+        .select('*')
         .eq('org_id', userProfile.org_id)
         .order('created_at', { ascending: false });
 
