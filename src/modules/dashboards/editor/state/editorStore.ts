@@ -110,6 +110,8 @@ const initialState: DashboardState = {
   canUndo: false,
   canRedo: false,
   isDirty: false,
+  selectedDatasetId: undefined,
+  selectedWidgetId: undefined,
 };
 
 let historyStack: DashboardState[] = [initialState];
@@ -328,7 +330,13 @@ export const useEditorStore = create<DashboardState & EditorActions>()(
 
     loadDashboard: (dashboard) => {
       set((state) => {
+        // Preserve selectedDatasetId when loading dashboard
+        const preservedSelectedDatasetId = state.selectedDatasetId;
         Object.assign(state, { ...initialState, ...dashboard, isDirty: false });
+        // Restore selectedDatasetId if it wasn't provided in dashboard data
+        if (!dashboard.selectedDatasetId && preservedSelectedDatasetId) {
+          state.selectedDatasetId = preservedSelectedDatasetId;
+        }
       });
       historyStack = [get()];
       historyIndex = 0;

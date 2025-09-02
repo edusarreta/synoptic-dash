@@ -98,15 +98,6 @@ export default function DashboardEditor() {
     }
   }, [id]);
 
-  // Debug effect to monitor datasets state
-  useEffect(() => {
-    console.log('=== Datasets state changed ===');
-    console.log('Datasets count:', datasets.length);
-    console.log('Loading state:', loadingDatasets);
-    if (datasets.length > 0) {
-      console.log('Available datasets:', datasets.map(d => ({ id: d.id, name: d.name, type: d.type })));
-    }
-  }, [datasets, loadingDatasets]);
 
   const initializeDashboard = async () => {
     try {
