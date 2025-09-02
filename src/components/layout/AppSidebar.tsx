@@ -38,9 +38,7 @@ import { BRAND } from '@/config/brand';
 
 const navigationItems = [
   { title: "Home", url: "/app", icon: Home },
-  { title: "Conexões", url: "/connections", icon: Database, permission: "connections:read" },
-  { title: "Catálogo", url: "/catalog", icon: Eye, permission: "catalog:read" },
-  { title: "Editor SQL", url: "/sql", icon: FileText, permission: "sql:run" },
+  { title: "Data Hub", url: "/data-hub", icon: Database, permission: "connections:read" },
   { title: "Dashboards", url: "/dashboards", icon: LayoutDashboard, permission: "dashboards:read" },
   { title: "Configurações", url: "/settings", icon: Settings },
 ];
