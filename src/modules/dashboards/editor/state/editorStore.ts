@@ -404,8 +404,10 @@ export const useEditorStore = create<DashboardState & EditorActions>()(
         console.log('Datasets loaded:', data);
         
         set((state) => {
+          console.log('Setting datasets in store. Previous count:', state.datasets.length);
           state.datasets = data || [];
           state.loadingDatasets = false;
+          console.log('New datasets count in store:', state.datasets.length);
         });
       } catch (error) {
         console.error('Error loading datasets:', error);

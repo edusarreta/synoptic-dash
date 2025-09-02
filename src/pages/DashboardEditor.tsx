@@ -74,8 +74,13 @@ export default function DashboardEditor() {
     name, 
     widgets, 
     selectedWidgetId, 
+    datasets, 
+    loadingDatasets, 
+    selectedDatasetId, 
     loadDashboard, 
     saveDashboard, 
+    loadDatasets, 
+    setSelectedDataset,
     addWidget, 
     removeWidget, 
     updateWidget, 
@@ -85,7 +90,6 @@ export default function DashboardEditor() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const { datasets, loadingDatasets, selectedDatasetId, loadDatasets, setSelectedDataset } = useEditorStore();
   const [dataFields, setDataFields] = useState<DataField[]>([]);
 
   useEffect(() => {
@@ -96,6 +100,9 @@ export default function DashboardEditor() {
 
   const initializeDashboard = async () => {
     try {
+      console.log('=== Dashboard Editor Initialization ===');
+      console.log('Loading datasets...');
+      
       // Load dashboard and datasets in parallel
       const dashboardData = await supabase.from('dashboards').select('*').eq('id', id).single();
 
@@ -103,8 +110,12 @@ export default function DashboardEditor() {
 
       await loadDatasets();
       
+      console.log('Datasets after loadDatasets:', datasets.length);
+      
       // Load dashboard into store
       loadDashboard({ ...dashboardData.data, id: id! });
+
+      console.log('Dashboard loaded into store');
 
       // Mock data fields - in real implementation, load from datasource
       setDataFields([
@@ -295,6 +306,9 @@ export default function DashboardEditor() {
                 {process.env.NODE_ENV === 'development' && (
                   <div className="text-xs text-muted-foreground mt-1">
                     Debug: {datasets.length} datasets, loading: {loadingDatasets ? 'sim' : 'não'}
+                    {datasets.length > 0 && (
+                      <div>Datasets: {datasets.map(d => d.name).join(', ')}</div>
+                    )}
                   </div>
                 )}
               </div>
