@@ -46,12 +46,9 @@ export function DatasetsPanel() {
     try {
       const { data, error } = await supabase
         .from('saved_queries')
-        .select(`
-          *,
-          connection:data_connections(name, connection_type)
-        `)
+        .select('*')
         .eq('org_id', userProfile.org_id)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false});
 
       if (error) {
         console.error('Error loading saved queries:', error);
