@@ -37,8 +37,10 @@ export function DatasetsPanel() {
   const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
-    loadSavedQueries();
-  }, []);
+    if (userProfile?.org_id) {
+      loadSavedQueries();
+    }
+  }, [userProfile?.org_id]);
 
   const loadSavedQueries = async () => {
     if (!userProfile?.org_id) return;

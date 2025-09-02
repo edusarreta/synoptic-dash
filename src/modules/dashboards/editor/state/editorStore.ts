@@ -381,12 +381,27 @@ export const useEditorStore = create<DashboardState & EditorActions>()(
       });
       
       try {
+        // Get current user's org_id
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('org_id')
+          .eq('id', (await supabase.auth.getUser()).data.user?.id)
+          .single();
+
+        if (profileError) throw profileError;
+        if (!profile?.org_id) throw new Error('User org not found');
+
+        console.log('Loading datasets for org_id:', profile.org_id);
+
         const { data, error } = await supabase
           .from('saved_queries')
           .select('id, name, description, sql_query, connection_id, org_id')
+          .eq('org_id', profile.org_id)
           .order('created_at', { ascending: false });
         
         if (error) throw error;
+        
+        console.log('Datasets loaded:', data);
         
         set((state) => {
           state.datasets = data || [];
