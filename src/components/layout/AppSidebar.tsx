@@ -6,8 +6,6 @@ import {
   LogOut,
   ChevronDown,
   Home,
-  FileText,
-  Eye,
   Shield
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
@@ -39,8 +37,6 @@ import { BRAND } from '@/config/brand';
 const navigationItems = [
   { title: "Home", url: "/app", icon: Home },
   { title: "Data Hub", url: "/data-hub", icon: Database, permission: "connections:read" },
-  { title: "Datasets", url: "/datasets", icon: FileText, permission: "datasets:read" },
-  { title: "Consultas", url: "/saved-queries", icon: FileText, permission: "sql:run" },
   { title: "Dashboards", url: "/dashboards", icon: LayoutDashboard, permission: "dashboards:read" },
   { title: "Configurações", url: "/settings", icon: Settings },
 ];

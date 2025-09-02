@@ -280,7 +280,7 @@ export default function DashboardWizard() {
               <Database className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
               <p className="text-sm text-muted-foreground">
                 Nenhuma conexão encontrada. 
-                <Button variant="link" className="p-0 h-auto ml-1" onClick={() => navigate('/connections')}>
+                <Button variant="link" className="p-0 h-auto ml-1" onClick={() => navigate('/data-hub')}>
                   Criar conexão
                 </Button>
               </p>

@@ -210,7 +210,7 @@ export default function Dashboard() {
 
   const handleCreateChart = () => {
     console.log('Navigating to create chart...');
-    navigate('/charts');
+    navigate('/data-hub');
   };
 
   const handleDeleteChart = async (chartId: string) => {
@@ -456,7 +456,7 @@ export default function Dashboard() {
                 <BarChart3 className="w-4 h-4 mr-3" />
                 Criar Gráfico
               </Button>
-              <Button variant="outline" className="w-full justify-start h-12" onClick={() => navigate('/data-sources')}>
+              <Button variant="outline" className="w-full justify-start h-12" onClick={() => navigate('/data-hub')}>
                 <Database className="w-4 h-4 mr-3" />
                 Adicionar Fonte de Dados
               </Button>

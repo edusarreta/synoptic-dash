@@ -18,17 +18,11 @@ import { PostAuth } from "./modules/auth/pages/PostAuth";
 import Demo from "./pages/Demo";
 import NotFound from "./pages/NotFound";
 import DataHub from "./pages/DataHub";
-import Datasets from "./pages/Datasets";
-import SavedQueries from "./pages/SavedQueries";
 
 // Protected pages
 import { App as AppHome } from "./pages/App";
 import Dashboard from "./pages/Dashboard";
 import Settings from "./pages/Settings";
-import { EditorPage } from "./modules/editor/pages/EditorPage";
-import { ConnectionsPage } from "./modules/connections/pages/ConnectionsPage";
-import SQLEditor from "./pages/SQLEditor";
-import Catalog from "./pages/Catalog";
 import OrgPermissions from "./pages/OrgPermissions";
 import DashboardList from "./pages/DashboardList";
 import DashboardWizard from "./pages/DashboardWizard";
@@ -75,62 +69,10 @@ export default function App() {
                 </AuthenticatedRoute>
               } />
               
-              <Route path="/connections" element={
-                <AuthenticatedRoute>
-                  <RequirePermission perms={["connections:read"]} mode="any">
-                    <AppLayout>
-                      <ConnectionsPage />
-                    </AppLayout>
-                  </RequirePermission>
-                </AuthenticatedRoute>
-              } />
-              
               <Route path="/data-hub" element={
                 <AuthenticatedRoute>
                   <RequirePermission perms={["connections:read", "catalog:read", "sql:run", "datasets:read"]} mode="any">
                     <DataHub />
-                  </RequirePermission>
-                </AuthenticatedRoute>
-              } />
-              
-              <Route path="/datasets" element={
-                <AuthenticatedRoute>
-                  <RequirePermission perms={["datasets:read"]}>
-                    <AppLayout>
-                      <Datasets />
-                    </AppLayout>
-                  </RequirePermission>
-                </AuthenticatedRoute>
-              } />
-              
-              <Route path="/saved-queries" element={
-                <AuthenticatedRoute>
-                  <RequirePermission perms={["sql:run"]}>
-                    <AppLayout>
-                      <SavedQueries />
-                    </AppLayout>
-                  </RequirePermission>
-                </AuthenticatedRoute>
-              } />
-              
-              
-              
-              <Route path="/catalog" element={
-                <AuthenticatedRoute>
-                  <RequirePermission perms={["catalog:read"]}>
-                    <AppLayout>
-                      <Catalog />
-                    </AppLayout>
-                  </RequirePermission>
-                </AuthenticatedRoute>
-              } />
-              
-              <Route path="/sql" element={
-                <AuthenticatedRoute>
-                  <RequirePermission perms={["sql:run"]}>
-                    <AppLayout>
-                      <SQLEditor />
-                    </AppLayout>
                   </RequirePermission>
                 </AuthenticatedRoute>
               } />
@@ -184,16 +126,6 @@ export default function App() {
                    </RequirePermission>
                  </AuthenticatedRoute>
                } />
-              
-              <Route path="/editor/:id" element={
-                <AuthenticatedRoute>
-                  <RequirePermission perms={["dashboards:update_layout", "charts:update_spec"]} mode="all">
-                    <AppLayout>
-                      <EditorPage />
-                    </AppLayout>
-                  </RequirePermission>
-                </AuthenticatedRoute>
-              } />
               
               <Route path="/settings" element={
                 <AuthenticatedRoute>

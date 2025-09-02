@@ -35,9 +35,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     const path = location.pathname;
     
     if (path === '/app') return 'Home';
-    if (path === '/connections') return 'Home > Conexões';
-    if (path === '/catalog') return 'Home > Catálogo';
-    if (path === '/sql') return 'Home > Editor SQL';
+    if (path === '/data-hub') return 'Home > Data Hub';
     if (path === '/dashboards') return 'Home > Dashboards';
     if (path === '/dashboards/new') return 'Home > Dashboards > Novo';
     if (path === '/settings') return 'Home > Configurações';

@@ -130,7 +130,7 @@ export function AdvancedDashboard({ charts, onDeleteChart, onCreateChart, smartF
 
   const handleEditChart = useCallback((chartId: string) => {
     console.log('Navigating to edit chart:', chartId);
-    navigate(`/charts?edit=${chartId}`);
+    navigate(`/data-hub`);
   }, [navigate]);
 
   const handleDeleteChart = useCallback((chartId: string) => {

@@ -33,7 +33,7 @@ export function App() {
           </CardHeader>
           <CardContent>
             <Button asChild className="w-full" disabled={!can("connections:create")}>
-              <Link to="/connections">
+              <Link to="/data-hub">
                 <Plus className="w-4 h-4 mr-2" />
                 Nova Conexão
               </Link>
@@ -53,7 +53,7 @@ export function App() {
           </CardHeader>
           <CardContent>
             <Button asChild variant="outline" className="w-full" disabled={!can("sql:run")}>
-              <Link to="/sql">
+              <Link to="/data-hub">
                 Abrir Editor
               </Link>
             </Button>
@@ -95,27 +95,9 @@ export function App() {
           
           {can("connections:read") && (
             <Button asChild variant="ghost" className="justify-start h-auto p-4">
-              <Link to="/connections" className="flex flex-col items-start">
-                <span className="font-medium">Conexões</span>
-                <span className="text-sm text-muted-foreground">Gerenciar fontes de dados</span>
-              </Link>
-            </Button>
-          )}
-          
-          {can("catalog:read") && (
-            <Button asChild variant="ghost" className="justify-start h-auto p-4">
-              <Link to="/catalog" className="flex flex-col items-start">
-                <span className="font-medium">Catálogo</span>
-                <span className="text-sm text-muted-foreground">Explorar dados</span>
-              </Link>
-            </Button>
-          )}
-          
-          {can("sql:run") && (
-            <Button asChild variant="ghost" className="justify-start h-auto p-4">
-              <Link to="/sql" className="flex flex-col items-start">
-                <span className="font-medium">SQL Editor</span>
-                <span className="text-sm text-muted-foreground">Executar consultas</span>
+              <Link to="/data-hub" className="flex flex-col items-start">
+                <span className="font-medium">Data Hub</span>
+                <span className="text-sm text-muted-foreground">Conexões, dados e SQL</span>
               </Link>
             </Button>
           )}
