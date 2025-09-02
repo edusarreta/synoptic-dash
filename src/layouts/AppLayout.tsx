@@ -2,7 +2,7 @@ import React from 'react';
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/layout/AppSidebar";
 import { useSession } from "@/providers/SessionProvider";
-import { Navigate, useLocation } from "react-router-dom";
+import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { Loader2, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BackLink } from "@/components/BackLink";
@@ -14,6 +14,7 @@ interface AppLayoutProps {
 export function AppLayout({ children }: AppLayoutProps) {
   const { userProfile, loading } = useSession();
   const location = useLocation();
+  const navigate = useNavigate();
 
   if (loading) {
     return (
@@ -61,7 +62,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => window.location.href = '/app'}
+              onClick={() => navigate('/app')}
               className="gap-2"
             >
               <Home className="h-4 w-4" />

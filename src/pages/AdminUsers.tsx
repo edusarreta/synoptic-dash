@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, startTransition } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -79,7 +79,9 @@ export default function AdminUsers() {
         return;
       }
 
-      setUsers(data || []);
+      startTransition(() => {
+        setUsers(data || []);
+      });
     } catch (error) {
       console.error('Error loading users:', error);
       toast({

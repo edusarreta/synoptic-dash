@@ -1,4 +1,4 @@
-import React, { lazy } from "react";
+import React, { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -30,6 +30,16 @@ import DashboardEditor from "./pages/DashboardEditor";
 import SuperAdmin from "./pages/SuperAdmin";
 
 const AdminUsers = lazy(() => import("./pages/AdminUsers"));
+
+// Loading component for Suspense fallback
+const PageLoader = () => (
+  <div className="flex items-center justify-center h-64">
+    <div className="text-center">
+      <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+      <p className="text-muted-foreground">Carregando...</p>
+    </div>
+  </div>
+);
 
 const queryClient = new QueryClient();
 
@@ -149,7 +159,9 @@ export default function App() {
                 <AuthenticatedRoute>
                   <RequirePermission perms={["rbac:read"]}>
                     <AppLayout>
-                      <AdminUsers />
+                      <Suspense fallback={<PageLoader />}>
+                        <AdminUsers />
+                      </Suspense>
                     </AppLayout>
                   </RequirePermission>
                 </AuthenticatedRoute>
