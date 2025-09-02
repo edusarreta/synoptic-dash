@@ -297,7 +297,15 @@ export default function DashboardEditor() {
                     ) : (
                       datasets.map((dataset) => (
                         <SelectItem key={dataset.id} value={dataset.id}>
-                          {dataset.name}
+                          <div className="flex items-center justify-between w-full">
+                            <span className="flex-1">{dataset.name}</span>
+                            <Badge 
+                              variant={dataset.type === 'dataset' ? 'default' : 'secondary'} 
+                              className="text-xs ml-2"
+                            >
+                              {dataset.type === 'dataset' ? 'Dataset' : 'Query'}
+                            </Badge>
+                          </div>
                         </SelectItem>
                       ))
                     )}
@@ -305,9 +313,12 @@ export default function DashboardEditor() {
                 </Select>
                 {process.env.NODE_ENV === 'development' && (
                   <div className="text-xs text-muted-foreground mt-1">
-                    Debug: {datasets.length} datasets, loading: {loadingDatasets ? 'sim' : 'não'}
+                    Debug: {datasets.length} total items, loading: {loadingDatasets ? 'sim' : 'não'}
                     {datasets.length > 0 && (
-                      <div>Datasets: {datasets.map(d => d.name).join(', ')}</div>
+                      <div>
+                        Datasets: {datasets.filter(d => d.type === 'dataset').length}, 
+                        Queries: {datasets.filter(d => d.type === 'saved_query').length}
+                      </div>
                     )}
                   </div>
                 )}
