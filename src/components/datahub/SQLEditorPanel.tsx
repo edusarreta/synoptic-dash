@@ -48,6 +48,9 @@ export function SQLEditorPanel() {
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [queryName, setQueryName] = useState("");
   const [queryDescription, setQueryDescription] = useState("");
+  const [showDatasetDialog, setShowDatasetDialog] = useState(false);
+  const [datasetName, setDatasetName] = useState("");
+  const [datasetDescription, setDatasetDescription] = useState("");
 
   // Detect parameters in SQL
   const detectParameters = (sql: string) => {
@@ -226,6 +229,68 @@ export function SQLEditorPanel() {
     }
   };
 
+  const createDataset = async () => {
+    if (!datasetName.trim()) {
+      toast({
+        title: "Nome obrigatório",
+        description: "Digite um nome para o dataset",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!queryResults || !userProfile?.org_id || !selectedConnectionId) {
+      toast({
+        title: "Dados incompletos",
+        description: "Execute uma consulta primeiro",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const { data: datasetData, error: datasetError } = await supabase
+        .from('datasets')
+        .insert({
+          org_id: userProfile.org_id,
+          name: datasetName,
+          description: datasetDescription || null,
+          sql_query: sqlQuery.trim(),
+          connection_id: selectedConnectionId,
+          source_type: 'sql',
+          data_schema: {
+            columns: queryResults.columns,
+            row_count: queryResults.rows?.length || 0
+          },
+          last_updated: new Date().toISOString(),
+          created_by: userProfile.id
+        })
+        .select()
+        .single();
+
+      if (datasetError) {
+        console.error('Dataset creation error:', datasetError);
+        throw datasetError;
+      }
+
+      toast({
+        title: "✅ Dataset criado",
+        description: `Dataset "${datasetData.name}" criado com ${queryResults.rows?.length || 0} linhas`,
+      });
+
+      setShowDatasetDialog(false);
+      setDatasetName("");
+      setDatasetDescription("");
+    } catch (error: any) {
+      console.error('Error creating dataset:', error);
+      toast({
+        title: "Erro ao criar dataset",
+        description: error.message || "Falha ao criar dataset",
+        variant: "destructive",
+      });
+    }
+  };
+
   const exportData = (format: 'csv' | 'json') => {
     if (!queryResults?.rows?.length) {
       toast({
@@ -296,14 +361,61 @@ export function SQLEditorPanel() {
       >
         <div className="flex items-center gap-2">
           {can('datasets:create') && queryResults && (
-            <Button
-              onClick={() => executeQuery('dataset')}
-              disabled={isLoadingSQL || !selectedConnectionId}
-              className="bg-primary hover:bg-primary/90"
-            >
-              <Database className="w-4 h-4 mr-2" />
-              Salvar como Dataset
-            </Button>
+            <Dialog open={showDatasetDialog} onOpenChange={setShowDatasetDialog}>
+              <DialogTrigger asChild>
+                <Button
+                  disabled={isLoadingSQL || !selectedConnectionId}
+                  className="bg-primary hover:bg-primary/90"
+                >
+                  <Database className="w-4 h-4 mr-2" />
+                  Salvar como Dataset
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Criar Dataset</DialogTitle>
+                  <DialogDescription>
+                    Salve os resultados desta consulta como um dataset reutilizável
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="dataset-name">Nome do Dataset</Label>
+                    <Input
+                      id="dataset-name"
+                      value={datasetName}
+                      onChange={(e) => setDatasetName(e.target.value)}
+                      placeholder="Ex: Vendas por Categoria"
+                      autoFocus
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="dataset-description">Descrição (opcional)</Label>
+                    <Textarea
+                      id="dataset-description"
+                      value={datasetDescription}
+                      onChange={(e) => setDatasetDescription(e.target.value)}
+                      placeholder="Descrição do que este dataset contém..."
+                      rows={3}
+                    />
+                  </div>
+                  {queryResults && (
+                    <div className="text-sm text-muted-foreground p-3 bg-muted/50 rounded">
+                      <p>Este dataset conterá {queryResults.rows?.length || 0} linhas e {queryResults.columns?.length || 0} colunas</p>
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <Button onClick={createDataset} className="flex-1">
+                      <Database className="w-4 h-4 mr-2" />
+                      Criar Dataset
+                    </Button>
+                    <Button variant="outline" onClick={() => setShowDatasetDialog(false)}>
+                      Cancelar
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
           )}
           <Badge variant="outline" className="flex items-center gap-1">
             <AlertCircle className="w-3 h-3" />
@@ -418,15 +530,6 @@ export function SQLEditorPanel() {
                 </DialogContent>
               </Dialog>
 
-              {can('datasets:create') && (
-                <Button
-                  variant="outline"
-                  onClick={() => executeQuery('dataset')}
-                  disabled={isLoadingSQL || !selectedConnectionId}
-                >
-                  Criar Dataset
-                </Button>
-              )}
             </div>
           </div>
         </CardContent>
