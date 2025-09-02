@@ -270,16 +270,31 @@ export default function DashboardEditor() {
                 <Label>Dataset</Label>
                 <Select value={selectedDatasetId} onValueChange={handleSelectDataset}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione um dataset" />
+                    <SelectValue placeholder={loadingDatasets ? "Carregando..." : "Selecione um dataset"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {datasets.map((dataset) => (
-                      <SelectItem key={dataset.id} value={dataset.id}>
-                        {dataset.name}
+                    {loadingDatasets ? (
+                      <SelectItem value="loading" disabled>
+                        Carregando datasets...
                       </SelectItem>
-                    ))}
+                    ) : datasets.length === 0 ? (
+                      <SelectItem value="empty" disabled>
+                        Nenhum dataset encontrado
+                      </SelectItem>
+                    ) : (
+                      datasets.map((dataset) => (
+                        <SelectItem key={dataset.id} value={dataset.id}>
+                          {dataset.name}
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
+                {process.env.NODE_ENV === 'development' && (
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Debug: {datasets.length} datasets, loading: {loadingDatasets ? 'sim' : 'não'}
+                  </div>
+                )}
               </div>
 
               {/* Chart Types */}
