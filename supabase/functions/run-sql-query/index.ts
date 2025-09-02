@@ -257,8 +257,7 @@ async function executePostgreSQL(connection: any, password: string, sql: string,
       setTimeout(() => reject(new Error('Query timeout')), timeout_ms);
     });
 
-    // Try using regular query first to get column info
-    const queryPromise = client.query(sql, params);
+    const queryPromise = client.queryObject(sql, params);
     const result = await Promise.race([queryPromise, timeoutPromise]) as any;
 
     await client.end();
@@ -273,26 +272,29 @@ async function executePostgreSQL(connection: any, password: string, sql: string,
     });
 
     // Extract column information from result metadata
-    const columns = (result.columns || []).map((col: any, index: number) => ({
-      name: col.name || col || `column_${index + 1}`,
-      type: col.type || 'text'
-    }));
+    let columns: any[] = [];
+    
+    if (result.columns && result.columns.length > 0) {
+      columns = result.columns.map((col: any) => ({
+        name: col.name || 'unknown_column',
+        type: col.type || 'text'
+      }));
+    } else if (result.rows && result.rows.length > 0) {
+      // Fallback: use first row keys as column names
+      const firstRow = result.rows[0];
+      columns = Object.keys(firstRow).map((key: string) => ({
+        name: key,
+        type: 'text'
+      }));
+    }
 
     console.log('📊 Processed columns:', columns.map(c => c.name));
 
     return {
       columns: columns.map(col => col.name),
       rows: (result.rows || []).map((row: any) => {
-        // Handle different row formats
-        if (Array.isArray(row)) {
-          return row;
-        } else if (typeof row === 'object' && row !== null) {
-          // Convert object to array based on column order
-          return columns.map(col => row[col.name] !== undefined ? row[col.name] : null);
-        } else {
-          // Single value - wrap in array
-          return [row];
-        }
+        // Convert object rows to arrays based on column order
+        return columns.map(col => row[col.name] !== undefined ? row[col.name] : null);
       })
     };
 
