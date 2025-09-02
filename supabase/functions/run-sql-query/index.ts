@@ -237,14 +237,15 @@ async function executePostgreSQL(connection: any, password: string, sql: string,
 
     await client.end();
 
-    // Extract column information
-    const columns = result.rows.length > 0 
-      ? Object.keys(result.rows[0])
-      : [];
+    // Extract column information from query metadata
+    const columns = result.columns?.map((col: any) => ({
+      name: col.name,
+      type: col.type || 'text'
+    })) || [];
 
     return {
       columns,
-      rows: result.rows.map((row: any) => Object.values(row))
+      rows: result.rows || []
     };
 
   } catch (error) {
@@ -275,7 +276,10 @@ async function executeMySQL(connection: any, password: string, sql: string, para
     await client.close();
 
     // Extract column information from fields
-    const columns = (result.fields || []).map((field: any) => field.name || field);
+    const columns = (result.fields || []).map((field: any) => ({
+      name: field.name || field,
+      type: field.type || 'text'
+    }));
 
     return {
       columns,

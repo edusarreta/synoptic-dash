@@ -35,9 +35,9 @@ export default function TableWidget({ widget }: TableWidgetProps) {
     );
   }
 
-  const cols = widget.data.columns?.length 
-    ? widget.data.columns 
-    : Object.keys(widget.data.rows[0] ?? {});
+  // Extract column names properly
+  const cols = widget.data.columns?.map((col: any) => col.name || col) || 
+               Object.keys(widget.data.rows[0] ?? {});
 
   return (
     <div className="overflow-auto min-h-[220px] h-full">
