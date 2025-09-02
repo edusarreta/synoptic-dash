@@ -1,6 +1,10 @@
 import { create } from 'zustand';
 
 interface DataHubState {
+  // Navigation state
+  currentView: 'main' | 'connection-form' | 'catalog-detail' | 'sql-editor' | 'dataset-detail';
+  previousView: string | null;
+  
   // Selected items
   selectedConnectionId: string | null;
   selectedSchema: string | null;
@@ -20,6 +24,8 @@ interface DataHubState {
   isLoadingDatasets: boolean;
   
   // Actions
+  setCurrentView: (view: DataHubState['currentView'], previous?: string) => void;
+  navigateBack: () => void;
   setSelectedConnection: (connectionId: string | null) => void;
   setSelectedConnectionId: (connectionId: string | null) => void;
   setSelectedSchema: (schema: string | null) => void;
@@ -39,6 +45,8 @@ interface DataHubState {
 
 export const useDataHubStore = create<DataHubState>((set, get) => ({
   // Initial state
+  currentView: 'main',
+  previousView: null,
   selectedConnectionId: null,
   selectedSchema: null,
   selectedTable: null,
@@ -51,6 +59,16 @@ export const useDataHubStore = create<DataHubState>((set, get) => ({
   isLoadingDatasets: false,
   
   // Actions
+  setCurrentView: (view, previous) => set({ 
+    currentView: view, 
+    previousView: previous || get().currentView 
+  }),
+  navigateBack: () => {
+    const { previousView } = get();
+    if (previousView) {
+      set({ currentView: previousView as DataHubState['currentView'], previousView: null });
+    }
+  },
   setSelectedConnection: (connectionId) => set({ selectedConnectionId: connectionId }),
   setSelectedConnectionId: (connectionId) => set({ selectedConnectionId: connectionId }),
   setSelectedSchema: (schema) => set({ selectedSchema: schema }),

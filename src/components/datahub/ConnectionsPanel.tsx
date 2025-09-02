@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { getTypeLabel } from "@/modules/connections/utils/normalizeConnectionType";
 import { useDataHubStore } from "@/hooks/useDataHubStore";
 import { ConnectionFormFields } from "@/modules/connections/pages/ConnectionsFormFields";
+import { DataHubHeader } from "./DataHubHeader";
 
 interface DataConnection {
   id: string;
@@ -380,14 +381,10 @@ export function ConnectionsPanel() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold">Conexões de Dados</h2>
-          <p className="text-muted-foreground">
-            Gerencie suas conexões com bancos de dados e APIs
-          </p>
-        </div>
-
+      <DataHubHeader
+        title="Conexões de Dados"
+        description="Gerencie suas conexões com bancos de dados e APIs"
+      >
         {canCreateConnections && (
           <Dialog open={showCreateDialog} onOpenChange={(open) => {
             setShowCreateDialog(open);
@@ -500,7 +497,7 @@ export function ConnectionsPanel() {
             </DialogContent>
           </Dialog>
         )}
-      </div>
+      </DataHubHeader>
 
       {connections.length === 0 ? (
         <Card>

@@ -10,6 +10,7 @@ import { useSession } from "@/providers/SessionProvider";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useDataHubStore } from "@/hooks/useDataHubStore";
+import { DataHubHeader } from "./DataHubHeader";
 
 interface TableInfo {
   name: string;
@@ -32,7 +33,9 @@ export function CatalogPanel() {
     selectedConnectionId,
     selectedSchema,
     selectedTable,
-    selectTableAndGenerateSQL
+    selectTableAndGenerateSQL,
+    setSelectedSchema,
+    setSelectedTable
   } = useDataHubStore();
   
   const [previewData, setPreviewData] = useState<PreviewData | null>(null);
@@ -209,6 +212,11 @@ export function CatalogPanel() {
     }
   };
 
+  const handleBackToList = () => {
+    setSelectedSchema(null);
+    setSelectedTable(null);
+  };
+
   const selectedTableInfo = selectedTable && catalogData?.schemas
     ?.find((s: any) => s.name === selectedSchema)
     ?.tables?.find((t: any) => t.name === selectedTable);
@@ -232,26 +240,20 @@ export function CatalogPanel() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold">
-            {selectedSchema}.{selectedTable}
-          </h2>
-          <p className="text-muted-foreground">
-            Explore os detalhes e dados da tabela selecionada
-          </p>
-        </div>
-        
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={generateSQL}
-          >
-            <FileText className="w-4 h-4 mr-2" />
-            Gerar SQL
-          </Button>
-        </div>
-      </div>
+      <DataHubHeader
+        title={`${selectedSchema}.${selectedTable}`}
+        description="Explore os detalhes e dados da tabela selecionada"
+        showBackButton={true}
+        onBack={handleBackToList}
+      >
+        <Button
+          variant="outline"
+          onClick={generateSQL}
+        >
+          <FileText className="w-4 h-4 mr-2" />
+          Gerar SQL
+        </Button>
+      </DataHubHeader>
 
       <Tabs defaultValue="resumo" className="w-full">
         <TabsList className="grid w-full grid-cols-3">
