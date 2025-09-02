@@ -257,22 +257,43 @@ async function executePostgreSQL(connection: any, password: string, sql: string,
       setTimeout(() => reject(new Error('Query timeout')), timeout_ms);
     });
 
-    const queryPromise = client.queryObject(sql, params);
+    // Try using regular query first to get column info
+    const queryPromise = client.query(sql, params);
     const result = await Promise.race([queryPromise, timeoutPromise]) as any;
 
     await client.end();
 
-    // Extract column information from query metadata
-    const columns = result.columns?.map((col: any) => ({
-      name: col.name,
+    console.log('📊 Raw query result:', {
+      type: typeof result,
+      has_columns: !!result.columns,
+      has_rows: !!result.rows,
+      rows_length: result.rows?.length,
+      columns_length: result.columns?.length,
+      sample_row: result.rows?.[0]
+    });
+
+    // Extract column information from result metadata
+    const columns = (result.columns || []).map((col: any, index: number) => ({
+      name: col.name || col || `column_${index + 1}`,
       type: col.type || 'text'
-    })) || [];
+    }));
+
+    console.log('📊 Processed columns:', columns.map(c => c.name));
 
     return {
       columns: columns.map(col => col.name),
-      rows: (result.rows || []).map((row: any) => 
-        columns.map(col => row[col.name] !== undefined ? row[col.name] : null)
-      )
+      rows: (result.rows || []).map((row: any) => {
+        // Handle different row formats
+        if (Array.isArray(row)) {
+          return row;
+        } else if (typeof row === 'object' && row !== null) {
+          // Convert object to array based on column order
+          return columns.map(col => row[col.name] !== undefined ? row[col.name] : null);
+        } else {
+          // Single value - wrap in array
+          return [row];
+        }
+      })
     };
 
   } catch (error) {
