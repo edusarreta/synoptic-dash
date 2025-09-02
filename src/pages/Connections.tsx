@@ -424,7 +424,13 @@ export default function ConnectionsPage() {
         </div>
 
           {canCreateConnections && (
-            <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+            <Dialog open={showCreateDialog} onOpenChange={(open) => {
+              setShowCreateDialog(open);
+              if (!open) {
+                form.reset(defaultFormValues);
+                setSelectedConnectionId(null);
+              }
+            }}>
               <DialogTrigger asChild>
                 <Button>
                   <Plus className="w-4 h-4 mr-2" />
