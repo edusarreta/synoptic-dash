@@ -131,7 +131,7 @@ serve(async (req) => {
 
     console.log('🏃 Processed SQL:', processedSQL.substring(0, 100) + '...');
 
-    // Decrypt password
+    // Decrypt password using the same logic as other functions
     const key = Deno.env.get('DB_ENCRYPTION_KEY');
     if (!key) {
       return errorResponse('Chave de criptografia não configurada', 500);
@@ -139,19 +139,32 @@ serve(async (req) => {
 
     let decryptedPassword: string;
     try {
-      const encoder = new TextEncoder();
-      const keyData = encoder.encode(key);
-      const encrypted = new Uint8Array(atob(connection.encrypted_password).split('').map(c => c.charCodeAt(0)));
-      const decrypted = new Uint8Array(encrypted.length);
+      // Use the robust decryption logic
+      const decoded = atob(connection.encrypted_password);
       
-      for (let i = 0; i < encrypted.length; i++) {
-        decrypted[i] = encrypted[i] ^ keyData[i % keyData.length];
+      console.log('🔍 Attempting password decryption:', { 
+        has_encoded: !!connection.encrypted_password,
+        decoded_length: decoded.length 
+      });
+      
+      // Try different formats for backward compatibility
+      if (decoded.includes('::')) {
+        // Format: password::key_prefix
+        const parts = decoded.split('::');
+        if (parts.length === 2 && parts[1] === key.slice(0, 8)) {
+          decryptedPassword = parts[0];
+        } else {
+          throw new Error('Invalid encrypted password format');
+        }
+      } else {
+        // Direct decryption (assume the password is directly encoded)
+        decryptedPassword = decoded;
       }
       
-      decryptedPassword = new TextDecoder().decode(decrypted);
+      console.log('🔓 Password decrypted successfully, length:', decryptedPassword.length);
     } catch (decryptError) {
       console.error('❌ Password decryption failed:', decryptError);
-      return errorResponse('Erro ao descriptografar senha', 500);
+      return errorResponse('Erro ao descriptografar senha da conexão', 500);
     }
 
     const startTime = Date.now();
@@ -216,11 +229,23 @@ async function executePostgreSQL(connection: any, password: string, sql: string,
   };
 
   // Configure SSL
-  const sslMode = connection.connection_config?.ssl_mode || 'require';
-  if (sslMode === 'disable') {
+  const sslMode = connection.connection_config?.ssl_mode || (connection.ssl_enabled ? 'require' : 'disable');
+  console.log('🔒 SSL Mode:', sslMode);
+  
+  if (sslMode === 'disable' || sslMode === false) {
     pgConfig.tls = { enabled: false };
+  } else if (sslMode === 'require') {
+    pgConfig.tls = { 
+      enabled: true, 
+      enforce: false,
+      caCertificates: []
+    };
   } else {
-    pgConfig.tls = { enabled: true, enforce: false };
+    pgConfig.tls = { 
+      enabled: true, 
+      enforce: true,
+      caCertificates: []
+    };
   }
 
   const client = new Client(pgConfig);
@@ -244,8 +269,10 @@ async function executePostgreSQL(connection: any, password: string, sql: string,
     })) || [];
 
     return {
-      columns,
-      rows: result.rows || []
+      columns: columns.map(col => col.name),
+      rows: (result.rows || []).map((row: any) => 
+        columns.map(col => row[col.name] !== undefined ? row[col.name] : null)
+      )
     };
 
   } catch (error) {
@@ -282,8 +309,10 @@ async function executeMySQL(connection: any, password: string, sql: string, para
     }));
 
     return {
-      columns,
-      rows: result.rows || []
+      columns: columns.map(col => col.name),
+      rows: (result.rows || []).map((row: any) => 
+        Array.isArray(row) ? row : columns.map(col => row[col.name] !== undefined ? row[col.name] : null)
+      )
     };
 
   } catch (error) {

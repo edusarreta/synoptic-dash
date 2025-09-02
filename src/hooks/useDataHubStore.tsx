@@ -21,6 +21,7 @@ interface DataHubState {
   
   // Actions
   setSelectedConnection: (connectionId: string | null) => void;
+  setSelectedConnectionId: (connectionId: string | null) => void;
   setSelectedSchema: (schema: string | null) => void;
   setSelectedTable: (table: string | null) => void;
   setSQLQuery: (query: string) => void;
@@ -51,6 +52,7 @@ export const useDataHubStore = create<DataHubState>((set, get) => ({
   
   // Actions
   setSelectedConnection: (connectionId) => set({ selectedConnectionId: connectionId }),
+  setSelectedConnectionId: (connectionId) => set({ selectedConnectionId: connectionId }),
   setSelectedSchema: (schema) => set({ selectedSchema: schema }),
   setSelectedTable: (table) => set({ selectedTable: table }),
   setSQLQuery: (query) => set({ sqlQuery: query }),

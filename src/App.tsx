@@ -18,6 +18,8 @@ import { PostAuth } from "./modules/auth/pages/PostAuth";
 import Demo from "./pages/Demo";
 import NotFound from "./pages/NotFound";
 import DataHub from "./pages/DataHub";
+import Datasets from "./pages/Datasets";
+import SavedQueries from "./pages/SavedQueries";
 
 // Protected pages
 import { App as AppHome } from "./pages/App";
@@ -90,6 +92,28 @@ export default function App() {
                   </RequirePermission>
                 </AuthenticatedRoute>
               } />
+              
+              <Route path="/datasets" element={
+                <AuthenticatedRoute>
+                  <RequirePermission perms={["datasets:read"]}>
+                    <AppLayout>
+                      <Datasets />
+                    </AppLayout>
+                  </RequirePermission>
+                </AuthenticatedRoute>
+              } />
+              
+              <Route path="/saved-queries" element={
+                <AuthenticatedRoute>
+                  <RequirePermission perms={["sql:run"]}>
+                    <AppLayout>
+                      <SavedQueries />
+                    </AppLayout>
+                  </RequirePermission>
+                </AuthenticatedRoute>
+              } />
+              
+              
               
               <Route path="/catalog" element={
                 <AuthenticatedRoute>
