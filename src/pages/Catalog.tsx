@@ -198,16 +198,19 @@ export default function Catalog() {
         sql = `SELECT * FROM \`${schema}\`.\`${name}\` LIMIT 1000`;
       }
 
-      const { data, error } = await supabase.functions.invoke('run-sql-query', {
-        body: {
+      // Create dataset in saved_queries table
+      const { data, error } = await supabase
+        .from('saved_queries')
+        .insert({
           org_id: userProfile?.org_id,
-          connection_id: selectedConnectionId,
+          name: datasetName.trim(),
+          description: `Dataset gerado a partir de ${schema}.${name}`,
           sql_query: sql,
-          mode: 'dataset',
-          dataset_name: datasetName.trim(),
-          description: `Dataset gerado a partir de ${schema}.${name}`
-        }
-      });
+          connection_id: selectedConnectionId,
+          created_by: userProfile?.id
+        })
+        .select()
+        .single();
 
       if (error) {
         console.error('Error saving dataset:', error);

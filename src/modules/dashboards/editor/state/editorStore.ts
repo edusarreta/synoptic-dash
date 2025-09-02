@@ -34,10 +34,20 @@ export interface Widget {
   error?: string | null;
 }
 
+export interface Dataset {
+  id: string;
+  name: string;
+  description?: string;
+  sql_query: string;
+  connection_id: string;
+}
+
 export interface DashboardState {
   id?: string;
   name: string;
   widgets: Widget[];
+  datasets: Dataset[];
+  loadingDatasets: boolean;
   selectedDatasetId?: string;
   selectedWidgetId?: string;
   isDragging: boolean;
@@ -58,6 +68,7 @@ export interface EditorActions {
   getWidget: (id: string) => Widget | undefined;
   
   // Dataset management
+  loadDatasets: () => Promise<void>;
   setSelectedDataset: (datasetId: string, connectionId: string, source: QuerySpec['source']) => void;
   
   // Field management for selected widget
@@ -89,6 +100,8 @@ export interface EditorActions {
 const initialState: DashboardState = {
   name: 'Novo Dashboard',
   widgets: [],
+  datasets: [],
+  loadingDatasets: false,
   isDragging: false,
   breakpoint: 'lg',
   layouts: { lg: [], md: [], sm: [], xs: [] },
@@ -358,6 +371,31 @@ export const useEditorStore = create<DashboardState & EditorActions>()(
           Object.assign(state, nextState);
           state.canUndo = true;
           state.canRedo = historyIndex < historyStack.length - 1;
+        });
+      }
+    },
+
+    loadDatasets: async () => {
+      set((state) => {
+        state.loadingDatasets = true;
+      });
+      
+      try {
+        const { data, error } = await supabase
+          .from('saved_queries')
+          .select('id, name, description, sql_query, connection_id, org_id')
+          .order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        
+        set((state) => {
+          state.datasets = data || [];
+          state.loadingDatasets = false;
+        });
+      } catch (error) {
+        console.error('Error loading datasets:', error);
+        set((state) => {
+          state.loadingDatasets = false;
         });
       }
     },

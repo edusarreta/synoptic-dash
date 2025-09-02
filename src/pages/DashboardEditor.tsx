@@ -85,8 +85,7 @@ export default function DashboardEditor() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [datasets, setDatasets] = useState<Dataset[]>([]);
-  const [selectedDatasetId, setSelectedDatasetId] = useState<string>('');
+  const { datasets, loadingDatasets, selectedDatasetId, loadDatasets, setSelectedDataset } = useEditorStore();
   const [dataFields, setDataFields] = useState<DataField[]>([]);
 
   useEffect(() => {
@@ -98,14 +97,11 @@ export default function DashboardEditor() {
   const initializeDashboard = async () => {
     try {
       // Load dashboard and datasets in parallel
-      const [dashboardData, datasetsData] = await Promise.all([
-        supabase.from('dashboards').select('*').eq('id', id).single(),
-        supabase.from('datasets').select('id, name, description, org_id, saved_query_id, data_schema').eq('org_id', userProfile?.org_id)
-      ]);
+      const dashboardData = await supabase.from('dashboards').select('*').eq('id', id).single();
 
       if (dashboardData.error) throw dashboardData.error;
 
-      setDatasets(datasetsData.data || []);
+      await loadDatasets();
       
       // Load dashboard into store
       loadDashboard({ ...dashboardData.data, id: id! });
@@ -167,21 +163,17 @@ export default function DashboardEditor() {
   };
 
   const handleSelectDataset = async (datasetId: string) => {
-    setSelectedDatasetId(datasetId);
     const dataset = datasets.find(d => d.id === datasetId);
     
     if (dataset) {
-      // Get connection info and source from saved query
-      const { data: queryData } = await supabase
-        .from('saved_queries')
-        .select('connection_id, sql_query')
-        .eq('id', dataset.saved_query_id)
-        .single();
-
-      if (queryData) {
-        // Store dataset info for widgets
-        console.log('Dataset selected:', dataset.name);
-      }
+      // Set dataset in the store with connection info and source
+      setSelectedDataset(
+        datasetId, 
+        dataset.connection_id, 
+        { kind: 'sql', sql: dataset.sql_query }
+      );
+      
+      console.log('Dataset selected:', dataset.name);
     }
   };
 
