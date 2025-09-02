@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Play, Save, Download, Clock, Loader2, AlertCircle } from "lucide-react";
+import { Play, Save, Download, Clock, Loader2, AlertCircle, Database } from "lucide-react";
 import { useSession } from "@/providers/SessionProvider";
 import { usePermissions } from "@/modules/auth/PermissionsProvider";
 import { supabase } from "@/integrations/supabase/client";
@@ -117,7 +117,9 @@ export function SQLEditorPanel() {
               org_id: userProfile.org_id,
               name: `Dataset ${new Date().toLocaleString('pt-BR')}`,
               description: `Dataset criado a partir da consulta SQL`,
-              cache_ttl_seconds: 300,
+              sql_query: sqlQuery.trim(),
+              connection_id: selectedConnectionId,
+              source_type: 'sql',
               data_schema: {
                 columns: data.columns,
                 row_count: data.rows?.length || 0
@@ -138,7 +140,7 @@ export function SQLEditorPanel() {
           } else {
             toast({
               title: "✅ Dataset criado",
-              description: `Dataset criado com ID: ${datasetData.id} (${data.rows?.length || 0} linhas)`,
+              description: `Dataset criado: ${datasetData.name} (${data.rows?.length || 0} linhas)`,
             });
           }
         } catch (datasetError) {
@@ -288,18 +290,27 @@ export function SQLEditorPanel() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold">Editor SQL</h2>
-          <p className="text-muted-foreground">
-            Execute consultas SELECT e crie datasets a partir dos resultados
-          </p>
+      <DataHubHeader
+        title="Editor SQL"
+        description="Execute consultas SELECT e crie datasets a partir dos resultados"
+      >
+        <div className="flex items-center gap-2">
+          {can('datasets:create') && queryResults && (
+            <Button
+              onClick={() => executeQuery('dataset')}
+              disabled={isLoadingSQL || !selectedConnectionId}
+              className="bg-primary hover:bg-primary/90"
+            >
+              <Database className="w-4 h-4 mr-2" />
+              Salvar como Dataset
+            </Button>
+          )}
+          <Badge variant="outline" className="flex items-center gap-1">
+            <AlertCircle className="w-3 h-3" />
+            SELECT Only
+          </Badge>
         </div>
-        <Badge variant="outline" className="flex items-center gap-1">
-          <AlertCircle className="w-3 h-3" />
-          SELECT Only
-        </Badge>
-      </div>
+      </DataHubHeader>
 
       <Card>
         <CardHeader>
