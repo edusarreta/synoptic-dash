@@ -124,8 +124,8 @@ serve(async (req) => {
       }
     }
 
-    // Ensure LIMIT is present
-    if (!sqlNormalized.includes('limit')) {
+    // Ensure LIMIT is present for SELECT statements
+    if (!sqlNormalized.includes('limit') && sqlNormalized.trim().startsWith('select')) {
       processedSQL += ` LIMIT ${row_limit}`;
     }
 
