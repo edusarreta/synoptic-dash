@@ -212,8 +212,8 @@ async function previewPostgreSQL(connection: any, password: string, schema: stri
     await client.end();
 
     return {
-      columns,
-      rows: result.rows,
+      columns: columns.map(col => col.name),
+      rows: result.rows.map((row: any) => columns.map(col => row[col.name])),
       truncated
     };
 
@@ -283,8 +283,10 @@ async function previewMySQL(connection: any, password: string, schema: string, t
     await client.close();
 
     return {
-      columns,
-      rows: result.rows || [],
+      columns: columns.map(col => col.name),
+      rows: (result.rows || []).map((row: any) => 
+        columns.map(col => typeof row === 'object' ? row[col.name] : row[columns.indexOf(col)])
+      ),
       truncated
     };
 
