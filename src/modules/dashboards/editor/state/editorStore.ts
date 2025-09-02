@@ -394,7 +394,7 @@ export const useEditorStore = create<DashboardState & EditorActions>()(
         console.log('Loading datasets for org_id:', profile.org_id);
 
         const { data, error } = await supabase
-          .from('saved_queries')
+          .from('datasets')
           .select('id, name, description, sql_query, connection_id, org_id')
           .eq('org_id', profile.org_id)
           .order('created_at', { ascending: false });

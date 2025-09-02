@@ -173,7 +173,7 @@ export default function DashboardEditor() {
         { kind: 'sql', sql: dataset.sql_query }
       );
       
-      console.log('Dataset selected:', dataset.name);
+      console.log('Dataset selected:', dataset.name, 'connection:', dataset.connection_id);
     }
   };
 
@@ -188,17 +188,19 @@ export default function DashboardEditor() {
       const field = active.data.current.field;
       const widgetId = over.id as string;
       
-      if (selectedWidgetId === widgetId) {
-        selectWidget(widgetId);
-        if (field.type === 'dimension') {
-          const { addDimension } = useEditorStore.getState();
-          addDimension(field.name, field.dataType);
-        } else if (field.type === 'metric') {
-          const { addMetric } = useEditorStore.getState();
-          const agg: Agg = field.dataType === 'number' ? 'sum' : 'count';
-          addMetric(field.name, agg);
-        }
+      // Select the widget first, then add the field
+      selectWidget(widgetId);
+      
+      if (field.type === 'dimension') {
+        const { addDimension } = useEditorStore.getState();
+        addDimension(field.name, field.dataType);
+      } else if (field.type === 'metric') {
+        const { addMetric } = useEditorStore.getState();
+        const agg: Agg = field.dataType === 'number' ? 'sum' : 'count';
+        addMetric(field.name, agg);
       }
+      
+      console.log('Field added to widget:', field.name, 'type:', field.type, 'widget:', widgetId);
     }
   };
 
