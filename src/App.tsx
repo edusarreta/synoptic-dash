@@ -17,6 +17,7 @@ import { AuthCallback } from "./modules/auth/pages/AuthCallback";
 import { PostAuth } from "./modules/auth/pages/PostAuth";
 import Demo from "./pages/Demo";
 import NotFound from "./pages/NotFound";
+import DataHub from "./pages/DataHub";
 
 // Protected pages
 import { App as AppHome } from "./pages/App";
@@ -78,6 +79,14 @@ export default function App() {
                     <AppLayout>
                       <ConnectionsPage />
                     </AppLayout>
+                  </RequirePermission>
+                </AuthenticatedRoute>
+              } />
+              
+              <Route path="/data-hub" element={
+                <AuthenticatedRoute>
+                  <RequirePermission perms={["connections:read", "catalog:read", "sql:run", "datasets:read"]} mode="any">
+                    <DataHub />
                   </RequirePermission>
                 </AuthenticatedRoute>
               } />
