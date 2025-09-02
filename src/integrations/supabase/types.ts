@@ -807,6 +807,8 @@ export type Database = {
       datasets: {
         Row: {
           cache_ttl_seconds: number | null
+          columns: Json | null
+          connection_id: string | null
           created_at: string
           created_by: string
           data_schema: Json | null
@@ -816,10 +818,15 @@ export type Database = {
           name: string
           org_id: string
           saved_query_id: string | null
+          source_type: string | null
+          sql_query: string | null
           updated_at: string
+          workspace_id: string | null
         }
         Insert: {
           cache_ttl_seconds?: number | null
+          columns?: Json | null
+          connection_id?: string | null
           created_at?: string
           created_by: string
           data_schema?: Json | null
@@ -829,10 +836,15 @@ export type Database = {
           name: string
           org_id: string
           saved_query_id?: string | null
+          source_type?: string | null
+          sql_query?: string | null
           updated_at?: string
+          workspace_id?: string | null
         }
         Update: {
           cache_ttl_seconds?: number | null
+          columns?: Json | null
+          connection_id?: string | null
           created_at?: string
           created_by?: string
           data_schema?: Json | null
@@ -842,7 +854,10 @@ export type Database = {
           name?: string
           org_id?: string
           saved_query_id?: string | null
+          source_type?: string | null
+          sql_query?: string | null
           updated_at?: string
+          workspace_id?: string | null
         }
         Relationships: [
           {

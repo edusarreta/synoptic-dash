@@ -29,7 +29,7 @@ export function DatasetsPanel() {
   const { can } = usePermissions();
   const { toast } = useToast();
   
-  const { setSQLQuery, setSelectedConnection } = useDataHubStore();
+  const { setSQLQuery, setSelectedConnectionId } = useDataHubStore();
   
   const [savedQueries, setSavedQueries] = useState<SavedQuery[]>([]);
   const [loading, setLoading] = useState(true);
@@ -110,7 +110,7 @@ export function DatasetsPanel() {
   const loadQueryIntoEditor = (query: SavedQuery) => {
     setSQLQuery(query.sql_query);
     if (query.connection_id) {
-      setSelectedConnection(query.connection_id);
+      setSelectedConnectionId(query.connection_id);
     }
     
     toast({
