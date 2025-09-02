@@ -271,30 +271,26 @@ async function executePostgreSQL(connection: any, password: string, sql: string,
       sample_row: result.rows?.[0]
     });
 
-    // Extract column information from result metadata
-    let columns: any[] = [];
-    
-    if (result.columns && result.columns.length > 0) {
-      columns = result.columns.map((col: any) => ({
-        name: col.name || 'unknown_column',
-        type: col.type || 'text'
-      }));
-    } else if (result.rows && result.rows.length > 0) {
-      // Fallback: use first row keys as column names
-      const firstRow = result.rows[0];
-      columns = Object.keys(firstRow).map((key: string) => ({
-        name: key,
-        type: 'text'
-      }));
+    // For PostgreSQL queryObject, the result already has the correct structure
+    // result.rows contains objects with column names as keys
+    if (!result.rows || result.rows.length === 0) {
+      return {
+        columns: [],
+        rows: []
+      };
     }
 
-    console.log('📊 Processed columns:', columns.map(c => c.name));
+    // Extract column names from the first row object
+    const firstRow = result.rows[0];
+    const columnNames = Object.keys(firstRow);
+    
+    console.log('📊 Extracted column names:', columnNames);
 
     return {
-      columns: columns.map(col => col.name),
-      rows: (result.rows || []).map((row: any) => {
+      columns: columnNames,
+      rows: result.rows.map((row: any) => {
         // Convert object rows to arrays based on column order
-        return columns.map(col => row[col.name] !== undefined ? row[col.name] : null);
+        return columnNames.map(colName => row[colName] !== undefined ? row[colName] : null);
       })
     };
 
