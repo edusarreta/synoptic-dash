@@ -396,11 +396,12 @@ export function ConnectionsPanel() {
                     variant="ghost"
                     size="sm"
                     onClick={() => setShowCreateDialog(false)}
-                    className="p-2"
+                    className="p-2 hover:bg-muted"
+                    title="Voltar"
                   >
                     <ArrowLeft className="h-4 w-4" />
                   </Button>
-                  <div>
+                  <div className="flex-1">
                     <DialogTitle>Criar Nova Conexão - {typeLabel}</DialogTitle>
                     <DialogDescription>
                       Configure uma nova conexão com sua fonte de dados
