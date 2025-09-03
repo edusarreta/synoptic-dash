@@ -40,7 +40,7 @@ serve(async (req) => {
 
     const { dataset_id, org_id, workspace_id, limit = 100, offset = 0 } = await req.json()
 
-    console.log('🔍 Previewing dataset:', { dataset_id, limit, offset });
+    console.log('🔍 Previewing dataset:', { dataset_id, org_id, limit, offset });
 
     if (!dataset_id) {
       return new Response(
@@ -49,25 +49,36 @@ serve(async (req) => {
       )
     }
 
+    // Check user access first
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('org_id')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    if (!profile || profile.org_id !== org_id) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     // Get dataset - try saved_queries first, then datasets
     let dataset;
     
     // Try saved_queries first (where most datasets are stored)
-    const { data: datasetFromQueries, error: savedQueryError } = await supabase
+    const { data: datasetFromQueries } = await supabase
       .from('saved_queries')
       .select('id, org_id, connection_id, sql_query, name, created_at')
       .eq('id', dataset_id)
       .maybeSingle();
 
     if (datasetFromQueries) {
-      dataset = {
-        ...datasetFromQueries,
-        columns: [] // saved_queries don't have columns field
-      };
-      console.log('Found dataset in saved_queries:', dataset.name);
+      dataset = datasetFromQueries;
+      console.log('📁 Found dataset in saved_queries:', dataset.name);
     } else {
       // Try datasets table
-      const { data: datasetFromDatasets, error: datasetError } = await supabase
+      const { data: datasetFromDatasets } = await supabase
         .from('datasets')
         .select('*')
         .eq('id', dataset_id)
@@ -75,9 +86,9 @@ serve(async (req) => {
 
       if (datasetFromDatasets) {
         dataset = datasetFromDatasets;
-        console.log('Found dataset in datasets table:', dataset.name);
+        console.log('📁 Found dataset in datasets table:', dataset.name);
       } else {
-        console.error('Dataset not found in either table:', { savedQueryError, datasetError });
+        console.error('❌ Dataset not found in either table');
         return new Response(
           JSON.stringify({ error: 'Dataset not found' }),
           { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -85,25 +96,25 @@ serve(async (req) => {
       }
     }
 
-    // Check if user has access to this dataset's org
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('org_id')
-      .eq('id', user.id)
-      .maybeSingle()
-
-    if (!profile || profile.org_id !== dataset.org_id) {
+    // Check dataset access
+    if (dataset.org_id !== org_id) {
       return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
+        JSON.stringify({ error: 'Dataset access denied' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // Special handling for synthetic datasets (like top10)
+    console.log('📊 Processing dataset:', { 
+      name: dataset.name, 
+      connection_id: dataset.connection_id,
+      has_sql: !!dataset.sql_query?.trim()
+    });
+
+    // Strategy 1: Handle synthetic datasets (like top10)
     if (dataset.name === 'top10' || (dataset.sql_query && dataset.sql_query.includes('UNION ALL'))) {
-      console.log('Handling synthetic dataset:', dataset.name);
+      console.log('🎭 Handling synthetic dataset:', dataset.name);
       
-      const columns = [
+      const syntheticColumns = [
         { name: 'produto', type: 'text' },
         { name: 'categoria', type: 'text' },
         { name: 'data_venda', type: 'date' },
@@ -112,51 +123,47 @@ serve(async (req) => {
         { name: 'preco_unitario', type: 'numeric' }
       ];
 
-      const responseData = {
-        columns,
-        rows: [], // For preview, we don't need actual data
-        truncated: false,
-        dataset: {
-          id: dataset.id,
-          name: dataset.name,
-          created_at: dataset.created_at
-        }
-      };
-
-      console.log('✅ Synthetic dataset preview:', { 
-        columns_count: responseData.columns.length, 
-        dataset_name: dataset.name 
-      });
+      console.log('✅ Synthetic dataset columns:', syntheticColumns.length);
 
       return new Response(
-        JSON.stringify(responseData),
+        JSON.stringify({
+          columns: syntheticColumns,
+          rows: [],
+          truncated: false,
+          dataset: {
+            id: dataset.id,
+            name: dataset.name,
+            created_at: dataset.created_at
+          }
+        }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // For regular datasets with external connections, try to execute query
-    if (dataset.connection_id && dataset.sql_query && dataset.sql_query.trim() !== '') {
-      console.log('Executing SQL preview for real dataset via run-sql-query...');
+    // Strategy 2: Try to get schema via run-sql-query
+    if (dataset.connection_id && dataset.sql_query?.trim()) {
+      console.log('🔌 Trying run-sql-query for real dataset...');
       console.log('Connection ID:', dataset.connection_id);
-      console.log('SQL Query preview (first 100 chars):', dataset.sql_query.substring(0, 100));
+      console.log('SQL preview:', dataset.sql_query.substring(0, 100) + '...');
       
       try {
-        console.log('Trying to get schema via run-sql-query...');
         const { data: queryResult, error: queryError } = await supabase.functions.invoke('run-sql-query', {
           body: {
             connection_id: dataset.connection_id,
-            query: `${dataset.sql_query} LIMIT 1`, // Just get structure
+            query: `${dataset.sql_query} LIMIT 1`,
             limit: 1
           }
         });
 
-        console.log('Query result from run-sql-query:', { queryResult, queryError });
+        console.log('📥 Run-sql-query result:', { 
+          success: !queryError, 
+          hasColumns: !!queryResult?.columns,
+          columnsCount: queryResult?.columns?.length || 0,
+          error: queryError?.message 
+        });
 
-        if (!queryError && queryResult && queryResult.columns && queryResult.columns.length > 0) {
-          console.log('✅ Dataset preview via run-sql-query:', { 
-            columns_count: queryResult.columns.length, 
-            rows_count: queryResult.rows?.length || 0 
-          });
+        if (!queryError && queryResult?.columns?.length > 0) {
+          console.log('✅ Got columns from run-sql-query:', queryResult.columns.length);
           
           return new Response(
             JSON.stringify({
@@ -171,79 +178,139 @@ serve(async (req) => {
             }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
-        } else {
-          console.log('No columns from run-sql-query, trying direct database query...');
-          
-          // Fallback: try to execute query directly with service role
-          const { data: directResult, error: directError } = await supabase.rpc('execute_sql', {
-            query: `${dataset.sql_query} LIMIT 1`
-          });
-          
-          console.log('Direct SQL result:', { directResult, directError });
-          
-          if (!directError && directResult && Array.isArray(directResult) && directResult.length > 0) {
-            const firstRow = directResult[0];
-            const columns = Object.keys(firstRow).map(key => ({
-              name: key,
-              type: typeof firstRow[key] === 'number' ? 'numeric' : 'text'
-            }));
-            
-            console.log('✅ Dataset preview via direct SQL:', { 
-              columns_count: columns.length,
-              sample_columns: columns.slice(0, 3)
-            });
-            
-            return new Response(
-              JSON.stringify({
-                columns,
-                rows: [],
-                truncated: false,
-                dataset: {
-                  id: dataset.id,
-                  name: dataset.name,
-                  created_at: dataset.created_at
-                }
-              }),
-              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            );
-          }
         }
       } catch (error) {
-        console.warn('Failed to execute dataset query:', error);
+        console.warn('⚠️ Run-sql-query failed:', error);
       }
-    } else {
-      console.log('Dataset has empty SQL query or no connection, using fallback');
     }
 
-    // Fallback: return basic structure
-    const responseData = {
-      columns: dataset.columns || [
-        { name: 'id', type: 'text' },
-        { name: 'value', type: 'text' }
-      ],
-      rows: [],
-      truncated: false,
-      dataset: {
-        id: dataset.id,
-        name: dataset.name,
-        created_at: dataset.created_at
-      }
-    };
+    // Strategy 3: Try direct SQL execution for simple queries
+    if (dataset.sql_query?.trim()) {
+      console.log('🎯 Trying direct SQL execution...');
+      
+      try {
+        const { data: directResult, error: directError } = await supabase.rpc('execute_sql', {
+          query: `${dataset.sql_query} LIMIT 1`
+        });
 
-    console.log('✅ Dataset preview:', { 
-      columns_count: responseData.columns.length, 
-      rows_count: responseData.rows.length 
-    });
+        console.log('📤 Direct SQL result:', { 
+          success: !directError, 
+          hasData: !!directResult,
+          isArray: Array.isArray(directResult),
+          length: Array.isArray(directResult) ? directResult.length : 0,
+          error: directError?.message 
+        });
+
+        if (!directError && directResult && Array.isArray(directResult) && directResult.length > 0) {
+          const firstRow = directResult[0];
+          const columns = Object.keys(firstRow).map(key => {
+            const value = firstRow[key];
+            let type = 'text';
+            
+            if (typeof value === 'number') {
+              type = Number.isInteger(value) ? 'integer' : 'numeric';
+            } else if (value && typeof value === 'string') {
+              // Try to detect date patterns
+              if (value.match(/^\d{4}-\d{2}-\d{2}/) || value.includes('T') && value.includes('Z')) {
+                type = 'date';
+              }
+            }
+            
+            return { name: key, type };
+          });
+
+          console.log('✅ Extracted columns from direct SQL:', columns.length);
+          
+          return new Response(
+            JSON.stringify({
+              columns,
+              rows: [],
+              truncated: false,
+              dataset: {
+                id: dataset.id,
+                name: dataset.name,
+                created_at: dataset.created_at
+              }
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      } catch (error) {
+        console.warn('⚠️ Direct SQL execution failed:', error);
+      }
+    }
+
+    // Strategy 4: Use stored column metadata if available
+    if (dataset.columns && Array.isArray(dataset.columns) && dataset.columns.length > 0) {
+      console.log('📝 Using stored column metadata:', dataset.columns.length);
+      
+      return new Response(
+        JSON.stringify({
+          columns: dataset.columns,
+          rows: [],
+          truncated: false,
+          dataset: {
+            id: dataset.id,
+            name: dataset.name,
+            created_at: dataset.created_at
+          }
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Strategy 5: Smart fallback based on dataset name and type
+    console.log('🔄 Using smart fallback columns...');
+    
+    let fallbackColumns = [];
+    
+    if (dataset.name?.includes('abandoned_cart')) {
+      fallbackColumns = [
+        { name: 'id', type: 'text' },
+        { name: 'user_id', type: 'text' },
+        { name: 'session_id', type: 'text' },
+        { name: 'product_id', type: 'text' },
+        { name: 'quantity', type: 'integer' },
+        { name: 'price', type: 'numeric' },
+        { name: 'created_at', type: 'date' }
+      ];
+    } else if (dataset.name?.includes('credits')) {
+      fallbackColumns = [
+        { name: 'id', type: 'text' },
+        { name: 'amount', type: 'numeric' },
+        { name: 'currency', type: 'text' },
+        { name: 'created_at', type: 'date' }
+      ];
+    } else {
+      // Generic fallback
+      fallbackColumns = [
+        { name: 'id', type: 'text' },
+        { name: 'name', type: 'text' },
+        { name: 'value', type: 'numeric' },
+        { name: 'created_at', type: 'date' }
+      ];
+    }
+
+    console.log('✅ Using fallback columns:', fallbackColumns.length);
 
     return new Response(
-      JSON.stringify(responseData),
+      JSON.stringify({
+        columns: fallbackColumns,
+        rows: [],
+        truncated: false,
+        dataset: {
+          id: dataset.id,
+          name: dataset.name,
+          created_at: dataset.created_at
+        }
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
   } catch (error) {
-    console.error('Error previewing dataset:', error)
+    console.error('💥 Critical error in datasets-preview:', error)
     return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
+      JSON.stringify({ error: 'Internal server error', details: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }

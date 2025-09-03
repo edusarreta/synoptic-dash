@@ -258,6 +258,25 @@ export default function DashboardEditor() {
     addWidget(type);
   };
 
+  const inferDataType = (sqlType: string): 'text' | 'number' | 'date' | 'datetime' => {
+    const type = sqlType.toLowerCase();
+    
+    if (type.includes('int') || type.includes('decimal') || type.includes('numeric') || 
+        type.includes('float') || type.includes('double') || type.includes('real')) {
+      return 'number';
+    }
+    
+    if (type.includes('date') && type.includes('time')) {
+      return 'datetime';
+    }
+    
+    if (type.includes('date')) {
+      return 'date';
+    }
+    
+    return 'text';
+  };
+
   const handleSelectDataset = async (datasetId: string) => {
     const dataset = datasets.find(d => d.id === datasetId);
     
@@ -338,24 +357,16 @@ export default function DashboardEditor() {
     }
   };
 
-  const inferDataType = (sqlType: string): 'text' | 'number' | 'date' | 'datetime' => {
-    const type = sqlType.toLowerCase();
-    
-    if (type.includes('int') || type.includes('decimal') || type.includes('numeric') || 
-        type.includes('float') || type.includes('double') || type.includes('real')) {
-      return 'number';
+  // Show feedback for field loading with error handling
+  useEffect(() => {
+    if (selectedDatasetId && dataFields.length > 0) {
+      const selectedDataset = datasets.find(d => d.id === selectedDatasetId);
+      toast({
+        title: "✅ Campos carregados", 
+        description: `${dataFields.length} campos disponíveis para "${selectedDataset?.name || 'dataset'}"`,
+      });
     }
-    
-    if (type.includes('date') && type.includes('time')) {
-      return 'datetime';
-    }
-    
-    if (type.includes('date')) {
-      return 'date';
-    }
-    
-    return 'text';
-  };
+  }, [dataFields.length, selectedDatasetId, datasets, toast]);
 
   const handleLayoutChange = (layout: any) => {
     updateLayout('lg', layout);
