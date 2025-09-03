@@ -2,9 +2,11 @@ import { useEffect } from 'react';
 import { buildSqlFromSpec } from '../utils/buildSqlFromSpec';
 import { useEditorStore } from '../state/editorStore';
 import { supabase } from '@/integrations/supabase/client';
+import { useSession } from '@/providers/SessionProvider';
 
 export function useWidgetData(widgetId: string) {
-  const { getWidget, updateWidget, getDataset } = useEditorStore();
+  const { getWidget, updateWidget } = useEditorStore();
+  const { userProfile } = useSession();
   const widget = getWidget(widgetId);
 
   useEffect(() => {
@@ -17,23 +19,24 @@ export function useWidgetData(widgetId: string) {
       try {
         // If using dataset source, get dataset SQL first
         if (widget.query.source.kind === 'dataset' && widget.query.source.datasetId) {
-          const dataset = getDataset(widget.query.source.datasetId);
-          if (!dataset) {
-            throw new Error('Dataset não encontrado');
-          }
+          console.log('Fetching widget data for dataset:', widget.query.source.datasetId);
           
-          // Use dataset preview for data
+          // Use dataset preview for data with org_id
           const { data, error } = await supabase.functions.invoke('datasets-preview', {
             body: {
               dataset_id: widget.query.source.datasetId,
+              org_id: userProfile?.org_id,
               limit: 5000,
               offset: 0
             }
           });
 
           if (error) {
+            console.error('Dataset preview error:', error);
             throw new Error(error.message || 'Falha ao carregar dados do dataset');
           }
+
+          console.log('Widget data loaded:', { columns: data.columns?.length, rows: data.rows?.length });
 
           updateWidget(widgetId, { 
             data: { 
