@@ -261,20 +261,31 @@ serve(async (req) => {
       }
     });
 
+    console.log('Query result:', { queryResult, queryError });
+
     if (queryError) {
       console.error('Query execution error:', queryError);
       return successResponse({
         error_code: 'QUERY_FAILED',
-        message: queryError.message || 'Falha ao executar consulta',
+        message: `Erro na execução da consulta: ${queryError.message || queryError}`,
         elapsed_ms: Date.now() - startTime
       });
     }
 
-    if (!queryResult || queryResult.error_code) {
-      console.error('Query result error:', queryResult);
+    if (!queryResult) {
+      console.error('No query result returned');
       return successResponse({
         error_code: 'QUERY_FAILED',
-        message: queryResult?.message || 'Falha ao executar consulta',
+        message: 'Nenhum resultado retornado pela consulta',
+        elapsed_ms: Date.now() - startTime
+      });
+    }
+
+    if (queryResult.error_code) {
+      console.error('Query result error:', queryResult);
+      return successResponse({
+        error_code: queryResult.error_code,
+        message: queryResult.message || 'Falha ao executar consulta',
         elapsed_ms: Date.now() - startTime
       });
     }
