@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
 import { useEditorStore } from '../state/editorStore';
 import { useSession } from '@/providers/SessionProvider';
-import { ChartDataLoader } from '@/modules/charts/ChartDataLoader';
+import { runWidgetQuery } from '@/modules/datasets/api';
+import type { ChartsRunPayload } from '@/modules/datasets/api';
 
 export function useWidgetData(widgetId: string) {
   const { getWidget, updateWidget } = useEditorStore();
@@ -34,44 +35,46 @@ export function useWidgetData(widgetId: string) {
       updateWidget(widgetId, { loading: true, error: null });
 
       try {
+        // Check if we have dimensions or metrics to work with
+        if (widget.query.dims.length === 0 && widget.query.mets.length === 0) {
+          console.log('⚠️ No dimensions or metrics specified');
+          updateWidget(widgetId, { 
+            data: undefined,
+            loading: false,
+            error: null
+          });
+          return;
+        }
+
         // Only handle dataset source for now (most common case)
         if (widget.query.source.kind === 'dataset' && widget.query.source.datasetId) {
           console.log('📈 Fetching data for dataset source:', widget.query.source.datasetId);
           
-          // Prepare dimensions and metrics
-          const dims = widget.query.dims.map(dim => ({
-            field: dim.field,
-            alias: dim.field
-          }));
-
-          const metrics = widget.query.mets.map(met => ({
-            field: met.field,
-            agg: met.agg || 'sum',
-            alias: `${met.field}_${met.agg || 'sum'}`
-          }));
-
-          console.log('📋 Prepared request:', { 
+          // Prepare request payload for new API
+          const payload: ChartsRunPayload = {
             org_id: userProfile.org_id,
             dataset_id: widget.query.source.datasetId,
-            dims,
-            metrics 
-          });
+            spec: {
+              chart: widget.type,
+              dims: widget.query.dims.map(dim => ({ field: dim.field })),
+              metrics: widget.query.mets.map(met => ({ 
+                field: met.field, 
+                agg: met.agg || 'sum' 
+              })),
+              limit: 1000
+            }
+          };
 
-          // Use the new robust chart data loader
-          const data = await ChartDataLoader.loadData({
-            org_id: userProfile.org_id,
-            dataset_id: widget.query.source.datasetId,
-            dims,
-            metrics,
-            limit: 1000,
-            offset: 0
-          });
+          console.log('📋 Prepared request payload:', payload);
 
-          console.log('✅ Chart data loaded successfully:', { 
+          // Use the new standardized widget query API
+          const data = await runWidgetQuery(payload);
+
+          console.log('✅ Widget query successful:', { 
             columns: data.columns?.length || 0, 
             rows: data.rows?.length || 0,
             truncated: data.truncated,
-            source: data.source
+            elapsed_ms: data.elapsed_ms
           });
 
           updateWidget(widgetId, { 

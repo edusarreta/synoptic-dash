@@ -4,12 +4,14 @@ export interface ChartsRunPayload {
   org_id: string;
   workspace_id?: string;
   dataset_id: string;
-  dims: Array<{ field: string; alias: string }>;
-  metrics: Array<{ field: string; agg: string; alias: string }>;
-  filters?: Array<any>;
-  order?: Array<any>;
-  limit?: number;
-  offset?: number;
+  spec: {
+    chart: 'table' | 'bar' | 'line' | 'area' | 'pie' | 'kpi';
+    dims: Array<{ field: string; time_grain?: 'day' | 'month' | 'year' }>;
+    metrics: Array<{ field: string; agg: 'sum' | 'avg' | 'min' | 'max' | 'count' | 'count_distinct' }>;
+    where?: Array<any>;
+    orderBy?: Array<{ field: string; dir: 'asc' | 'desc' }>;
+    limit?: number;
+  };
 }
 
 export interface ChartsRunResponse {
@@ -17,45 +19,135 @@ export interface ChartsRunResponse {
   rows: any[][];
   truncated: boolean;
   elapsed_ms: number;
-  error_code?: string;
+  code?: string;
   message?: string;
 }
 
+export interface Dataset {
+  id: string;
+  name: string;
+  description?: string;
+  connection_id: string;
+  kind: 'sql' | 'rest';
+  sql?: string;
+  params?: any;
+  columns: Array<{ name: string; type: string }>;
+  created_at: string;
+  type?: 'dataset' | 'saved_query';
+  source_type?: string;
+  sql_query?: string;
+}
+
 /**
- * Executa consulta de dados para charts com fallback robusto
+ * Get list of datasets for an organization
  */
-export async function chartsRun(payload: ChartsRunPayload): Promise<ChartsRunResponse> {
-  console.log('📊 Charts Run API - Starting request');
+export async function getDatasetsList(org_id: string, workspace_id?: string): Promise<{ items: Dataset[]; total: number }> {
+  console.log('🔍 Getting datasets list for org:', org_id);
+  
+  try {
+    const { data, error } = await supabase.functions.invoke('datasets-list', {
+      body: { org_id, workspace_id }
+    });
+
+    if (error) {
+      console.error('❌ Datasets list error:', error);
+      throw new Error(error.message || 'Failed to fetch datasets');
+    }
+
+    if (data?.code) {
+      console.error('❌ Datasets list structured error:', data);
+      throw new Error(`${data.message} (${data.code})`);
+    }
+
+    console.log('✅ Datasets list successful:', data?.total || 0, 'items');
+    return data || { items: [], total: 0 };
+
+  } catch (err) {
+    console.error('💥 Datasets list failed:', err);
+    throw err;
+  }
+}
+
+/**
+ * Get specific dataset details
+ */
+export async function getDataset(dataset_id: string, org_id: string, workspace_id?: string): Promise<Dataset> {
+  console.log('🔍 Getting dataset details for:', dataset_id);
+  
+  try {
+    const { data, error } = await supabase.functions.invoke('datasets-get', {
+      body: { org_id, workspace_id, dataset_id }
+    });
+
+    if (error) {
+      console.error('❌ Dataset get error:', error);
+      throw new Error(error.message || 'Failed to fetch dataset');
+    }
+
+    if (data?.code) {
+      console.error('❌ Dataset get structured error:', data);
+      if (data.code === 'DATASET_NOT_FOUND') {
+        throw new Error('Dataset não encontrado ou sem acesso');
+      }
+      throw new Error(`${data.message} (${data.code})`);
+    }
+
+    console.log('✅ Dataset get successful:', data?.name);
+    return data;
+
+  } catch (err) {
+    console.error('💥 Dataset get failed:', err);
+    throw err;
+  }
+}
+
+/**
+ * Run widget query with robust data aggregation
+ */
+export async function runWidgetQuery(payload: ChartsRunPayload): Promise<ChartsRunResponse> {
+  console.log('📊 Running widget query');
   console.log('📋 Payload:', {
     org_id: payload.org_id,
     dataset_id: payload.dataset_id,
-    dims_count: payload.dims.length,
-    metrics_count: payload.metrics.length
+    dims_count: payload.spec.dims.length,
+    metrics_count: payload.spec.metrics.length
   });
   
   try {
-    const { data, error } = await supabase.functions.invoke('charts-run', {
+    const { data, error } = await supabase.functions.invoke('widgets-run', {
       body: payload
     });
 
-    console.log('📡 Charts-run response:', { 
+    console.log('📡 Widget run response:', { 
       success: !error, 
       hasData: !!data,
       hasColumns: !!data?.columns,
       error: error?.message,
-      data_error_code: data?.error_code,
-      data_success: data?.success 
+      data_code: data?.code
     });
 
     if (error) {
-      console.error('❌ Charts run supabase error:', error);
+      console.error('❌ Widget run supabase error:', error);
       throw new Error(error.message || 'Falha ao executar consulta');
     }
 
     // Check for structured errors in response
-    if (data?.error_code || data?.ok === false || data?.success === false) {
-      console.error('❌ Charts run structured error:', data);
-      throw new Error(data?.message || 'Falha ao executar consulta');
+    if (data?.code) {
+      console.error('❌ Widget run structured error:', data);
+      
+      // Handle specific error codes
+      switch (data.code) {
+        case 'DATASET_NOT_FOUND':
+          throw new Error('Dataset não encontrado ou sem acesso');
+        case 'ONLY_SELECT_ALLOWED':
+          throw new Error('Apenas SELECT é permitido no dataset base');
+        case 'NO_FIELDS':
+          throw new Error('Nenhuma dimensão ou métrica especificada');
+        case 'QUERY_FAILED':
+          throw new Error(data.message || 'Falha ao executar consulta');
+        default:
+          throw new Error(data.message || 'Falha ao executar consulta');
+      }
     }
 
     // Validate response structure
@@ -64,7 +156,7 @@ export async function chartsRun(payload: ChartsRunPayload): Promise<ChartsRunRes
       throw new Error('Resposta inválida da consulta');
     }
 
-    console.log('✅ Charts run successful:', {
+    console.log('✅ Widget run successful:', {
       columns: data.columns.length,
       rows: data.rows?.length || 0,
       elapsed_ms: data.elapsed_ms
@@ -78,13 +170,13 @@ export async function chartsRun(payload: ChartsRunPayload): Promise<ChartsRunRes
     };
 
   } catch (err) {
-    console.error('💥 Charts run failed completely:', err);
+    console.error('💥 Widget run failed completely:', err);
     throw err;
   }
 }
 
 /**
- * Obtém preview de dataset com validação robusta
+ * Get dataset preview with standardized format
  */
 export async function getDatasetsPreview(dataset_id: string, org_id: string, workspace_id?: string) {
   console.log('🔍 Getting dataset preview for:', { dataset_id, org_id, workspace_id });
@@ -105,9 +197,12 @@ export async function getDatasetsPreview(dataset_id: string, org_id: string, wor
       throw new Error(error.message || 'Falha ao obter preview do dataset');
     }
 
-    if (data?.error_code) {
+    if (data?.code) {
       console.error('❌ Dataset preview structured error:', data);
-      throw new Error(`${data.message} (${data.error_code})`);
+      if (data.code === 'DATASET_NOT_FOUND') {
+        throw new Error('Dataset não encontrado ou sem acesso');
+      }
+      throw new Error(`${data.message} (${data.code})`);
     }
 
     console.log('✅ Dataset preview successful:', {

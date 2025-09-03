@@ -42,10 +42,10 @@ serve(async (req) => {
 
     console.log('🔍 Previewing dataset:', { dataset_id, org_id, limit, offset });
 
-    if (!dataset_id) {
+    if (!dataset_id || !org_id) {
       return new Response(
-        JSON.stringify({ error: 'dataset_id is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ code: 'MISSING_PARAMS', message: 'dataset_id and org_id are required' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
@@ -58,8 +58,8 @@ serve(async (req) => {
 
     if (!profile || profile.org_id !== org_id) {
       return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ code: 'ACCESS_DENIED', message: 'Access denied to this organization' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
@@ -90,8 +90,8 @@ serve(async (req) => {
       } else {
         console.error('❌ Dataset not found in either table');
         return new Response(
-          JSON.stringify({ error: 'Dataset not found' }),
-          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          JSON.stringify({ code: 'DATASET_NOT_FOUND', message: 'Dataset not found or access denied' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
     }
@@ -99,8 +99,8 @@ serve(async (req) => {
     // Check dataset access
     if (dataset.org_id !== org_id) {
       return new Response(
-        JSON.stringify({ error: 'Dataset access denied' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ code: 'ACCESS_DENIED', message: 'Dataset access denied' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
@@ -310,8 +310,8 @@ serve(async (req) => {
   } catch (error) {
     console.error('💥 Critical error in datasets-preview:', error)
     return new Response(
-      JSON.stringify({ error: 'Internal server error', details: error.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ code: 'INTERNAL_ERROR', message: 'Internal server error' }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 })

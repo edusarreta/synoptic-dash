@@ -93,10 +93,11 @@ serve(async (req) => {
       id: item.id,
       name: item.name,
       description: item.description,
+      connection_id: item.connection_id,
+      kind: item.source_type === 'rest' ? 'rest' : 'sql',
       columns: item.columns || [],
       created_at: item.created_at,
       sql_query: item.sql_query,
-      connection_id: item.connection_id,
       type: 'dataset',
       source_type: item.source_type || 'sql'
     }));
@@ -106,10 +107,11 @@ serve(async (req) => {
       id: item.id,
       name: item.name,
       description: item.description,
+      connection_id: item.connection_id,
+      kind: 'sql',
       columns: [], // Will be inferred when selected
       created_at: item.created_at,
       sql_query: item.sql_query,
-      connection_id: item.connection_id,
       type: 'saved_query',
       source_type: 'sql'
     }));
