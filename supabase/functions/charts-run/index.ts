@@ -344,12 +344,6 @@ serve(async (req) => {
       
       try {
         // Executar SQL sintético diretamente no Supabase usando Service Role
-        const { data: directResult, error: directError } = await supabase
-          .from('profiles') // Tabela dummy para fazer a query
-          .select('*')
-          .limit(0); // Não queremos dados desta tabela
-        
-        // Executar a query SQL diretamente
         const { data: rawResult, error: rawError } = await supabase.rpc('execute_sql', {
           query: finalSQL
         });
