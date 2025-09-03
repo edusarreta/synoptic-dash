@@ -285,7 +285,11 @@ export default function DashboardEditor() {
     console.log('Found dataset:', dataset);
     
     if (dataset) {
+      // Clear existing fields first to show loading state
+      setDataFields([]);
+      
       // Set dataset in the store with connection info and source
+      // This will automatically clear all widget dimensions/metrics
       setSelectedDataset(
         datasetId, 
         dataset.connection_id, 
@@ -293,9 +297,7 @@ export default function DashboardEditor() {
       );
       
       console.log('Dataset selected:', dataset.name, 'connection:', dataset.connection_id);
-      
-      // Clear existing fields first
-      setDataFields([]);
+      console.log('All widget queries cleared for new dataset');
       
       // Load dataset fields for the field picker
       try {

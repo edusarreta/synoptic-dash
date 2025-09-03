@@ -211,16 +211,24 @@ export const useEditorStore = create<DashboardState & EditorActions>()(
     setSelectedDataset: (datasetId, connectionId, source) => {
       set((state) => {
         state.selectedDatasetId = datasetId;
-        // Update all widgets to use this dataset
+        // Clear all widget queries when switching datasets
         state.widgets = state.widgets.map(widget => ({
           ...widget,
           query: {
-            ...widget.query,
+            source: { ...source, datasetId },
             datasetId,
             connectionId,
-            source: { ...source, datasetId }
-          }
+            dims: [], // Clear all dimensions
+            mets: [], // Clear all metrics
+            filters: [],
+            sort: []
+          },
+          data: undefined, // Clear widget data
+          loading: false,
+          error: null
         }));
+        // Clear selected widget when switching datasets
+        state.selectedWidgetId = undefined;
         state.isDirty = true;
       });
     },

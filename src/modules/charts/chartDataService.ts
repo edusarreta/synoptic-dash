@@ -37,7 +37,8 @@ export class ChartDataService {
     }
 
     if (request.dims.length === 0 && request.metrics.length === 0) {
-      throw new Error('Pelo menos uma dimensão ou métrica deve ser especificada');
+      console.log('⚠️ No dimensions or metrics specified, generating mock data');
+      return this.generateMockData(request);
     }
 
     try {
