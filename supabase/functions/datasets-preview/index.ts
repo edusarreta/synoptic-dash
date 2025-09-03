@@ -141,6 +141,7 @@ serve(async (req) => {
       console.log('SQL Query preview (first 100 chars):', dataset.sql_query.substring(0, 100));
       
       try {
+        console.log('Trying to get schema via run-sql-query...');
         const { data: queryResult, error: queryError } = await supabase.functions.invoke('run-sql-query', {
           body: {
             connection_id: dataset.connection_id,
@@ -149,14 +150,17 @@ serve(async (req) => {
           }
         });
 
-        if (queryError) {
-          console.log('Query error:', queryError);
-        } else if (queryResult && queryResult.columns) {
-          console.log('✅ Dataset preview:', { columns_count: queryResult.columns?.length || 0, rows_count: queryResult.rows?.length || 0 });
+        console.log('Query result from run-sql-query:', { queryResult, queryError });
+
+        if (!queryError && queryResult && queryResult.columns && queryResult.columns.length > 0) {
+          console.log('✅ Dataset preview via run-sql-query:', { 
+            columns_count: queryResult.columns.length, 
+            rows_count: queryResult.rows?.length || 0 
+          });
           
           return new Response(
             JSON.stringify({
-              columns: queryResult.columns || [],
+              columns: queryResult.columns,
               rows: queryResult.rows || [],
               truncated: false,
               dataset: {
@@ -167,9 +171,45 @@ serve(async (req) => {
             }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
+        } else {
+          console.log('No columns from run-sql-query, trying direct database query...');
+          
+          // Fallback: try to execute query directly with service role
+          const { data: directResult, error: directError } = await supabase.rpc('execute_sql', {
+            query: `${dataset.sql_query} LIMIT 1`
+          });
+          
+          console.log('Direct SQL result:', { directResult, directError });
+          
+          if (!directError && directResult && Array.isArray(directResult) && directResult.length > 0) {
+            const firstRow = directResult[0];
+            const columns = Object.keys(firstRow).map(key => ({
+              name: key,
+              type: typeof firstRow[key] === 'number' ? 'numeric' : 'text'
+            }));
+            
+            console.log('✅ Dataset preview via direct SQL:', { 
+              columns_count: columns.length,
+              sample_columns: columns.slice(0, 3)
+            });
+            
+            return new Response(
+              JSON.stringify({
+                columns,
+                rows: [],
+                truncated: false,
+                dataset: {
+                  id: dataset.id,
+                  name: dataset.name,
+                  created_at: dataset.created_at
+                }
+              }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
         }
       } catch (error) {
-        console.warn('Failed to execute external dataset query, using fallback:', error);
+        console.warn('Failed to execute dataset query:', error);
       }
     } else {
       console.log('Dataset has empty SQL query or no connection, using fallback');
