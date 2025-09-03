@@ -250,7 +250,10 @@ serve(async (req) => {
       OFFSET ${safeOffset}
     `.trim();
 
-    console.log('Generated SQL:', finalSQL);
+    console.log('=== GENERATED SQL DEBUG ===');
+    console.log('Final SQL:', finalSQL);
+    console.log('Dataset SQL:', dataset.sql_query);
+    console.log('Connection ID:', dataset.connection_id);
 
     // Executar consulta usando a função run-sql-query
     const { data: queryResult, error: queryError } = await supabase.functions.invoke('run-sql-query', {
