@@ -143,7 +143,7 @@ serve(async (req) => {
     // Tentar buscar na tabela saved_queries primeiro (onde estão os datasets reais)
     const { data: datasetFromQueries, error: datasetError1 } = await supabase
       .from('saved_queries')
-      .select('id, org_id, workspace_id, connection_id, sql_query, name')
+      .select('id, org_id, connection_id, sql_query, name')
       .eq('id', dataset_id)
       .maybeSingle();
 
@@ -155,7 +155,7 @@ serve(async (req) => {
       // Se não encontrar em saved_queries, buscar em datasets
       const { data: datasetFromDatasets, error: datasetError2 } = await supabase
         .from('datasets')
-        .select('id, org_id, workspace_id, connection_id, sql_query, name')
+        .select('id, org_id, connection_id, sql_query, name')
         .eq('id', dataset_id)
         .maybeSingle();
 
