@@ -1551,9 +1551,7 @@ export type Database = {
       }
       execute_sql: {
         Args: { query: string }
-        Returns: {
-          result: Json
-        }[]
+        Returns: Json
       }
       get_current_user_org_id: {
         Args: Record<PropertyKey, never>

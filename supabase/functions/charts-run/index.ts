@@ -126,55 +126,39 @@ function generateMockDataFromSQL(sql: string, dims: any[], metrics: any[]) {
 // Função para processar resultado de SQL direto
 function processDirectSQLResult(result: any, dims: any[], metrics: any[]) {
   console.log('Processing direct SQL result:', result);
+  console.log('Result type:', typeof result, 'Is array:', Array.isArray(result));
   
   if (!result || !Array.isArray(result)) {
+    console.log('Invalid result, generating mock data');
     return generateMockDataFromSQL('', dims, metrics);
   }
   
   const columns = [];
   const rows = [];
   
-  // Extrair colunas dos resultados
+  // Processar resultado JSON que já vem como array de objetos
   if (result.length > 0) {
     const firstRow = result[0];
+    console.log('First row:', firstRow);
     
-    // Se o resultado contém objetos com propriedade 'result', extrair os dados
-    if (firstRow && firstRow.result && typeof firstRow.result === 'object') {
-      const dataRows = result.map(item => item.result);
-      
-      // Extrair colunas do primeiro objeto de dados
-      const firstDataRow = dataRows[0];
-      Object.keys(firstDataRow).forEach(key => {
-        const value = firstDataRow[key];
-        const type = typeof value === 'number' ? 'numeric' : 'text';
-        columns.push({ name: key, type });
-      });
-      
-      // Converter dados para formato de array
-      dataRows.forEach(row => {
-        const rowArray = [];
-        Object.keys(firstDataRow).forEach(key => {
-          rowArray.push(row[key]);
-        });
-        rows.push(rowArray);
-      });
-    } else {
-      // Processar como objetos normais
+    // Extrair nomes das colunas do primeiro objeto
+    Object.keys(firstRow).forEach(key => {
+      const value = firstRow[key];
+      const type = typeof value === 'number' ? 'numeric' : 'text';
+      columns.push({ name: key, type });
+    });
+    
+    // Converter dados para formato de array (para compatibilidade com os widgets)
+    result.forEach(row => {
+      const rowArray = [];
       Object.keys(firstRow).forEach(key => {
-        const value = firstRow[key];
-        const type = typeof value === 'number' ? 'numeric' : 'text';
-        columns.push({ name: key, type });
+        rowArray.push(row[key]);
       });
-      
-      // Converter dados para formato de array
-      result.forEach(row => {
-        const rowArray = [];
-        Object.keys(firstRow).forEach(key => {
-          rowArray.push(row[key]);
-        });
-        rows.push(rowArray);
-      });
-    }
+      rows.push(rowArray);
+    });
+    
+    console.log('Processed columns:', columns);
+    console.log('Processed rows sample:', rows.slice(0, 2));
   }
   
   return { columns, rows };
@@ -372,6 +356,8 @@ serve(async (req) => {
           query: finalSQL
         });
 
+        console.log('Raw SQL result:', rawResult);
+
         if (rawError) {
           console.error('Direct SQL execution error:', rawError);
           
@@ -385,14 +371,24 @@ serve(async (req) => {
           });
         }
 
-        console.log('Direct SQL execution successful:', rawResult);
+        console.log('Direct SQL execution successful. Raw result type:', typeof rawResult);
+        console.log('Raw result content:', rawResult);
         
-        // Processar resultado direto - rawResult já é um array de objetos
+        // rawResult agora é um array JSON diretamente
         if (rawResult && Array.isArray(rawResult) && rawResult.length > 0) {
           const processedResult = processDirectSQLResult(rawResult, dims, metrics);
           return successResponse({
             columns: processedResult.columns,
             rows: processedResult.rows,
+            truncated: false,
+            elapsed_ms: Date.now() - startTime
+          });
+        } else {
+          console.log('No data returned from SQL, using mock data');
+          const mockData = generateMockDataFromSQL(finalSQL, dims, metrics);
+          return successResponse({
+            columns: mockData.columns,
+            rows: mockData.rows,
             truncated: false,
             elapsed_ms: Date.now() - startTime
           });

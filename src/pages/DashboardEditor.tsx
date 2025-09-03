@@ -261,6 +261,10 @@ export default function DashboardEditor() {
   const handleSelectDataset = async (datasetId: string) => {
     const dataset = datasets.find(d => d.id === datasetId);
     
+    console.log('=== DATASET SELECTION DEBUG ===');
+    console.log('Selected dataset ID:', datasetId);
+    console.log('Found dataset:', dataset);
+    
     if (dataset) {
       // Set dataset in the store with connection info and source
       setSelectedDataset(
@@ -271,8 +275,12 @@ export default function DashboardEditor() {
       
       console.log('Dataset selected:', dataset.name, 'connection:', dataset.connection_id);
       
+      // Clear existing fields first
+      setDataFields([]);
+      
       // Load dataset fields for the field picker
       try {
+        console.log('Loading dataset fields...');
         const { data, error } = await supabase.functions.invoke('datasets-preview', {
           body: {
             dataset_id: datasetId,
@@ -286,10 +294,12 @@ export default function DashboardEditor() {
           throw new Error(error.message || 'Falha ao carregar campos do dataset');
         }
 
+        console.log('Dataset preview response:', data);
+
         // Convert columns to data fields
         const fields: DataField[] = (data.columns || []).map((col: any) => {
           const dataType = inferDataType(col.type || 'unknown');
-          const type = dataType === 'number' ? 'metric' : 'dimension';
+          const type: 'dimension' | 'metric' = dataType === 'number' ? 'metric' : 'dimension';
           
           return {
             name: col.name,
@@ -298,8 +308,14 @@ export default function DashboardEditor() {
           };
         });
 
+        console.log('Converted fields:', fields);
         setDataFields(fields);
-        console.log('Dataset fields loaded:', fields.length);
+        console.log('Dataset fields loaded successfully:', fields.length, 'fields');
+        
+        toast({
+          title: "Dataset selecionado",
+          description: `${fields.length} campos carregados do dataset "${dataset.name}"`,
+        });
       } catch (error) {
         console.error('Error loading dataset fields:', error);
         toast({
@@ -308,14 +324,16 @@ export default function DashboardEditor() {
           variant: "destructive",
         });
         // Keep mock fields as fallback
-        setDataFields([
+        const fallbackFields: DataField[] = [
           { name: 'produto', type: 'dimension', dataType: 'text' },
           { name: 'categoria', type: 'dimension', dataType: 'text' },
           { name: 'data_venda', type: 'dimension', dataType: 'date' },
           { name: 'vendas', type: 'metric', dataType: 'number' },
           { name: 'quantidade', type: 'metric', dataType: 'number' },
           { name: 'preco_unitario', type: 'metric', dataType: 'number' },
-        ]);
+        ];
+        console.log('Using fallback fields:', fallbackFields);
+        setDataFields(fallbackFields);
       }
     }
   };
