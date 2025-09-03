@@ -1,13 +1,41 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.56.1';
-import { corsHeaders, handleCORS, errorResponse, successResponse } from "../_shared/admin.ts";
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
 // Use Service Role for bypassing RLS
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+// CORS headers
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+// Handle CORS preflight requests
+function handleCORS(req: Request): Response | null {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+  return null;
+}
+
+// Create success response with CORS headers
+function successResponse(data: any, status: number = 200) {
+  return new Response(
+    JSON.stringify({ 
+      ok: true, 
+      success: true, 
+      ...data 
+    }),
+    { 
+      status, 
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+    }
+  );
+}
 
 interface ChartsRunPayload {
   org_id: string;
@@ -71,16 +99,6 @@ serve(async (req) => {
       });
     }
 
-    // Verificar se o usuário tem acesso à organização
-    const authHeader = req.headers.get('authorization');
-    if (!authHeader) {
-      return successResponse({
-        error_code: 'FORBIDDEN',
-        message: 'Usuário sem acesso - token não encontrado',
-        elapsed_ms: Date.now() - startTime
-      });
-    }
-
     // Validar identificadores das dimensões
     for (const dim of dims) {
       if (!isValidIdentifier(dim.field) || !isValidIdentifier(dim.alias)) {
@@ -115,30 +133,30 @@ serve(async (req) => {
     
     console.log('Searching for dataset:', { dataset_id, org_id, workspace_id });
     
-    // Tentar buscar na tabela datasets primeiro (usar Service Role para bypass RLS)
-    const { data: datasetFromDatasets, error: datasetError1 } = await supabase
-      .from('datasets')
+    // Tentar buscar na tabela saved_queries primeiro (onde estão os datasets reais)
+    const { data: datasetFromQueries, error: datasetError1 } = await supabase
+      .from('saved_queries')
       .select('id, org_id, workspace_id, connection_id, sql_query, name')
       .eq('id', dataset_id)
       .maybeSingle();
 
-    if (datasetFromDatasets) {
-      dataset = datasetFromDatasets;
-      console.log('Found dataset in datasets table:', dataset);
+    if (datasetFromQueries) {
+      dataset = datasetFromQueries;
+      console.log('Found dataset in saved_queries table:', dataset);
     } else {
-      console.log('Dataset not found in datasets table, searching saved_queries');
-      // Se não encontrar em datasets, buscar em saved_queries (usar Service Role)
-      const { data: datasetFromQueries, error: datasetError2 } = await supabase
-        .from('saved_queries')
+      console.log('Dataset not found in saved_queries table, searching datasets');
+      // Se não encontrar em saved_queries, buscar em datasets
+      const { data: datasetFromDatasets, error: datasetError2 } = await supabase
+        .from('datasets')
         .select('id, org_id, workspace_id, connection_id, sql_query, name')
         .eq('id', dataset_id)
         .maybeSingle();
 
-      if (datasetFromQueries) {
-        dataset = datasetFromQueries;
-        console.log('Found dataset in saved_queries table:', dataset);
+      if (datasetFromDatasets) {
+        dataset = datasetFromDatasets;
+        console.log('Found dataset in datasets table:', dataset);
       } else {
-        console.log('Dataset not found in saved_queries either:', { datasetError1, datasetError2 });
+        console.log('Dataset not found in either table:', { datasetError1, datasetError2 });
       }
     }
 
@@ -151,7 +169,7 @@ serve(async (req) => {
       });
     }
 
-    console.log('Found dataset:', { id: dataset.id, org_id: dataset.org_id, name: dataset.name });
+    console.log('Found dataset:', { id: dataset.id, org_id: dataset.org_id, name: dataset.name, connection_id: dataset.connection_id });
 
     // Verificar se o usuário tem acesso ao dataset (org_id deve bater)
     if (dataset.org_id !== org_id) {
@@ -230,6 +248,15 @@ serve(async (req) => {
       return successResponse({
         error_code: 'QUERY_FAILED',
         message: queryError.message || 'Falha ao executar consulta',
+        elapsed_ms: Date.now() - startTime
+      });
+    }
+
+    if (!queryResult || queryResult.error_code) {
+      console.error('Query result error:', queryResult);
+      return successResponse({
+        error_code: 'QUERY_FAILED',
+        message: queryResult?.message || 'Falha ao executar consulta',
         elapsed_ms: Date.now() - startTime
       });
     }
