@@ -6,7 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Responsive, WidthProvider } from 'react-grid-layout';
-import { DndContext, DragEndEvent, closestCenter } from '@dnd-kit/core';
+import { DndContext, DragEndEvent, closestCenter, useDraggable, useDroppable } from '@dnd-kit/core';
+import { CSS } from '@dnd-kit/utilities';
 import { 
   Save, 
   Eye, 
@@ -52,6 +53,67 @@ interface DataField {
   name: string;
   type: 'dimension' | 'metric';
   dataType: 'text' | 'number' | 'date' | 'datetime';
+}
+
+// Draggable Field Component
+function DraggableField({ field }: { field: DataField }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: `field-${field.name}`,
+    data: { field }
+  });
+
+  const style = transform ? {
+    transform: CSS.Translate.toString(transform),
+  } : undefined;
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...listeners}
+      {...attributes}
+      className={`p-2 border rounded cursor-grab flex items-center gap-2 hover:bg-muted/50 ${
+        isDragging ? 'opacity-50' : ''
+      }`}
+    >
+      {field.type === 'dimension' ? (
+        field.dataType === 'date' || field.dataType === 'datetime' ? (
+          <Calendar className="w-4 h-4 text-blue-500" />
+        ) : (
+          <Type className="w-4 h-4 text-green-500" />
+        )
+      ) : (
+        <Hash className="w-4 h-4 text-orange-500" />
+      )}
+      <span className="text-sm">{field.name}</span>
+      <Badge variant="outline" className="text-xs ml-auto">
+        {field.type === 'dimension' ? 'Dim' : 'Métr'}
+      </Badge>
+    </div>
+  );
+}
+
+// Droppable Widget Component
+function DroppableWidget({ widget, children, onClick }: { 
+  widget: any; 
+  children: React.ReactNode; 
+  onClick: () => void; 
+}) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: widget.id
+  });
+
+  return (
+    <div 
+      ref={setNodeRef}
+      className={`bg-background border rounded-lg shadow-sm ${
+        isOver ? 'ring-2 ring-primary bg-primary/5' : ''
+      }`}
+      onClick={onClick}
+    >
+      {children}
+    </div>
+  );
 }
 
 const chartTypes = [
@@ -361,10 +423,10 @@ export default function DashboardEditor() {
               <div>
                 <Label>Dataset</Label>
                 <Select value={selectedDatasetId} onValueChange={handleSelectDataset}>
-                  <SelectTrigger>
+                  <SelectTrigger className="bg-background">
                     <SelectValue placeholder={loadingDatasets ? "Carregando..." : "Selecione um dataset"} />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-popover border shadow-md z-[100]">
                     {loadingDatasets ? (
                       <SelectItem value="loading" disabled>
                         Carregando datasets...
@@ -460,33 +522,12 @@ export default function DashboardEditor() {
                    </div>
                  ) : (
                    <div className="space-y-2">
-                     {dataFields.map((field) => (
-                       <div
-                         key={field.name}
-                         className="p-2 border rounded cursor-grab flex items-center gap-2 hover:bg-muted/50"
-                         draggable
-                         onDragStart={(e) => {
-                           e.dataTransfer.setData('field', JSON.stringify(field));
-                         }}
-                       >
-                         {field.type === 'dimension' ? (
-                           field.dataType === 'date' || field.dataType === 'datetime' ? (
-                             <Calendar className="w-4 h-4 text-blue-500" />
-                           ) : (
-                             <Type className="w-4 h-4 text-green-500" />
-                           )
-                         ) : (
-                           <Hash className="w-4 h-4 text-orange-500" />
-                         )}
-                         <span className="text-sm">{field.name}</span>
-                         <Badge variant="outline" className="text-xs ml-auto">
-                           {field.type === 'dimension' ? 'Dim' : 'Métr'}
-                         </Badge>
-                       </div>
-                     ))}
-                   </div>
-                 )}
-               </div>
+                      {dataFields.map((field) => (
+                        <DraggableField key={field.name} field={field} />
+                      ))}
+                    </div>
+                  )}
+                </div>
 
               {/* Widget Inspector */}
               {selectedWidgetData && (
@@ -607,14 +648,14 @@ export default function DashboardEditor() {
                 containerPadding={[0, 0]}
               >
                 {widgets.map((widget) => (
-                  <div 
+                  <DroppableWidget 
                     key={widget.id} 
-                    className={`bg-background border rounded-lg shadow-sm ${
-                      selectedWidgetId === widget.id ? 'ring-2 ring-primary' : ''
-                    }`}
+                    widget={widget}
                     onClick={() => selectWidget(widget.id)}
                   >
-                    <div className="p-3 h-full flex flex-col">
+                    <div className={`p-3 h-full flex flex-col ${
+                      selectedWidgetId === widget.id ? 'ring-2 ring-primary' : ''
+                    }`}>
                       <div className="flex items-center justify-between mb-2">
                         <h4 className="font-medium text-sm truncate">{widget.title}</h4>
                         <div className="flex items-center gap-1">
@@ -639,7 +680,7 @@ export default function DashboardEditor() {
                         <WidgetRenderer widget={widget} />
                       </div>
                     </div>
-                  </div>
+                  </DroppableWidget>
                 ))}
               </ResponsiveGridLayout>
             )}
