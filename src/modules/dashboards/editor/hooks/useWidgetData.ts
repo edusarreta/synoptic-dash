@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useEditorStore } from '../state/editorStore';
 import { useSession } from '@/providers/SessionProvider';
-import { ChartDataService } from '@/modules/charts/chartDataService';
+import { ChartDataLoader } from '@/modules/charts/ChartDataLoader';
 
 export function useWidgetData(widgetId: string) {
   const { getWidget, updateWidget } = useEditorStore();
@@ -12,11 +12,6 @@ export function useWidgetData(widgetId: string) {
     async function fetchData() {
       if (!widget?.query) {
         console.log('🚫 No widget query, skipping data fetch');
-        return;
-      }
-      
-      if (!widget.query.dims.length && !widget.query.mets.length) {
-        console.log('🚫 No dimensions or metrics, skipping data fetch');
         return;
       }
 
@@ -62,8 +57,8 @@ export function useWidgetData(widgetId: string) {
             metrics 
           });
 
-          // Use the new chart data service
-          const data = await ChartDataService.loadChartData({
+          // Use the new robust chart data loader
+          const data = await ChartDataLoader.loadData({
             org_id: userProfile.org_id,
             dataset_id: widget.query.source.datasetId,
             dims,
@@ -75,7 +70,8 @@ export function useWidgetData(widgetId: string) {
           console.log('✅ Chart data loaded successfully:', { 
             columns: data.columns?.length || 0, 
             rows: data.rows?.length || 0,
-            truncated: data.truncated
+            truncated: data.truncated,
+            source: data.source
           });
 
           updateWidget(widgetId, { 

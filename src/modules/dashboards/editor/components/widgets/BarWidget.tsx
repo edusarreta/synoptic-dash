@@ -30,7 +30,12 @@ export default function BarWidget({ widget }: BarWidgetProps) {
   if (!widget.data?.rows?.length) {
     return (
       <div className="p-6 text-muted-foreground text-center">
-        Sem dados disponíveis
+        <div className="space-y-2">
+          <div>Sem dados disponíveis</div>
+          {(widget.query.dims.length === 0 && widget.query.mets.length === 0) && (
+            <div className="text-xs">Adicione dimensões e métricas para visualizar dados</div>
+          )}
+        </div>
       </div>
     );
   }
