@@ -77,6 +77,13 @@ export function useWidgetData(widgetId: string) {
             elapsed_ms: data.elapsed_ms
           });
 
+          console.log('💾 Storing widget data:', {
+            widgetId,
+            columns: data.columns,
+            rows: data.rows?.slice(0, 3),
+            totalRows: data.rows?.length
+          });
+
           updateWidget(widgetId, { 
             data: { 
               columns: data.columns || [], 

@@ -58,6 +58,18 @@ export default function BarWidget({ widget }: BarWidgetProps) {
         : (widget.data.columns as Array<{ name: string; type: string }>).map(col => col.name))
     : [];
 
+  // Debug widget data
+  console.log('🔍 BarWidget Debug:', {
+    widgetId: widget.id,
+    hasData: !!widget.data,
+    columns: widget.data?.columns,
+    columnNames,
+    rowsCount: widget.data?.rows?.length,
+    firstRow: widget.data?.rows?.[0],
+    xAxisKey,
+    metrics
+  });
+
   // Transform data for Recharts - convert array format to object format
   const chartData = widget.data.rows.slice(0, 50).map((row, index) => {
     const item: Record<string, any> = {};
@@ -66,6 +78,8 @@ export default function BarWidget({ widget }: BarWidgetProps) {
     });
     return item;
   });
+
+  console.log('📊 BarWidget chartData:', chartData);
 
   return (
     <div className="min-h-[260px] h-full p-2">
@@ -90,6 +104,13 @@ export default function BarWidget({ widget }: BarWidgetProps) {
             const dataKey = columnNames.find(col => 
               col.includes(metric.field) && col.includes(metric.agg || 'sum')
             ) || `${metric.field}_${metric.agg || 'sum'}`;
+            
+            console.log(`🎯 BarWidget metric ${index}:`, {
+              metric,
+              columnNames,
+              foundDataKey: dataKey,
+              searchPattern: `${metric.field} + ${metric.agg || 'sum'}`
+            });
             
             return (
               <Bar
