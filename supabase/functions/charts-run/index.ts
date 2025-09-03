@@ -88,7 +88,9 @@ serve(async (req) => {
       offset = 0
     }: ChartsRunPayload = await req.json();
 
+    console.log('=== CHARTS-RUN DEBUG ===');
     console.log('Charts run request:', { org_id, dataset_id, dims, metrics });
+    console.log('org_id type:', typeof org_id, 'value:', org_id);
 
     // Validar entrada básica
     if (!org_id || !dataset_id) {
@@ -170,13 +172,24 @@ serve(async (req) => {
     }
 
     console.log('Found dataset:', { id: dataset.id, org_id: dataset.org_id, name: dataset.name, connection_id: dataset.connection_id });
+    console.log('=== ORG_ID VALIDATION ===');
+    console.log('Dataset org_id:', dataset.org_id, 'type:', typeof dataset.org_id);
+    console.log('Request org_id:', org_id, 'type:', typeof org_id);
+    console.log('Are they equal?', dataset.org_id === org_id);
+    console.log('String comparison:', String(dataset.org_id) === String(org_id));
 
     // Verificar se o usuário tem acesso ao dataset (org_id deve bater)
-    if (dataset.org_id !== org_id) {
-      console.error('Dataset org mismatch:', { dataset_org_id: dataset.org_id, requested_org_id: org_id });
+    // Use string comparison to handle UUID comparison reliably
+    if (String(dataset.org_id) !== String(org_id)) {
+      console.error('Dataset org mismatch:', { 
+        dataset_org_id: dataset.org_id, 
+        requested_org_id: org_id,
+        dataset_org_id_str: String(dataset.org_id),
+        requested_org_id_str: String(org_id)
+      });
       return successResponse({
         error_code: 'DATASET_NOT_FOUND',
-        message: 'Dataset não encontrado ou sem acesso',
+        message: `Dataset não encontrado ou sem acesso - org_id mismatch: dataset(${dataset.org_id}) vs request(${org_id})`,
         elapsed_ms: Date.now() - startTime
       });
     }

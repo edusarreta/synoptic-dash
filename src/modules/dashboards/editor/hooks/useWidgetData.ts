@@ -19,7 +19,9 @@ export function useWidgetData(widgetId: string) {
       try {
         // If using dataset source, use the new charts-run function
         if (widget.query.source.kind === 'dataset' && widget.query.source.datasetId) {
+          console.log('=== WIDGET DATA FETCH DEBUG ===');
           console.log('Fetching widget data for dataset:', widget.query.source.datasetId);
+          console.log('User org_id:', userProfile?.org_id, 'type:', typeof userProfile?.org_id);
           
           // Prepare dimensions and metrics for charts-run
           const dims = widget.query.dims.map(dim => ({
@@ -35,10 +37,22 @@ export function useWidgetData(widgetId: string) {
 
           console.log('Charts run payload:', { dims, metrics });
 
+          // Validate required data before making request
+          if (!userProfile?.org_id) {
+            throw new Error('org_id não encontrado no perfil do usuário');
+          }
+
+          console.log('Final payload being sent:', {
+            org_id: userProfile.org_id,
+            dataset_id: widget.query.source.datasetId,
+            dims,
+            metrics
+          });
+
           // Use new charts-run function with structured payload
           const { data, error } = await supabase.functions.invoke('charts-run', {
             body: {
-              org_id: userProfile?.org_id,
+              org_id: userProfile.org_id,
               dataset_id: widget.query.source.datasetId,
               dims,
               metrics,
