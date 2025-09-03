@@ -38,7 +38,7 @@ serve(async (req) => {
       )
     }
 
-    const { dataset_id, limit = 100, offset = 0 } = await req.json()
+    const { dataset_id, org_id, workspace_id, limit = 100, offset = 0 } = await req.json()
 
     console.log('🔍 Previewing dataset:', { dataset_id, limit, offset });
 

@@ -54,7 +54,6 @@ export interface DashboardState {
   name: string;
   widgets: Widget[];
   datasets: Dataset[];
-  loadingDatasets: boolean;
   selectedDatasetId?: string;
   selectedWidgetId?: string;
   isDragging: boolean;
@@ -75,7 +74,6 @@ export interface EditorActions {
   getWidget: (id: string) => Widget | undefined;
   
   // Dataset management
-  loadDatasets: () => Promise<void>;
   setSelectedDataset: (datasetId: string, connectionId: string, source: QuerySpec['source']) => void;
   getDataset: (id: string) => Dataset | undefined;
   
@@ -109,7 +107,6 @@ const initialState: DashboardState = {
   name: 'Novo Dashboard',
   widgets: [],
   datasets: [],
-  loadingDatasets: false,
   isDragging: false,
   breakpoint: 'lg',
   layouts: { lg: [], md: [], sm: [], xs: [] },
@@ -395,49 +392,6 @@ export const useEditorStore = create<DashboardState & EditorActions>()(
       }
     },
 
-    loadDatasets: async () => {
-      set((state) => {
-        state.loadingDatasets = true;
-      });
-      
-      try {
-        // Get current user's org_id
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('org_id')
-          .eq('id', (await supabase.auth.getUser()).data.user?.id)
-          .single();
-
-        if (profileError) throw profileError;
-        if (!profile?.org_id) throw new Error('User org not found');
-
-        console.log('Loading datasets via datasets-list for org_id:', profile.org_id);
-
-        // Use the new datasets-list function
-        const { data, error } = await supabase.functions.invoke('datasets-list', {
-          body: { org_id: profile.org_id }
-        });
-        
-        if (error) throw error;
-        
-        const combinedData = data?.items || [];
-        
-        console.log('Datasets loaded via function:', combinedData.length);
-        console.log('Combined data:', combinedData);
-        
-        set((state) => {
-          console.log('Setting datasets in store. Previous count:', state.datasets.length);
-          state.datasets = combinedData;
-          state.loadingDatasets = false;
-          console.log('New datasets count in store:', state.datasets.length);
-        });
-      } catch (error) {
-        console.error('Error loading datasets:', error);
-        set((state) => {
-          state.loadingDatasets = false;
-        });
-      }
-    },
 
     resetEditor: () => {
       set((state) => {

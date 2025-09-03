@@ -13,7 +13,9 @@ import { usePermissions } from "@/modules/auth/PermissionsProvider";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useDataHubStore } from "@/hooks/useDataHubStore";
+import { useDatasets } from "@/hooks/useDatasets";
 import { DataHubHeader } from "./DataHubHeader";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface QueryResult {
   columns: string[];
@@ -31,6 +33,7 @@ export function SQLEditorPanel() {
   const { userProfile } = useSession();
   const { can } = usePermissions();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   
   const {
     selectedConnectionId,
@@ -272,6 +275,9 @@ export function SQLEditorPanel() {
         title: "✅ Dataset criado",
         description: `Dataset "${data.name}" criado com ID: ${data.id}`,
       });
+
+      // Invalidate datasets queries to refresh the dropdown in dashboard editor
+      queryClient.invalidateQueries({ queryKey: ['datasets'] });
 
       setShowDatasetDialog(false);
       setDatasetName("");

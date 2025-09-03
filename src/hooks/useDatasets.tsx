@@ -32,7 +32,7 @@ export function useDatasets(org_id?: string, workspace_id?: string) {
 
       if (error) {
         console.error('Error fetching datasets:', error);
-        throw error;
+        throw new Error(error.message || 'Failed to fetch datasets');
       }
 
       console.log('Datasets fetched:', data?.total || 0);

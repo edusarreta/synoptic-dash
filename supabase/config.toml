@@ -106,3 +106,12 @@ verify_jwt = true
 
 [functions.run-sql-query]
 verify_jwt = true
+
+[functions.datasets-list]
+verify_jwt = true
+
+[functions.datasets-preview]
+verify_jwt = true
+
+[functions.datasets-create]
+verify_jwt = true

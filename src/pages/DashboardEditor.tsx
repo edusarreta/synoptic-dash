@@ -27,6 +27,7 @@ import { useSession } from '@/providers/SessionProvider';
 import { useToast } from '@/hooks/use-toast';
 import { useEditorStore } from '@/modules/dashboards/editor/state/editorStore';
 import { WidgetRenderer } from '@/modules/dashboards/editor/components/WidgetRenderer';
+import { useDatasets } from '@/hooks/useDatasets';
 import type { ChartType, Agg } from '@/modules/dashboards/editor/state/editorStore';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
@@ -79,12 +80,9 @@ export default function DashboardEditor() {
     name, 
     widgets, 
     selectedWidgetId, 
-    datasets, 
-    loadingDatasets, 
     selectedDatasetId, 
     loadDashboard, 
     saveDashboard, 
-    loadDatasets, 
     setSelectedDataset,
     addWidget, 
     removeWidget, 
@@ -93,16 +91,19 @@ export default function DashboardEditor() {
     updateLayout,
   } = useEditorStore();
 
+  // Use the external datasets hook instead of the store's datasets
+  const { datasets, isLoading: loadingDatasets, error: datasetsError, refetch: refetchDatasets } = useDatasets(userProfile?.org_id);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dataFields, setDataFields] = useState<DataField[]>([]);
   const [currentOrgId, setCurrentOrgId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (id) {
+    if (id && userProfile?.org_id) {
       initializeDashboard();
     }
-  }, [id]);
+  }, [id, userProfile?.org_id]);
 
 
   const initializeDashboard = async () => {
@@ -122,19 +123,19 @@ export default function DashboardEditor() {
       setCurrentOrgId(userProfile.org_id);
 
       console.log('=== Dashboard Editor Initialization ===');
-      console.log('Loading datasets...');
+      console.log('Loading dashboard...');
       
-      // Load dashboard and datasets in parallel
+      // Load dashboard data
       const dashboardData = await supabase.from('dashboards').select('*').eq('id', id).single();
 
       if (dashboardData.error) throw dashboardData.error;
-
-      await loadDatasets();
       
       // Load dashboard into store
       loadDashboard({ ...dashboardData.data, id: id! });
 
       console.log('Dashboard loaded into store');
+      
+      // Datasets will be loaded automatically by the useDatasets hook
 
       // Clear data fields until a dataset is selected
       setDataFields([]);
@@ -379,19 +380,34 @@ export default function DashboardEditor() {
                           Criar Dataset
                         </Button>
                       </div>
+                    ) : datasetsError ? (
+                      <div className="p-2 text-sm text-destructive flex flex-col gap-2">
+                        <span>Erro ao carregar datasets</span>
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          onClick={() => refetchDatasets()}
+                        >
+                          Tentar novamente
+                        </Button>
+                      </div>
                     ) : (
                       datasets.map((dataset) => (
                          <SelectItem key={dataset.id} value={dataset.id}>
-                           <div className="flex items-center gap-2">
-                             <span>{dataset.name}</span>
-                             <Badge 
-                               variant={dataset.type === 'dataset' ? 'default' : 'secondary'} 
-                               className="text-xs"
-                             >
-                               {dataset.type === 'dataset' ? 'Dataset' : 'Query'}
-                             </Badge>
-                               {/* Columns count will be shown when dataset is loaded */}
-                           </div>
+                            <div className="flex items-center gap-2">
+                              <span>{dataset.name}</span>
+                              <Badge 
+                                variant={dataset.type === 'dataset' ? 'default' : 'secondary'} 
+                                className="text-xs"
+                              >
+                                {dataset.type === 'dataset' ? 'Dataset' : 'Query'}
+                              </Badge>
+                              {dataset.columns && Array.isArray(dataset.columns) && dataset.columns.length > 0 && (
+                                <Badge variant="outline" className="text-xs">
+                                  {dataset.columns.length} col.
+                                </Badge>
+                              )}
+                            </div>
                          </SelectItem>
                       ))
                     )}
