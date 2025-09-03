@@ -137,20 +137,44 @@ function processDirectSQLResult(result: any, dims: any[], metrics: any[]) {
   // Extrair colunas dos resultados
   if (result.length > 0) {
     const firstRow = result[0];
-    Object.keys(firstRow).forEach(key => {
-      const value = firstRow[key];
-      const type = typeof value === 'number' ? 'numeric' : 'text';
-      columns.push({ name: key, type });
-    });
     
-    // Converter dados para formato de array
-    result.forEach(row => {
-      const rowArray = [];
-      Object.keys(firstRow).forEach(key => {
-        rowArray.push(row[key]);
+    // Se o resultado contém objetos com propriedade 'result', extrair os dados
+    if (firstRow && firstRow.result && typeof firstRow.result === 'object') {
+      const dataRows = result.map(item => item.result);
+      
+      // Extrair colunas do primeiro objeto de dados
+      const firstDataRow = dataRows[0];
+      Object.keys(firstDataRow).forEach(key => {
+        const value = firstDataRow[key];
+        const type = typeof value === 'number' ? 'numeric' : 'text';
+        columns.push({ name: key, type });
       });
-      rows.push(rowArray);
-    });
+      
+      // Converter dados para formato de array
+      dataRows.forEach(row => {
+        const rowArray = [];
+        Object.keys(firstDataRow).forEach(key => {
+          rowArray.push(row[key]);
+        });
+        rows.push(rowArray);
+      });
+    } else {
+      // Processar como objetos normais
+      Object.keys(firstRow).forEach(key => {
+        const value = firstRow[key];
+        const type = typeof value === 'number' ? 'numeric' : 'text';
+        columns.push({ name: key, type });
+      });
+      
+      // Converter dados para formato de array
+      result.forEach(row => {
+        const rowArray = [];
+        Object.keys(firstRow).forEach(key => {
+          rowArray.push(row[key]);
+        });
+        rows.push(rowArray);
+      });
+    }
   }
   
   return { columns, rows };
@@ -363,14 +387,16 @@ serve(async (req) => {
 
         console.log('Direct SQL execution successful:', rawResult);
         
-        // Processar resultado direto
-        const processedResult = processDirectSQLResult(rawResult, dims, metrics);
-        return successResponse({
-          columns: processedResult.columns,
-          rows: processedResult.rows,
-          truncated: false,
-          elapsed_ms: Date.now() - startTime
-        });
+        // Processar resultado direto - rawResult já é um array de objetos
+        if (rawResult && Array.isArray(rawResult) && rawResult.length > 0) {
+          const processedResult = processDirectSQLResult(rawResult, dims, metrics);
+          return successResponse({
+            columns: processedResult.columns,
+            rows: processedResult.rows,
+            truncated: false,
+            elapsed_ms: Date.now() - startTime
+          });
+        }
         
       } catch (directSQLError) {
         console.error('Direct SQL execution failed:', directSQLError);

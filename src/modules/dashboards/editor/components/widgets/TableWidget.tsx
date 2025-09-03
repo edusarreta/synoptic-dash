@@ -59,7 +59,9 @@ export default function TableWidget({ widget }: TableWidgetProps) {
             <TableRow key={i}>
               {cols.map((col, colIndex) => (
                 <TableCell key={col} className="px-3 py-2 border-t">
-                  {String(row[colIndex] ?? '')}
+                  {typeof row[colIndex] === 'object' 
+                    ? JSON.stringify(row[colIndex]) 
+                    : String(row[colIndex] ?? '')}
                 </TableCell>
               ))}
             </TableRow>
