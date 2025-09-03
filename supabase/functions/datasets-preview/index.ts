@@ -81,13 +81,12 @@ serve(async (req) => {
     // Execute the dataset query with proper parameters
     const queryResponse = await supabase.functions.invoke('run-sql-query', {
       body: {
-        org_id: dataset.org_id,
         connection_id: dataset.connection_id,
-        sql: dataset.sql_query,
-        params: {},
-        mode: 'preview',
-        row_limit: limit
-      }
+        query: dataset.sql_query,
+        limit,
+        offset
+      },
+      headers: { Authorization: authHeader }
     })
 
     if (queryResponse.error) {

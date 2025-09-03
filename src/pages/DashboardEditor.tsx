@@ -37,9 +37,14 @@ interface Dataset {
   id: string;
   name: string;
   description?: string;
-  org_id: string;
+  org_id?: string;
   saved_query_id?: string;
   data_schema?: any;
+  columns?: Array<{ name: string; type: string }>;
+  connection_id?: string;
+  type?: 'dataset' | 'saved_query';
+  source_type?: string;
+  sql_query?: string;
 }
 
 interface DataField {
@@ -91,6 +96,7 @@ export default function DashboardEditor() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dataFields, setDataFields] = useState<DataField[]>([]);
+  const [currentOrgId, setCurrentOrgId] = useState<string | null>(null);
 
   useEffect(() => {
     if (id) {
@@ -101,6 +107,20 @@ export default function DashboardEditor() {
 
   const initializeDashboard = async () => {
     try {
+      setLoading(true);
+      
+      if (!userProfile?.org_id) {
+        toast({
+          title: "Erro",
+          description: "Organização não encontrada",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Set current org_id for dataset loading
+      setCurrentOrgId(userProfile.org_id);
+
       console.log('=== Dashboard Editor Initialization ===');
       console.log('Loading datasets...');
       
@@ -183,6 +203,7 @@ export default function DashboardEditor() {
         const { data, error } = await supabase.functions.invoke('datasets-preview', {
           body: {
             dataset_id: datasetId,
+            org_id: currentOrgId,
             limit: 1,
             offset: 0
           }
@@ -348,22 +369,30 @@ export default function DashboardEditor() {
                         Carregando datasets...
                       </SelectItem>
                     ) : datasets.length === 0 ? (
-                      <SelectItem value="empty" disabled>
-                        Nenhum dataset encontrado
-                      </SelectItem>
+                      <div className="p-2 text-sm text-muted-foreground flex flex-col gap-2">
+                        <span>Nenhum dataset ainda</span>
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          onClick={() => navigate('/data-hub/sql?from=dashboard&return=' + encodeURIComponent(window.location.pathname))}
+                        >
+                          Criar Dataset
+                        </Button>
+                      </div>
                     ) : (
                       datasets.map((dataset) => (
-                        <SelectItem key={dataset.id} value={dataset.id}>
-                          <div className="flex items-center justify-between w-full">
-                            <span className="flex-1">{dataset.name}</span>
-                            <Badge 
-                              variant={dataset.type === 'dataset' ? 'default' : 'secondary'} 
-                              className="text-xs ml-2"
-                            >
-                              {dataset.type === 'dataset' ? 'Dataset' : 'Query'}
-                            </Badge>
-                          </div>
-                        </SelectItem>
+                         <SelectItem key={dataset.id} value={dataset.id}>
+                           <div className="flex items-center gap-2">
+                             <span>{dataset.name}</span>
+                             <Badge 
+                               variant={dataset.type === 'dataset' ? 'default' : 'secondary'} 
+                               className="text-xs"
+                             >
+                               {dataset.type === 'dataset' ? 'Dataset' : 'Query'}
+                             </Badge>
+                               {/* Columns count will be shown when dataset is loaded */}
+                           </div>
+                         </SelectItem>
                       ))
                     )}
                   </SelectContent>

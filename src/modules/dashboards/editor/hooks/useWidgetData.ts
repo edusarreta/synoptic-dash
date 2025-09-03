@@ -49,12 +49,9 @@ export function useWidgetData(widgetId: string) {
           
           const { data, error } = await supabase.functions.invoke('run-sql-query', {
             body: {
-              org_id: widget.query.connectionId, // This needs to be fixed to use proper org_id
               connection_id: widget.query.connectionId,
-              sql,
-              mode: 'preview',
-              row_limit: 5000,
-              timeout_ms: 15000,
+              query: sql,
+              limit: widget.query.limit || 1000
             }
           });
 

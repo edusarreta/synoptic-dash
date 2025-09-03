@@ -411,42 +411,18 @@ export const useEditorStore = create<DashboardState & EditorActions>()(
         if (profileError) throw profileError;
         if (!profile?.org_id) throw new Error('User org not found');
 
-        console.log('Loading datasets and saved queries for org_id:', profile.org_id);
+        console.log('Loading datasets via datasets-list for org_id:', profile.org_id);
 
-        // Load datasets and saved queries in parallel
-        const [datasetsResult, savedQueriesResult] = await Promise.all([
-          supabase
-            .from('datasets')
-            .select('id, name, description, sql_query, connection_id, org_id, source_type')
-            .eq('org_id', profile.org_id)
-            .order('created_at', { ascending: false }),
-          
-          supabase
-            .from('saved_queries')
-            .select('id, name, description, sql_query, connection_id, org_id')
-            .eq('org_id', profile.org_id)
-            .order('created_at', { ascending: false })
-        ]);
+        // Use the new datasets-list function
+        const { data, error } = await supabase.functions.invoke('datasets-list', {
+          body: { org_id: profile.org_id }
+        });
         
-        if (datasetsResult.error) throw datasetsResult.error;
-        if (savedQueriesResult.error) throw savedQueriesResult.error;
+        if (error) throw error;
         
-        // Combine and format the data
-        const datasets = (datasetsResult.data || []).map(item => ({
-          ...item,
-          type: 'dataset' as const
-        }));
+        const combinedData = data?.items || [];
         
-        const savedQueries = (savedQueriesResult.data || []).map(item => ({
-          ...item,
-          type: 'saved_query' as const,
-          source_type: 'sql' as const
-        }));
-        
-        const combinedData = [...datasets, ...savedQueries];
-        
-        console.log('Datasets loaded:', datasets.length);
-        console.log('Saved queries loaded:', savedQueries.length);
+        console.log('Datasets loaded via function:', combinedData.length);
         console.log('Combined data:', combinedData);
         
         set((state) => {
