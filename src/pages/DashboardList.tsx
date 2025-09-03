@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Plus, BarChart3, Share2, Trash2, Edit, Eye, Calendar } from 'lucide-react';
+import { Plus, BarChart3, Share2, Trash2, Edit, Eye, Calendar, Search, Database } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useSession } from '@/providers/SessionProvider';
 import { useToast } from '@/hooks/use-toast';
@@ -18,6 +19,9 @@ interface Dashboard {
   created_at: string;
   updated_at: string;
   created_by: string;
+  layout_config?: any;
+  widget_count?: number;
+  dataset_names?: string[];
 }
 
 export default function DashboardList() {
@@ -26,13 +30,19 @@ export default function DashboardList() {
   const { toast } = useToast();
   
   const [dashboards, setDashboards] = useState<Dashboard[]>([]);
+  const [filteredDashboards, setFilteredDashboards] = useState<Dashboard[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     if (userProfile?.org_id) {
       loadDashboards();
     }
   }, [userProfile]);
+
+  useEffect(() => {
+    filterDashboards();
+  }, [dashboards, searchTerm]);
 
   const loadDashboards = async () => {
     try {
@@ -43,7 +53,29 @@ export default function DashboardList() {
         .order('updated_at', { ascending: false });
 
       if (error) throw error;
-      setDashboards(data || []);
+      
+      // Enrich dashboards with widget count and dataset info
+      const enrichedDashboards = (data || []).map(dashboard => {
+        const layoutConfig = dashboard.layout_config as any || {};
+        const widgets = Array.isArray(layoutConfig.widgets) ? layoutConfig.widgets : [];
+        const widgetCount = widgets.length;
+        
+        // Extract unique dataset names from widgets
+        const datasetIds = new Set<string>();
+        widgets.forEach((widget: any) => {
+          if (widget.query?.source?.datasetId) {
+            datasetIds.add(widget.query.source.datasetId);
+          }
+        });
+        
+        return {
+          ...dashboard,
+          widget_count: widgetCount,
+          dataset_names: Array.from(datasetIds).slice(0, 3) as string[] // Limit to first 3 datasets
+        };
+      });
+      
+      setDashboards(enrichedDashboards);
     } catch (error) {
       console.error('Error loading dashboards:', error);
       toast({
@@ -79,6 +111,20 @@ export default function DashboardList() {
         variant: "destructive",
       });
     }
+  };
+
+  const filterDashboards = () => {
+    let filtered = dashboards;
+    
+    if (searchTerm.trim()) {
+      const search = searchTerm.toLowerCase();
+      filtered = filtered.filter(dashboard =>
+        dashboard.name.toLowerCase().includes(search) ||
+        dashboard.description?.toLowerCase().includes(search)
+      );
+    }
+    
+    setFilteredDashboards(filtered);
   };
 
   const formatDate = (dateString: string) => {
@@ -121,7 +167,38 @@ export default function DashboardList() {
         </Button>
       </div>
 
-      {dashboards.length === 0 ? (
+      {/* Search and Filters */}
+      <div className="flex items-center gap-4">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+          <Input
+            placeholder="Buscar dashboards..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+        {searchTerm && (
+          <Badge variant="outline">
+            {filteredDashboards.length} de {dashboards.length} dashboards
+          </Badge>
+        )}
+      </div>
+
+      {filteredDashboards.length === 0 && searchTerm ? (
+        <Card>
+          <CardContent className="text-center py-12">
+            <Search className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Nenhum dashboard encontrado</h3>
+            <p className="text-muted-foreground mb-6">
+              Nenhum dashboard corresponde à sua busca "{searchTerm}"
+            </p>
+            <Button variant="outline" onClick={() => setSearchTerm('')}>
+              Limpar busca
+            </Button>
+          </CardContent>
+        </Card>
+      ) : dashboards.length === 0 ? (
         <Card>
           <CardContent className="text-center py-12">
             <BarChart3 className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
@@ -137,7 +214,7 @@ export default function DashboardList() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {dashboards.map((dashboard) => (
+          {filteredDashboards.map((dashboard) => (
             <Card key={dashboard.id} className="hover:shadow-lg transition-shadow">
               <CardHeader>
                 <div className="flex items-start justify-between">
@@ -161,9 +238,25 @@ export default function DashboardList() {
               </CardHeader>
               
               <CardContent className="space-y-4">
-                <div className="flex items-center text-sm text-muted-foreground">
-                  <Calendar className="w-4 h-4 mr-2" />
-                  Atualizado em {formatDate(dashboard.updated_at)}
+                <div className="space-y-2">
+                  <div className="flex items-center text-sm text-muted-foreground">
+                    <Calendar className="w-4 h-4 mr-2" />
+                    Atualizado em {formatDate(dashboard.updated_at)}
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    {dashboard.widget_count !== undefined && (
+                      <Badge variant="outline" className="text-xs">
+                        {dashboard.widget_count} widget{dashboard.widget_count !== 1 ? 's' : ''}
+                      </Badge>
+                    )}
+                    {dashboard.dataset_names && dashboard.dataset_names.length > 0 && (
+                      <Badge variant="secondary" className="text-xs">
+                        <Database className="w-3 h-3 mr-1" />
+                        {dashboard.dataset_names.length} dataset{dashboard.dataset_names.length !== 1 ? 's' : ''}
+                      </Badge>
+                    )}
+                  </div>
                 </div>
                 
                 <div className="flex gap-2">

@@ -49,28 +49,17 @@ export function useWidgetData(widgetId: string) {
             metrics
           });
 
-          // Use new charts-run function with structured payload
-          const { data, error } = await supabase.functions.invoke('charts-run', {
-            body: {
-              org_id: userProfile.org_id,
-              dataset_id: widget.query.source.datasetId,
-              dims,
-              metrics,
-              limit: 1000,
-              offset: 0
-            }
+          // Use new charts-run API function
+          const { chartsRun } = await import('@/modules/datasets/api');
+          
+          const data = await chartsRun({
+            org_id: userProfile.org_id,
+            dataset_id: widget.query.source.datasetId,
+            dims,
+            metrics,
+            limit: 1000,
+            offset: 0
           });
-
-          if (error) {
-            console.error('Charts run error:', error);
-            throw new Error(error.message || 'Falha ao executar consulta');
-          }
-
-          // Check if response has error_code (structured error)
-          if (data.error_code) {
-            console.error('Charts run structured error:', data);
-            throw new Error(`${data.message} (${data.error_code})`);
-          }
 
           console.log('Widget data loaded:', { columns: data.columns?.length, rows: data.rows?.length });
 

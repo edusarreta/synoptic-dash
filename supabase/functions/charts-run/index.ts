@@ -5,8 +5,13 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.56.1';
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-// Use Service Role for bypassing RLS
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+// Use Service Role for bypassing RLS (admin access)
+const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false
+  }
+});
 
 // CORS headers
 const corsHeaders = {
@@ -188,8 +193,8 @@ serve(async (req) => {
         requested_org_id_str: String(org_id)
       });
       return successResponse({
-        error_code: 'DATASET_NOT_FOUND',
-        message: `Dataset não encontrado ou sem acesso - org_id mismatch: dataset(${dataset.org_id}) vs request(${org_id})`,
+        error_code: 'DATASET_ACCESS_DENIED',
+        message: `Acesso negado ao dataset. Verifique se você tem permissão para este dataset.`,
         elapsed_ms: Date.now() - startTime
       });
     }
