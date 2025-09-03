@@ -114,8 +114,22 @@ export async function runWidgetQuery(payload: ChartsRunPayload): Promise<ChartsR
   });
   
   try {
-    const { data, error } = await supabase.functions.invoke('widgets-run', {
-      body: payload
+    // Temporarily use charts-run while widgets-run is being fixed
+    const payload_charts = {
+      org_id: payload.org_id,
+      dataset_id: payload.dataset_id,
+      dims: payload.spec.dims.map(dim => ({ field: dim.field, alias: dim.field })),
+      metrics: payload.spec.metrics.map(met => ({ 
+        field: met.field, 
+        agg: met.agg, 
+        alias: `${met.field}_${met.agg}` 
+      })),
+      limit: payload.spec.limit || 1000,
+      offset: 0
+    };
+    
+    const { data, error } = await supabase.functions.invoke('charts-run', {
+      body: payload_charts
     });
 
     console.log('📡 Widget run response:', { 
@@ -132,11 +146,11 @@ export async function runWidgetQuery(payload: ChartsRunPayload): Promise<ChartsR
     }
 
     // Check for structured errors in response
-    if (data?.code) {
+    if (data?.error_code || data?.ok === false || data?.success === false) {
       console.error('❌ Widget run structured error:', data);
       
       // Handle specific error codes
-      switch (data.code) {
+      switch (data.error_code || data.code) {
         case 'DATASET_NOT_FOUND':
           throw new Error('Dataset não encontrado ou sem acesso');
         case 'ONLY_SELECT_ALLOWED':
