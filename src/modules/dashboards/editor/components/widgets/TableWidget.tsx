@@ -42,6 +42,14 @@ export default function TableWidget({ widget }: TableWidgetProps) {
         : (widget.data.columns as Array<{ name: string; type: string }>).map(col => col.name))
     : Object.keys(widget.data.rows[0] ?? {});
 
+  console.log('TableWidget Debug:', {
+    columns: widget.data.columns,
+    rows: widget.data.rows?.slice(0, 2),
+    cols,
+    firstRowType: typeof widget.data.rows?.[0],
+    isArray: Array.isArray(widget.data.rows?.[0])
+  });
+
   return (
     <div className="overflow-auto min-h-[220px] h-full">
       <Table>
@@ -57,13 +65,17 @@ export default function TableWidget({ widget }: TableWidgetProps) {
         <TableBody>
           {widget.data.rows.slice(0, 100).map((row, i) => (
             <TableRow key={i}>
-              {cols.map((col, colIndex) => (
-                <TableCell key={col} className="px-3 py-2 border-t">
-                  {typeof row[colIndex] === 'object' 
-                    ? JSON.stringify(row[colIndex]) 
-                    : String(row[colIndex] ?? '')}
-                </TableCell>
-              ))}
+              {cols.map((col, colIndex) => {
+                // Handle both array and object row formats
+                const cellValue = Array.isArray(row) ? row[colIndex] : row[col];
+                return (
+                  <TableCell key={col} className="px-3 py-2 border-t">
+                    {typeof cellValue === 'object' 
+                      ? JSON.stringify(cellValue) 
+                      : String(cellValue ?? '')}
+                  </TableCell>
+                );
+              })}
             </TableRow>
           ))}
         </TableBody>
