@@ -17,23 +17,45 @@ export function useWidgetData(widgetId: string) {
       updateWidget(widgetId, { loading: true, error: null });
 
       try {
-        // If using dataset source, get dataset SQL first
+        // If using dataset source, use the new charts-run function
         if (widget.query.source.kind === 'dataset' && widget.query.source.datasetId) {
           console.log('Fetching widget data for dataset:', widget.query.source.datasetId);
           
-          // Use dataset preview for data with org_id
-          const { data, error } = await supabase.functions.invoke('datasets-preview', {
+          // Prepare dimensions and metrics for charts-run
+          const dims = widget.query.dims.map(dim => ({
+            field: dim.field,
+            alias: dim.field
+          }));
+
+          const metrics = widget.query.mets.map(met => ({
+            field: met.field,
+            agg: met.agg || 'sum',
+            alias: `${met.field}_${met.agg || 'sum'}`
+          }));
+
+          console.log('Charts run payload:', { dims, metrics });
+
+          // Use new charts-run function with structured payload
+          const { data, error } = await supabase.functions.invoke('charts-run', {
             body: {
-              dataset_id: widget.query.source.datasetId,
               org_id: userProfile?.org_id,
-              limit: 5000,
+              dataset_id: widget.query.source.datasetId,
+              dims,
+              metrics,
+              limit: 1000,
               offset: 0
             }
           });
 
           if (error) {
-            console.error('Dataset preview error:', error);
-            throw new Error(error.message || 'Falha ao carregar dados do dataset');
+            console.error('Charts run error:', error);
+            throw new Error(error.message || 'Falha ao executar consulta');
+          }
+
+          // Check if response has error_code (structured error)
+          if (data.error_code) {
+            console.error('Charts run structured error:', data);
+            throw new Error(`${data.message} (${data.error_code})`);
           }
 
           console.log('Widget data loaded:', { columns: data.columns?.length, rows: data.rows?.length });

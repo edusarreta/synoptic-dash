@@ -98,12 +98,6 @@ verify_jwt = true
 [functions.delete-connection]
 verify_jwt = true
 
-[functions.list-database-catalog]
-verify_jwt = true
-
-[functions.preview-table]
-verify_jwt = true
-
 [functions.run-sql-query]
 verify_jwt = true
 
@@ -114,4 +108,7 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.datasets-create]
+verify_jwt = true
+
+[functions.charts-run]
 verify_jwt = true

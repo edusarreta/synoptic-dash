@@ -94,18 +94,26 @@ function DraggableField({ field }: { field: DataField }) {
 }
 
 // Droppable Widget Component
-function DroppableWidget({ widget, children, onClick }: { 
-  widget: any; 
-  children: React.ReactNode; 
-  onClick: () => void; 
-}) {
+const DroppableWidget = React.forwardRef<
+  HTMLDivElement, 
+  { widget: any; children: React.ReactNode; onClick: () => void; }
+>(({ widget, children, onClick }, ref) => {
   const { setNodeRef, isOver } = useDroppable({
     id: widget.id
   });
 
+  const combinedRef = React.useCallback((node: HTMLDivElement) => {
+    setNodeRef(node);
+    if (typeof ref === 'function') {
+      ref(node);
+    } else if (ref) {
+      ref.current = node;
+    }
+  }, [setNodeRef, ref]);
+
   return (
     <div 
-      ref={setNodeRef}
+      ref={combinedRef}
       className={`bg-background border rounded-lg shadow-sm ${
         isOver ? 'ring-2 ring-primary bg-primary/5' : ''
       }`}
@@ -114,7 +122,9 @@ function DroppableWidget({ widget, children, onClick }: {
       {children}
     </div>
   );
-}
+});
+
+DroppableWidget.displayName = 'DroppableWidget';
 
 const chartTypes = [
   { value: 'table', label: 'Tabela', icon: Table },
