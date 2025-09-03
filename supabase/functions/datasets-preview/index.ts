@@ -90,7 +90,7 @@ serve(async (req) => {
       .from('profiles')
       .select('org_id')
       .eq('id', user.id)
-      .single()
+      .maybeSingle()
 
     if (!profile || profile.org_id !== dataset.org_id) {
       return new Response(
@@ -135,7 +135,7 @@ serve(async (req) => {
     }
 
     // For regular datasets with external connections, try to execute query
-    if (dataset.connection_id && dataset.sql_query) {
+    if (dataset.connection_id && dataset.sql_query && dataset.sql_query.trim() !== '') {
       console.log('Executing SQL preview for real dataset via run-sql-query...');
       console.log('Connection ID:', dataset.connection_id);
       console.log('SQL Query preview (first 100 chars):', dataset.sql_query.substring(0, 100));
@@ -171,6 +171,8 @@ serve(async (req) => {
       } catch (error) {
         console.warn('Failed to execute external dataset query, using fallback:', error);
       }
+    } else {
+      console.log('Dataset has empty SQL query or no connection, using fallback');
     }
 
     // Fallback: return basic structure

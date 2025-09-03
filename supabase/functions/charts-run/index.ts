@@ -5,7 +5,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.56.1';
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-// Use Service Role for bypassing RLS (admin access)
+// Create client with service role for admin access
 const supabase = createClient(supabaseUrl, supabaseServiceKey, {
   auth: {
     autoRefreshToken: false,
@@ -176,6 +176,17 @@ serve(async (req) => {
   const startTime = Date.now();
 
   try {
+    // Get user from auth header for authorization checks
+    const authHeader = req.headers.get('Authorization');
+    let userId = null;
+    
+    if (authHeader) {
+      const { data: { user } } = await supabase.auth.getUser(
+        authHeader.replace('Bearer ', '')
+      );
+      userId = user?.id;
+    }
+
     const {
       org_id,
       workspace_id,
@@ -272,6 +283,30 @@ serve(async (req) => {
     }
 
     console.log('Found dataset:', { id: dataset.id, org_id: dataset.org_id, name: dataset.name, connection_id: dataset.connection_id });
+    
+    // Check user access to org if user is authenticated
+    if (userId) {
+      console.log('=== USER ACCESS CHECK ===');
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('org_id')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (!profile || String(profile.org_id) !== String(org_id)) {
+        console.error('User does not have access to org:', { 
+          user_org: profile?.org_id, 
+          requested_org: org_id,
+          user_id: userId
+        });
+        return successResponse({
+          error_code: 'ACCESS_DENIED',
+          message: 'Acesso negado à organização',
+          elapsed_ms: Date.now() - startTime
+        }, 403);
+      }
+    }
+
     console.log('=== ORG_ID VALIDATION ===');
     console.log('Dataset org_id:', dataset.org_id, 'type:', typeof dataset.org_id);
     console.log('Request org_id:', org_id, 'type:', typeof org_id);
@@ -413,15 +448,13 @@ serve(async (req) => {
       }
     }
 
-    // Para datasets com conexões externas, usar run-sql-query com auth header
-    const authHeader = req.headers.get('authorization');
+    // Para datasets com conexões externas, usar run-sql-query com headers apropriados
     const { data: queryResult, error: queryError } = await supabase.functions.invoke('run-sql-query', {
       body: {
         connection_id: dataset.connection_id,
         query: finalSQL,
         limit: safeLimit
-      },
-      headers: authHeader ? { 'Authorization': authHeader } : {}
+      }
     });
 
     console.log('Query result:', { queryResult, queryError });
