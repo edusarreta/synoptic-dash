@@ -136,37 +136,55 @@ serve(async (req) => {
 
     // For regular datasets with external connections, try to execute query
     if (dataset.connection_id && dataset.sql_query) {
+      console.log('Executing SQL preview for real dataset via run-sql-query...');
+      console.log('Connection ID:', dataset.connection_id);
+      console.log('SQL Query preview (first 100 chars):', dataset.sql_query.substring(0, 100));
+      
       try {
-        const queryResponse = await supabase.functions.invoke('run-sql-query', {
-          body: {
+        const queryResponse = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/run-sql-query`, {
+          method: 'POST',
+          headers: {
+            'Authorization': authHeader,
+            'Content-Type': 'application/json',
+            'apikey': Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+          },
+          body: JSON.stringify({
             connection_id: dataset.connection_id,
             query: `${dataset.sql_query} LIMIT 1`, // Just get structure
             limit: 1
-          },
-          headers: { Authorization: authHeader }
+          })
         });
 
-        if (queryResponse.data?.columns) {
-          const responseData = {
-            columns: queryResponse.data.columns,
-            rows: [],
-            truncated: false,
-            dataset: {
-              id: dataset.id,
-              name: dataset.name,
-              created_at: dataset.created_at
-            }
-          };
+        console.log('Query response status:', queryResponse.status);
+        
+        if (queryResponse.ok) {
+          const queryData = await queryResponse.json();
+          console.log('Query response data:', queryData);
+          
+          if (queryData?.columns && Array.isArray(queryData.columns)) {
+            const responseData = {
+              columns: queryData.columns,
+              rows: [],
+              truncated: false,
+              dataset: {
+                id: dataset.id,
+                name: dataset.name,
+                created_at: dataset.created_at
+              }
+            };
 
-          console.log('✅ External dataset preview:', { 
-            columns_count: responseData.columns.length, 
-            dataset_name: dataset.name 
-          });
+            console.log('✅ External dataset preview successful:', { 
+              columns_count: responseData.columns.length, 
+              dataset_name: dataset.name 
+            });
 
-          return new Response(
-            JSON.stringify(responseData),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+            return new Response(
+              JSON.stringify(responseData),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+        } else {
+          console.warn('Query response not ok:', queryResponse.status, await queryResponse.text());
         }
       } catch (error) {
         console.warn('Failed to execute external dataset query, using fallback:', error);

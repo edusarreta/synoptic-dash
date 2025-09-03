@@ -29,10 +29,15 @@ function handleCORS(req: Request): Response | null {
 
 // Create success response with CORS headers
 function successResponse(data: any, status: number = 200) {
+  // If data contains error_code, it's actually an error response
+  if (data.error_code && status === 200) {
+    status = 400;
+  }
+  
   return new Response(
     JSON.stringify({ 
-      ok: true, 
-      success: true, 
+      ok: status < 400, 
+      success: status < 400, 
       ...data 
     }),
     { 
@@ -193,7 +198,7 @@ serve(async (req) => {
         error_code: 'MISSING_PARAMS',
         message: 'org_id e dataset_id são obrigatórios',
         elapsed_ms: Date.now() - startTime
-      });
+      }, 400);
     }
 
     // Validar identificadores das dimensões
@@ -425,7 +430,7 @@ serve(async (req) => {
         error_code: 'QUERY_FAILED',
         message: `Erro na execução da consulta: ${queryError.message || queryError}`,
         elapsed_ms: Date.now() - startTime
-      });
+      }, 400); // Return 400 status for actual errors
     }
 
     if (!queryResult) {
@@ -434,7 +439,7 @@ serve(async (req) => {
         error_code: 'QUERY_FAILED',
         message: 'Nenhum resultado retornado pela consulta',
         elapsed_ms: Date.now() - startTime
-      });
+      }, 400); // Return 400 status for actual errors
     }
 
     if (queryResult.error_code) {
@@ -443,7 +448,7 @@ serve(async (req) => {
         error_code: queryResult.error_code,
         message: queryResult.message || 'Falha ao executar consulta',
         elapsed_ms: Date.now() - startTime
-      });
+      }, 400); // Return 400 status for actual errors
     }
 
     // Retornar resultado padronizado
@@ -460,6 +465,6 @@ serve(async (req) => {
       error_code: 'INTERNAL_ERROR',
       message: error.message || 'Erro interno do servidor',
       elapsed_ms: Date.now() - startTime
-    });
+    }, 500);
   }
 });
