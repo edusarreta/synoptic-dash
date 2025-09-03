@@ -34,10 +34,10 @@ export async function chartsRun(payload: ChartsRunPayload): Promise<ChartsRunRes
     throw new Error(error.message || 'Falha ao executar consulta');
   }
 
-  // Check if response has error_code (structured error)
-  if (data?.error_code) {
+  // Check if response has error_code (structured error) or explicit error status
+  if (data?.error_code || data?.ok === false || data?.success === false) {
     console.error('Charts run structured error:', data);
-    throw new Error(`${data.message} (${data.error_code})`);
+    throw new Error(data?.message || 'Falha ao executar consulta');
   }
 
   console.log('Charts run response:', data);

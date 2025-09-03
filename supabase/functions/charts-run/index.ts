@@ -413,13 +413,15 @@ serve(async (req) => {
       }
     }
 
-    // Para datasets com conexões externas, usar run-sql-query
+    // Para datasets com conexões externas, usar run-sql-query com auth header
+    const authHeader = req.headers.get('authorization');
     const { data: queryResult, error: queryError } = await supabase.functions.invoke('run-sql-query', {
       body: {
         connection_id: dataset.connection_id,
         query: finalSQL,
         limit: safeLimit
-      }
+      },
+      headers: authHeader ? { 'Authorization': authHeader } : {}
     });
 
     console.log('Query result:', { queryResult, queryError });
