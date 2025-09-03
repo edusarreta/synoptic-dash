@@ -59,11 +59,22 @@ export default function KPIWidget({ widget }: KPIWidgetProps) {
     );
   }
 
+  // Handle column names - support both old string[] format and new object format
+  const columnNames = Array.isArray(widget.data.columns) 
+    ? (typeof widget.data.columns[0] === 'string' 
+        ? widget.data.columns as string[]
+        : (widget.data.columns as Array<{ name: string; type: string }>).map(col => col.name))
+    : [];
+
   const metric = metrics[0];
-  const metricName = metric.alias || `${metric.agg}_${metric.field}`;
+  // Use actual column name from API response instead of constructed alias
+  const metricColumnName = columnNames.find(col => 
+    col.includes(metric.field) && col.includes(metric.agg || 'sum')
+  ) || `${metric.field}_${metric.agg || 'sum'}`;
   
-  // Get the value from first row, first metric column
-  const value = widget.data.rows[0]?.[widget.query.dims.length] || 0;
+  // Get the value - find the column index and use it
+  const columnIndex = columnNames.indexOf(metricColumnName);
+  const value = columnIndex >= 0 ? widget.data.rows[0]?.[columnIndex] : widget.data.rows[0]?.[widget.query.dims.length] || 0;
   
   // Format the value
   const formatValue = (val: any): string => {
@@ -81,7 +92,7 @@ export default function KPIWidget({ widget }: KPIWidgetProps) {
       <CardContent className="flex flex-col items-center justify-center h-full p-6">
         <div className="text-center space-y-4">
           <div className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-            {metricName.replace(/_/g, ' ')}
+            {metricColumnName.replace(/_/g, ' ')}
           </div>
           <div className="text-4xl font-bold text-primary">
             {formatValue(value)}
