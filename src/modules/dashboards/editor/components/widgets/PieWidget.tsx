@@ -40,9 +40,27 @@ export default function PieWidget({ widget }: PieWidgetProps) {
     );
   }
 
-  const data = widget.data.rows.slice(0, 10); // Limit for performance
+  // Handle column names - support both old string[] format and new object format
+  const columnNames = Array.isArray(widget.data.columns) 
+    ? (typeof widget.data.columns[0] === 'string' 
+        ? widget.data.columns as string[]
+        : (widget.data.columns as Array<{ name: string; type: string }>).map(col => col.name))
+    : [];
+
+  // Transform data for PieChart - convert array format to object format
+  const data = widget.data.rows.slice(0, 10).map((row, index) => {
+    const item: Record<string, any> = {};
+    columnNames.forEach((col, colIndex) => {
+      item[col] = row[colIndex];
+    });
+    return item;
+  });
+
   const nameKey = widget.query.dims[0]?.field;
-  const valueKey = widget.query.mets[0]?.alias || `${widget.query.mets[0]?.agg}_${widget.query.mets[0]?.field}`;
+  // Use actual column name from API response instead of constructed alias
+  const valueKey = columnNames.find(col => 
+    col.includes(widget.query.mets[0]?.field) && col.includes(widget.query.mets[0]?.agg)
+  ) || columnNames[1]; // fallback to second column if pattern not found
 
   if (!nameKey || !widget.query.mets.length) {
     return (

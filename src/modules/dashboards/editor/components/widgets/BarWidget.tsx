@@ -85,14 +85,21 @@ export default function BarWidget({ widget }: BarWidgetProps) {
               borderRadius: '6px'
             }}
           />
-          {metrics.map((metric, index) => (
-            <Bar
-              key={metric.alias || `${metric.agg}_${metric.field}`}
-              dataKey={metric.alias || `${metric.agg}_${metric.field}`}
-              fill={`hsl(${200 + index * 30}, 70%, 50%)`}
-              name={metric.alias || `${metric.agg}(${metric.field})`}
-            />
-          ))}
+          {metrics.map((metric, index) => {
+            // Use actual column name from API response instead of constructed alias
+            const dataKey = columnNames.find(col => 
+              col.includes(metric.field) && col.includes(metric.agg || 'sum')
+            ) || `${metric.field}_${metric.agg || 'sum'}`;
+            
+            return (
+              <Bar
+                key={dataKey}
+                dataKey={dataKey}
+                fill={`hsl(${200 + index * 30}, 70%, 50%)`}
+                name={`${metric.agg || 'sum'}(${metric.field})`}
+              />
+            );
+          })}
         </BarChart>
       </ResponsiveContainer>
     </div>

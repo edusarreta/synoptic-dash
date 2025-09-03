@@ -85,17 +85,24 @@ export default function LineWidget({ widget }: LineWidgetProps) {
               borderRadius: '6px'
             }}
           />
-          {metrics.map((metric, index) => (
-            <Line
-              key={metric.alias || `${metric.agg}_${metric.field}`}
-              type="monotone"
-              dataKey={metric.alias || `${metric.agg}_${metric.field}`}
-              stroke={`hsl(${200 + index * 30}, 70%, 50%)`}
-              strokeWidth={2}
-              name={metric.alias || `${metric.agg}(${metric.field})`}
-              dot={{ r: 3 }}
-            />
-          ))}
+          {metrics.map((metric, index) => {
+            // Use actual column name from API response instead of constructed alias
+            const dataKey = columnNames.find(col => 
+              col.includes(metric.field) && col.includes(metric.agg || 'sum')
+            ) || `${metric.field}_${metric.agg || 'sum'}`;
+            
+            return (
+              <Line
+                key={dataKey}
+                type="monotone"
+                dataKey={dataKey}
+                stroke={`hsl(${200 + index * 30}, 70%, 50%)`}
+                strokeWidth={2}
+                name={`${metric.agg || 'sum'}(${metric.field})`}
+                dot={{ r: 3 }}
+              />
+            );
+          })}
         </LineChart>
       </ResponsiveContainer>
     </div>
