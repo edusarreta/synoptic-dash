@@ -6,6 +6,7 @@ import { corsHeaders, handleCORS, errorResponse, successResponse } from "../_sha
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
+// Use Service Role for bypassing RLS
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 interface ChartsRunPayload {
@@ -70,6 +71,16 @@ serve(async (req) => {
       });
     }
 
+    // Verificar se o usuário tem acesso à organização
+    const authHeader = req.headers.get('authorization');
+    if (!authHeader) {
+      return successResponse({
+        error_code: 'FORBIDDEN',
+        message: 'Usuário sem acesso - token não encontrado',
+        elapsed_ms: Date.now() - startTime
+      });
+    }
+
     // Validar identificadores das dimensões
     for (const dim of dims) {
       if (!isValidIdentifier(dim.field) || !isValidIdentifier(dim.alias)) {
@@ -102,32 +113,45 @@ serve(async (req) => {
     // Buscar dataset primeiro em datasets, depois em saved_queries
     let dataset;
     
-    // Tentar buscar na tabela datasets primeiro
+    console.log('Searching for dataset:', { dataset_id, org_id, workspace_id });
+    
+    // Tentar buscar na tabela datasets primeiro (sem filtro de org_id inicial)
     const { data: datasetFromDatasets, error: datasetError1 } = await supabase
       .from('datasets')
       .select('id, org_id, workspace_id, connection_id, sql_query, name')
       .eq('id', dataset_id)
-      .eq('org_id', org_id)
       .single();
 
     if (datasetFromDatasets) {
       dataset = datasetFromDatasets;
+      console.log('Found dataset in datasets table:', dataset);
     } else {
+      console.log('Dataset not found in datasets table, searching saved_queries');
       // Se não encontrar em datasets, buscar em saved_queries
       const { data: datasetFromQueries, error: datasetError2 } = await supabase
         .from('saved_queries')
         .select('id, org_id, workspace_id, connection_id, sql_query, name')
         .eq('id', dataset_id)
-        .eq('org_id', org_id)
         .single();
 
       if (datasetFromQueries) {
         dataset = datasetFromQueries;
+        console.log('Found dataset in saved_queries table:', dataset);
       }
     }
 
     if (!dataset) {
       console.error('Dataset not found in both datasets and saved_queries tables');
+      return successResponse({
+        error_code: 'DATASET_NOT_FOUND',
+        message: 'Dataset não encontrado',
+        elapsed_ms: Date.now() - startTime
+      });
+    }
+
+    // Verificar se o usuário tem acesso ao dataset (org_id deve bater)
+    if (dataset.org_id !== org_id) {
+      console.error('Dataset org mismatch:', { dataset_org_id: dataset.org_id, requested_org_id: org_id });
       return successResponse({
         error_code: 'DATASET_NOT_FOUND',
         message: 'Dataset não encontrado ou sem acesso',
